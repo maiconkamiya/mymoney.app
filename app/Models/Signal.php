@@ -90,4 +90,19 @@ class Signal extends Model
             'decision_reason' => $reason ?? $this->decision_reason,
         ])->save();
     }
+
+    /**
+     * Whether an approved signal waited for a decision longer than allowed.
+     */
+    public function isExpired(): bool
+    {
+        return $this->stage === SignalStage::Approved
+            && $this->updated_at !== null
+            && $this->updated_at->addMinutes(config('trading.signal_ttl_minutes'))->isPast();
+    }
+
+    public function expire(): void
+    {
+        $this->moveTo(SignalStage::Rejected, 'Expirado sem confirmação em '.config('trading.signal_ttl_minutes').' min.');
+    }
 }

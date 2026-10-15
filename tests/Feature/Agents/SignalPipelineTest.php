@@ -129,4 +129,27 @@ class SignalPipelineTest extends TestCase
         $this->assertSame([], app(SignalScanner::class)->scan($asset));
         $this->assertSame([], $fake->calls);
     }
+
+    public function test_scanner_expires_approved_signals_nobody_confirmed()
+    {
+        $this->agentsVote('buy', 0.8);
+        $signal = $this->scan();
+        $this->assertSame(SignalStage::Approved, $signal->stage);
+
+        $this->travel(config('trading.signal_ttl_minutes') + 1)->minutes();
+        $this->quote($signal->asset, 100);
+
+        $this->assertCount(1, app(SignalScanner::class)->scan($signal->asset));
+        $this->assertSame(SignalStage::Rejected, $signal->fresh()->stage);
+        $this->assertStringContainsString('Expirado', $signal->fresh()->decision_reason);
+    }
+
+    public function test_approved_sell_without_an_open_position_is_rejected_at_analysis()
+    {
+        $this->agentsVote('sell', 0.8);
+        $signal = $this->scan();
+
+        $this->assertSame(SignalStage::Rejected, $signal->stage);
+        $this->assertStringContainsString('não há posição aberta', $signal->decision_reason);
+    }
 }

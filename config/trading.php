@@ -113,6 +113,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Signal expiry
+    |--------------------------------------------------------------------------
+    |
+    | An approved signal that nobody confirmed within this many minutes is
+    | discarded: its stop, target and price no longer describe the market.
+    |
+    */
+
+    'signal_ttl_minutes' => (int) env('TRADING_SIGNAL_TTL_MINUTES', 60),
+
+    /*
+    |--------------------------------------------------------------------------
     | Real-money execution (phase 5)
     |--------------------------------------------------------------------------
     |
