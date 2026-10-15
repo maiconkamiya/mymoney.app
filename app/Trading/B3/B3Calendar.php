@@ -20,6 +20,16 @@ class B3Calendar
         return ! $day->isWeekend() && $this->holidayName($day) === null;
     }
 
+    /**
+     * Quarta-feira de Cinzas: the B3 reopens after Carnival and trades only from the afternoon.
+     */
+    public function isAshWednesday(CarbonInterface $day): bool
+    {
+        $easter = $this->easter($day->year);
+
+        return $day->format('Y-m-d') === $easter->copy()->subDays(46)->format('Y-m-d');
+    }
+
     public function holidayName(CarbonInterface $day): ?string
     {
         return $this->holidays($day->year)[$day->format('Y-m-d')] ?? null;

@@ -4,11 +4,15 @@ namespace Tests\Feature\News;
 
 use App\Agents\Llm\FakeLlmClient;
 use App\Agents\Llm\LlmClient;
+use App\Jobs\FetchNewsJob;
+use App\Jobs\TriageNewsJob;
 use App\Models\Asset;
 use App\Models\NewsItem;
 use App\News\NewsIngestor;
 use App\News\NewsTriage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class NewsPipelineTest extends TestCase
@@ -25,6 +29,31 @@ class NewsPipelineTest extends TestCase
         $this->assertCount(1, $first);
         $this->assertCount(0, $second);
         $this->assertSame(1, NewsItem::count());
+    }
+
+    public function test_relevant_facts_feed_is_stored_under_its_own_source_label()
+    {
+        config(['news.sources.fatos-relevantes.url' => 'https://feeds.test/fatos.xml']);
+        Http::fake(['feeds.test/*' => Http::response('<?xml version="1.0"?><rss><channel><item><title>Petrobras: Fato Relevante</title><link>https://feeds.test/fr/1</link><description><![CDATA[<p>Novo dividendo.</p>]]></description><pubDate>Thu, 15 Oct 2026 12:00:00 GMT</pubDate></item></channel></rss>')]);
+        Queue::fake([TriageNewsJob::class]);
+
+        (new FetchNewsJob('fatos-relevantes'))->handle(app(NewsIngestor::class));
+
+        $item = NewsItem::firstOrFail();
+        $this->assertSame('fatos-relevantes', $item->source);
+        $this->assertSame('Novo dividendo.', $item->body);
+        Queue::assertPushed(TriageNewsJob::class);
+    }
+
+    public function test_relevant_facts_source_is_off_without_a_feed_url()
+    {
+        config(['news.sources.fatos-relevantes.url' => null]);
+        Http::fake();
+
+        (new FetchNewsJob('fatos-relevantes'))->handle(app(NewsIngestor::class));
+
+        Http::assertNothingSent();
+        $this->assertSame(0, NewsItem::count());
     }
 
     public function test_triage_attaches_known_assets_and_runs_deep_analysis_when_relevant()

@@ -22,7 +22,7 @@ class SyncB3Market extends Command
         $assets = Asset::query()->where('market', Market::B3)->where('active', true)->get();
 
         if ($this->option('fundamentals')) {
-            foreach ($assets as $asset) {
+            foreach ($assets->where('is_benchmark', false) as $asset) {
                 if (! $fundamentals->refresh($asset)) {
                     $this->error("{$asset->symbol}: falha ao buscar fundamentos.");
                 }
@@ -36,8 +36,14 @@ class SyncB3Market extends Command
         }
 
         foreach ($assets as $asset) {
+            if ($asset->is_benchmark && ! $brapi->hasToken()) {
+                $this->warn("{$asset->symbol}: defina BRAPI_TOKEN no .env para buscar o índice de referência; o relatório de desempenho fica sem benchmark até lá.");
+
+                continue;
+            }
+
             try {
-                foreach ($brapi->candles($asset->symbol) as $candle) {
+                foreach ($brapi->candles($brapi->tickerFor($asset->symbol)) as $candle) {
                     $aggregator->upsertKline($asset, $candle);
                 }
             } catch (Throwable $e) {
