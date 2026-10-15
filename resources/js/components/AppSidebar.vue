@@ -33,13 +33,13 @@ const mainNavItems: NavItem[] = [
 
 const footerNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        href: 'https://github.com/laravel/vue-starter-kit',
+        title: 'Repositório',
+        href: 'https://github.com/maiconkamiya/mymoney.app',
         icon: FolderGit2,
     },
     {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#vue',
+        title: 'Documentação',
+        href: 'https://github.com/maiconkamiya/mymoney.app#readme',
         icon: BookOpen,
     },
 ];
