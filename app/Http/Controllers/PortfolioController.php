@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
 use App\Http\Requests\StorePortfolioRequest;
+use App\Models\AgentScore;
 use App\Models\AgentVote;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Models\RiskProfile;
 use App\Models\Signal;
+use App\Reports\PerformanceReport;
+use App\Reports\TaxReport;
 use App\Trading\PortfolioValuation;
 use App\Trading\TradingHalt;
 use Illuminate\Http\RedirectResponse;
@@ -60,7 +63,7 @@ class PortfolioController extends Controller
         return to_route('portfolios.show', $portfolio);
     }
 
-    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation): Response
+    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
@@ -113,6 +116,15 @@ class PortfolioController extends Controller
                 'stop_price' => $position->stop_price,
             ]),
             'signals' => $signals,
+            'performance' => $performance->build($portfolio),
+            'agent_scores' => AgentScore::query()->where('market', $portfolio->market)->orderByDesc('hit_rate')->get()->map(fn (AgentScore $score) => [
+                'agent' => $score->agent->value,
+                'signals' => $score->signals,
+                'hits' => $score->hits,
+                'hit_rate' => $score->hit_rate,
+                'weight' => $score->weight,
+            ]),
+            'tax_months' => $tax->months($portfolio),
         ]);
     }
 }
