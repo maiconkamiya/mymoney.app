@@ -13,6 +13,7 @@ final readonly class Scenario
      * @param  list<array<string, mixed>>  $news
      * @param  array<string, mixed>|null  $position
      * @param  array<string, mixed>|null  $forecast
+     * @param  array<string, mixed>|null  $fundamentals
      */
     public function __construct(
         public string $symbol,
@@ -25,6 +26,7 @@ final readonly class Scenario
         public float $cash,
         public float $equity,
         public ?array $forecast = null,
+        public ?array $fundamentals = null,
     ) {}
 
     /**
