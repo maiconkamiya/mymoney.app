@@ -8,6 +8,7 @@ use App\Agents\Llm\FakeLlmClient;
 use App\Agents\Llm\LlmClient;
 use App\Trading\CandlePriceFeed;
 use App\Trading\Contracts\PriceFeed;
+use App\Trading\Gateways\OrderGateway;
 use App\Trading\TradingHalt;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -24,6 +25,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(PriceFeed::class, CandlePriceFeed::class);
         $this->app->singleton(TradingHalt::class);
+        $this->app->bind(OrderGateway::class, fn () => app(config('trading.b3_gateway')));
 
         $this->app->singleton(LlmClient::class, fn (): LlmClient => match (config('agents.driver')) {
             'anthropic' => new AnthropicLlmClient(new Client(
