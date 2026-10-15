@@ -40,6 +40,10 @@ class MarketHours
 
         $time = $local->format('H:i');
 
+        if ($this->calendar->isAshWednesday($local)) {
+            $session = array_merge($session, config('trading.b3_ash_wednesday_session'));
+        }
+
         return match (true) {
             $time >= $session['opening_auction_at'] && $time < $session['opens_at'] => MarketPhase::OpeningAuction,
             $time >= $session['opens_at'] && $time < $session['closes_at'] => MarketPhase::Continuous,

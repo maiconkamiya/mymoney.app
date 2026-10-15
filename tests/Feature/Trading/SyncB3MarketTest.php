@@ -30,6 +30,43 @@ class SyncB3MarketTest extends TestCase
         $this->assertEquals(38.1, (float) Candle::first()->close);
     }
 
+    public function test_benchmark_candles_come_from_the_index_ticker()
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 11:00', 'America/Sao_Paulo'));
+        config(['trading.b3_data.token' => 'segredo-de-teste']);
+        $ibov = Asset::factory()->benchmark()->create();
+        Http::fake(['brapi.dev/*' => Http::response(['results' => [['historicalDataPrice' => [
+            ['date' => 1792072800, 'open' => 130000, 'high' => 130500, 'low' => 129800, 'close' => 130200, 'volume' => 0],
+        ]]]])]);
+
+        $this->artisan('market:sync-b3')->assertSuccessful();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/api/quote/%5EBVSP'));
+        $this->assertEquals(130200, (float) Candle::where('asset_id', $ibov->id)->firstOrFail()->close);
+    }
+
+    public function test_benchmark_without_token_warns_and_makes_no_request()
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 11:00', 'America/Sao_Paulo'));
+        config(['trading.b3_data.token' => null]);
+        Asset::factory()->benchmark()->create();
+        Http::fake();
+
+        $this->artisan('market:sync-b3')
+            ->expectsOutputToContain('IBOV: defina BRAPI_TOKEN')
+            ->assertSuccessful();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_benchmark_is_never_scanned_for_signals()
+    {
+        Asset::factory()->benchmark()->create();
+
+        $this->artisan('signals:scan')->expectsOutput('0 sinais abertos.')->assertSuccessful();
+        $this->assertDatabaseHas('assets', ['symbol' => 'IBOV', 'is_benchmark' => true]);
+    }
+
     public function test_nothing_is_fetched_when_the_market_is_closed()
     {
         Carbon::setTestNow(Carbon::parse('2026-10-17 11:00', 'America/Sao_Paulo')); // Saturday

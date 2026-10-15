@@ -77,3 +77,13 @@ export type TaxMonth = {
     fees: number;
     result: number;
 };
+
+export type PendingSignal = {
+    id: number;
+    portfolio_id: number;
+    portfolio: string;
+    symbol: string;
+    side: 'buy' | 'sell' | null;
+    score: number | null;
+    created_at: string;
+};

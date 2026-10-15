@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Reports\AgentScoreboard;
 use App\Reports\PerformanceReport;
 use App\Reports\TaxReport;
+use Database\Seeders\MarketSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Concerns\BuildsMarket;
@@ -44,6 +45,21 @@ class ReportsTest extends TestCase
         $this->assertEquals(10_000, $snapshot->equity);
         $this->assertEquals(1_000, $snapshot->exposure);
         $this->assertEqualsWithDelta(0.16667, $snapshot->drawdown, 1e-5);
+    }
+
+    public function test_b3_portfolio_compares_with_the_seeded_ibov_benchmark()
+    {
+        $this->seed(MarketSeeder::class);
+        $ibov = Asset::where('symbol', 'IBOV')->firstOrFail();
+        $this->quote($ibov, 100_000, now()->subDays(2));
+        $this->quote($ibov, 105_000, now()->subHours(2));
+        $portfolio = Portfolio::factory()->create(['market' => Market::B3, 'created_at' => now()->subDays(2)]);
+        PortfolioSnapshot::create(['portfolio_id' => $portfolio->id, 'taken_at' => now()->subHour(), 'equity' => 10_000, 'cash' => 10_000, 'exposure' => 0]);
+
+        $report = app(PerformanceReport::class)->build($portfolio);
+
+        $this->assertSame('IBOV', $report['benchmark']);
+        $this->assertEqualsWithDelta(0.05, $report['benchmark_return'], 1e-9);
     }
 
     public function test_performance_report_compares_with_the_benchmark()

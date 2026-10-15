@@ -13,6 +13,19 @@ use Illuminate\Support\Facades\Http;
  */
 class BrapiB3
 {
+    public function hasToken(): bool
+    {
+        return filled(config('trading.b3_data.token'));
+    }
+
+    /**
+     * Ticker brapi.dev uses for one of our symbols (indices differ, e.g. IBOV is ^BVSP).
+     */
+    public function tickerFor(string $symbol): string
+    {
+        return config('trading.b3_data.benchmark_tickers.'.$symbol, $symbol);
+    }
+
     /**
      * @return list<array{open_at: Carbon, open: float, high: float, low: float, close: float, volume: float}>
      */
