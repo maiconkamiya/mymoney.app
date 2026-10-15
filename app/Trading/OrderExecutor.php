@@ -8,6 +8,7 @@ use App\Enums\SignalStage;
 use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Portfolio;
+use App\Models\Position;
 use App\Models\Signal;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
@@ -31,7 +32,6 @@ class OrderExecutor
 
     public function execute(Signal $signal, string $actor): ?Order
     {
-        $portfolio = $signal->portfolio;
         $request = $this->buildRequest($signal);
 
         if ($request === null) {
@@ -40,27 +40,75 @@ class OrderExecutor
             return null;
         }
 
-        if ($portfolio->isLive() && ! $this->approvedByPerson($signal)) {
+        if ($signal->portfolio->isLive() && ! $this->approvedByPerson($signal)) {
             $signal->moveTo(SignalStage::Rejected, 'Ordem real exige aprovação manual explícita.');
             AuditLog::record($actor, 'order.blocked', $signal, ['reasons' => ['Sem aprovação manual.']]);
 
             return null;
         }
 
+        $outcome = $this->submit($signal->portfolio, $request, $signal, $actor, null);
+
+        if (is_string($outcome)) {
+            $signal->moveTo(SignalStage::Rejected, $outcome);
+
+            return null;
+        }
+
+        if (in_array($outcome->status, [OrderStatus::Filled, OrderStatus::PartiallyFilled], true)) {
+            $signal->moveTo(SignalStage::Executed);
+        } else {
+            $signal->moveTo(SignalStage::Rejected, 'Corretora recusou: '.$outcome->reject_reason);
+        }
+
+        return $outcome;
+    }
+
+    /**
+     * Sell the whole open position at market ("stop", "target", "period_end"...).
+     * Exits only reduce risk, so they need no fresh approval, but on real portfolios
+     * they still pass the live switch, the halt and the credential checks.
+     * The sell goes through the same risk guard and broker as any other order.
+     */
+    public function closePosition(Position $position, string $reason, string $actor): ?Order
+    {
+        $request = new OrderRequest(
+            asset: $position->asset,
+            side: OrderSide::Sell,
+            qty: $position->qty,
+            clientId: 'position-'.$position->id.'-'.$reason,
+        );
+
+        $outcome = $this->submit($position->portfolio, $request, $position->signal, $actor, $reason);
+
+        if (is_string($outcome)) {
+            AuditLog::record($actor, 'position.close_blocked', $position, ['reason' => $reason, 'detail' => $outcome]);
+
+            return null;
+        }
+
+        return $outcome;
+    }
+
+    /**
+     * Risk-check, send and book one order. Returns the order (filled or
+     * rejected by the broker) or the reason the risk guard blocked it.
+     */
+    private function submit(Portfolio $portfolio, OrderRequest $request, ?Signal $signal, string $actor, ?string $reason): Order|string
+    {
         $decision = $this->risk->check($portfolio, $request);
 
         if (! $decision->allowed) {
-            $signal->moveTo(SignalStage::Rejected, 'Guarda de risco: '.$decision->summary());
             AuditLog::record($actor, 'order.blocked', $signal, ['reasons' => $decision->reasons]);
 
-            return null;
+            return 'Guarda de risco: '.$decision->summary();
         }
 
         $request = $decision->order;
 
         $order = Order::create([
             'portfolio_id' => $portfolio->id,
-            'signal_id' => $signal->id,
+            'signal_id' => $signal?->id,
             'asset_id' => $request->asset->id,
             'broker' => $portfolio->broker,
             'side' => $request->side,
@@ -70,6 +118,7 @@ class OrderExecutor
             'price' => $request->limitPrice ?? ($portfolio->isLive() ? $this->prices->quote($request->asset)?->price : null),
             'stop_price' => $request->stopPrice,
             'status' => OrderStatus::Pending,
+            'reason' => $reason,
         ]);
 
         try {
@@ -78,7 +127,7 @@ class OrderExecutor
             $result = OrderResult::rejected($e->getMessage());
         }
 
-        DB::transaction(function () use ($order, $result, $signal, $portfolio, $request) {
+        DB::transaction(function () use ($order, $result, $signal, $portfolio, $request, $reason) {
             $order->update([
                 'external_id' => $result->externalId,
                 'status' => $result->status,
@@ -89,8 +138,6 @@ class OrderExecutor
             ]);
 
             if (! $result->isFilled()) {
-                $signal->moveTo(SignalStage::Rejected, 'Corretora recusou: '.$result->rejectReason);
-
                 return;
             }
 
@@ -101,11 +148,10 @@ class OrderExecutor
                 'executed_at' => $result->filledAt ?? now(),
             ]);
 
-            $this->book($portfolio, $request, $result);
-            $signal->moveTo(SignalStage::Executed);
+            $this->book($portfolio, $request, $result, $signal, $reason);
         });
 
-        AuditLog::record($actor, 'order.'.$order->status->value, $order, ['decision' => $decision->reasons]);
+        AuditLog::record($actor, 'order.'.$order->status->value, $order, ['decision' => $decision->reasons, 'reason' => $reason]);
 
         return $order->refresh();
     }
@@ -137,7 +183,7 @@ class OrderExecutor
         );
     }
 
-    private function book(Portfolio $portfolio, OrderRequest $request, OrderResult $result): void
+    private function book(Portfolio $portfolio, OrderRequest $request, OrderResult $result, ?Signal $signal, ?string $reason): void
     {
         $value = $result->filledQty * $result->avgPrice;
 
@@ -151,7 +197,9 @@ class OrderExecutor
                     'asset_id' => $request->asset->id,
                     'qty' => $result->filledQty,
                     'avg_price' => $result->avgPrice,
+                    'signal_id' => $signal?->id,
                     'stop_price' => $request->stopPrice,
+                    'target_price' => $signal?->target_price,
                     'opened_at' => $result->filledAt ?? now(),
                 ]);
 
@@ -163,6 +211,7 @@ class OrderExecutor
                 'avg_price' => ($position->qty * $position->avg_price + $value) / $qty,
                 'qty' => $qty,
                 'stop_price' => $request->stopPrice ?? $position->stop_price,
+                'target_price' => $signal->target_price ?? $position->target_price,
             ]);
 
             return;
@@ -175,6 +224,11 @@ class OrderExecutor
             'qty' => $remaining,
             'realized_pnl' => $position->realized_pnl + ($result->avgPrice - $position->avg_price) * $result->filledQty - $result->fees,
             'closed_at' => $remaining <= 0 ? ($result->filledAt ?? now()) : null,
+            'exit_reason' => $remaining <= 0 ? ($reason ?? 'signal') : null,
         ]);
+
+        if ($remaining <= 0 && $position->signal_id !== null) {
+            $position->signal?->moveTo(SignalStage::Closed, $reason !== null ? 'Posição encerrada: '.$reason.'.' : null);
+        }
     }
 }

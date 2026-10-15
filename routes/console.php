@@ -10,9 +10,13 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('market:sync-binance')->everyMinute()->withoutOverlapping();
+Schedule::command('positions:check-exits')->everyMinute()->withoutOverlapping();
 Schedule::command('signals:scan')->everyFifteenMinutes()->withoutOverlapping();
 Schedule::command('trading:reconcile')->everyFiveMinutes()->withoutOverlapping();
 
 foreach (array_filter(array_keys(config('news.sources')), is_string(...)) as $source) {
     Schedule::job(new FetchNewsJob($source))->everyFiveMinutes();
 }
+
+Schedule::command('portfolios:snapshot')->dailyAt('23:55')->withoutOverlapping();
+Schedule::command('agents:score')->dailyAt('00:10')->withoutOverlapping();
