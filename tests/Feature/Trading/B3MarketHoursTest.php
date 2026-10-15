@@ -64,6 +64,23 @@ class B3MarketHoursTest extends TestCase
         $this->assertTrue($hours->isOpen(Market::Crypto, $this->at('2026-12-25 03:00')));
     }
 
+    public function test_ash_wednesday_session_opens_at_1pm()
+    {
+        $hours = app(MarketHours::class); // Easter 2026 is 5 April, so Ash Wednesday is 18 February
+
+        $this->assertSame(MarketPhase::Closed, $hours->phase(Market::B3, $this->at('2026-02-18 10:30')));
+        $this->assertSame(MarketPhase::Closed, $hours->phase(Market::B3, $this->at('2026-02-18 12:30')));
+        $this->assertSame(MarketPhase::OpeningAuction, $hours->phase(Market::B3, $this->at('2026-02-18 12:50')));
+        $this->assertSame(MarketPhase::Continuous, $hours->phase(Market::B3, $this->at('2026-02-18 13:00')));
+        $this->assertSame(MarketPhase::ClosingCall, $hours->phase(Market::B3, $this->at('2026-02-18 16:57')));
+        $this->assertSame(MarketPhase::Closed, $hours->phase(Market::B3, $this->at('2026-02-18 17:00')));
+    }
+
+    public function test_the_day_after_ash_wednesday_has_the_normal_session()
+    {
+        $this->assertTrue(app(MarketHours::class)->isOpen(Market::B3, $this->at('2026-02-19 10:00')));
+    }
+
     public function test_extra_holidays_come_from_configuration()
     {
         config(['trading.b3_extra_holidays' => ['2026-10-13']]);

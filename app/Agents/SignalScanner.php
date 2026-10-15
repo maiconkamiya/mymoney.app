@@ -8,18 +8,37 @@ use App\Jobs\AnalyzeSignalJob;
 use App\Models\Asset;
 use App\Models\Portfolio;
 use App\Models\Signal;
+use App\Trading\Contracts\PriceFeed;
+use App\Trading\MarketHours;
 
 /**
  * Opens a "scanned" signal for every running portfolio that trades the asset,
- * unless one is already in flight.
+ * unless one is already in flight. Assets that cannot be traded right now
+ * (market closed, or no fresh quote) are skipped so no agent call is spent
+ * on an order the broker or the risk guard would refuse anyway.
  */
 class SignalScanner
 {
+    public function __construct(
+        private readonly MarketHours $hours,
+        private readonly PriceFeed $prices,
+    ) {}
+
     /**
      * @return list<Signal>
      */
     public function scan(Asset $asset): array
     {
+        Signal::query()
+            ->where('asset_id', $asset->id)
+            ->where('stage', SignalStage::Approved)
+            ->get()
+            ->each(fn (Signal $signal) => $signal->isExpired() && $signal->expire());
+
+        if (! $this->tradable($asset)) {
+            return [];
+        }
+
         $signals = [];
 
         $portfolios = Portfolio::query()
@@ -50,5 +69,16 @@ class SignalScanner
         }
 
         return $signals;
+    }
+
+    private function tradable(Asset $asset): bool
+    {
+        if (! $this->hours->isOpen($asset->market)) {
+            return false;
+        }
+
+        $quote = $this->prices->quote($asset);
+
+        return $quote !== null && $quote->ageInSeconds() <= config('trading.max_price_age_seconds.'.$asset->market->value);
     }
 }

@@ -61,6 +61,16 @@ return [
     ],
 
     /*
+    | Quarta-feira de Cinzas: the session opens at 13h (auction from 12:45) and
+    | closes as usual. Overrides the matching keys of `b3_session` on that day.
+    */
+
+    'b3_ash_wednesday_session' => [
+        'opening_auction_at' => '12:45',
+        'opens_at' => '13:00',
+    ],
+
+    /*
     | Extra closings beyond the national calendar (Y-m-d), for example a
     | day the exchange announces it will not trade.
     */
@@ -76,6 +86,8 @@ return [
         'token' => env('BRAPI_TOKEN'),
         'interval' => env('B3_CANDLE_INTERVAL', '1m'),
         'range' => env('B3_CANDLE_RANGE', '1d'),
+        // brapi.dev serves the Ibovespa index under its Yahoo-style ticker.
+        'benchmark_tickers' => ['IBOV' => '^BVSP'],
     ],
 
     /*
@@ -98,6 +110,18 @@ return [
         'crypto' => 30,
         'b3' => 900,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Signal expiry
+    |--------------------------------------------------------------------------
+    |
+    | An approved signal that nobody confirmed within this many minutes is
+    | discarded: its stop, target and price no longer describe the market.
+    |
+    */
+
+    'signal_ttl_minutes' => (int) env('TRADING_SIGNAL_TTL_MINUTES', 60),
 
     /*
     |--------------------------------------------------------------------------

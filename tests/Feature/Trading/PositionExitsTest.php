@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PortfolioStatus;
 use App\Enums\SignalStage;
 use App\Models\Asset;
+use App\Models\AuditLog;
 use App\Models\Portfolio;
 use App\Models\Signal;
 use App\Trading\OrderExecutor;
@@ -62,6 +63,26 @@ class PositionExitsTest extends TestCase
 
         $this->assertSame(0, app(PositionExits::class)->checkStopsAndTargets());
         $this->assertCount(1, $portfolio->openPositions);
+    }
+
+    public function test_a_blocked_exit_is_logged_once_per_hour_not_once_per_minute()
+    {
+        [, $asset] = $this->openPosition();
+        $this->quote($asset, 94, now()->addMinute());
+        Carbon::setTestNow(now()->addMinute());
+        app(TradingHalt::class)->halt('teste');
+
+        foreach (range(1, 3) as $_) {
+            $this->assertSame(0, app(PositionExits::class)->checkStopsAndTargets());
+        }
+
+        $this->assertSame(1, AuditLog::where('action', 'position.close_blocked')->count());
+
+        Carbon::setTestNow(now()->addHour()->addMinute());
+        $this->quote($asset, 94, now());
+        app(PositionExits::class)->checkStopsAndTargets();
+
+        $this->assertSame(2, AuditLog::where('action', 'position.close_blocked')->count());
     }
 
     public function test_stop_sells_the_position_and_closes_the_signal()

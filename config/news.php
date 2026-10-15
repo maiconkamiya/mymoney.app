@@ -14,6 +14,10 @@ return [
 
     'sources' => [
         'coindesk' => ['driver' => 'rss', 'url' => 'https://www.coindesk.com/arc/outboundfeeds/rss/', 'market' => 'crypto'],
+        // Fatos relevantes (comunicados oficiais das companhias). O nome da fonte é a etiqueta gravada
+        // em cada notícia. Aponte FATOS_RELEVANTES_RSS_URL para o feed RSS da CVM ou da B3 e confirme
+        // os termos de uso; sem a URL a fonte fica desligada.
+        'fatos-relevantes' => ['driver' => 'rss', 'url' => env('FATOS_RELEVANTES_RSS_URL'), 'market' => 'b3'],
         'infomoney' => ['driver' => 'rss', 'url' => 'https://www.infomoney.com.br/feed/', 'market' => 'b3'],
     ],
 

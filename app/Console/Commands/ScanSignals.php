@@ -16,7 +16,7 @@ class ScanSignals extends Command
     {
         $symbol = $this->argument('symbol');
 
-        $query = Asset::query()->where('active', true);
+        $query = Asset::query()->where('active', true)->where('is_benchmark', false);
 
         if (is_string($symbol)) {
             $query->where('symbol', strtoupper($symbol));

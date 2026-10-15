@@ -5,10 +5,12 @@ namespace Tests\Feature\Agents;
 use App\Agents\Llm\FakeLlmClient;
 use App\Agents\Llm\LlmClient;
 use App\Agents\SignalScanner;
+use App\Enums\Market;
 use App\Enums\SignalStage;
 use App\Models\Asset;
 use App\Models\Portfolio;
 use App\Models\Signal;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\BuildsMarket;
 use Tests\TestCase;
@@ -100,5 +102,54 @@ class SignalPipelineTest extends TestCase
         $signal = $this->scan();
 
         $this->assertSame([], app(SignalScanner::class)->scan($signal->asset));
+    }
+
+    public function test_scanner_skips_assets_without_a_fresh_quote()
+    {
+        $fake = $this->agentsVote('buy', 0.8);
+        $asset = Asset::factory()->create();
+        Portfolio::factory()->create(['market' => $asset->market]);
+
+        $this->assertSame([], app(SignalScanner::class)->scan($asset));
+
+        $this->quote($asset, 100, now()->subHours(3));
+        $this->assertSame([], app(SignalScanner::class)->scan($asset));
+        $this->assertSame([], $fake->calls);
+        $this->assertSame(0, Signal::count());
+    }
+
+    public function test_scanner_skips_b3_assets_while_the_session_is_closed()
+    {
+        $fake = $this->agentsVote('buy', 0.8);
+        $this->travelTo(CarbonImmutable::parse('2026-10-17 15:00:00', 'UTC')); // sábado
+        $asset = Asset::factory()->create(['market' => Market::B3, 'symbol' => 'PETR4', 'lot_size' => 100]);
+        $this->quote($asset, 38);
+        Portfolio::factory()->create(['market' => Market::B3]);
+
+        $this->assertSame([], app(SignalScanner::class)->scan($asset));
+        $this->assertSame([], $fake->calls);
+    }
+
+    public function test_scanner_expires_approved_signals_nobody_confirmed()
+    {
+        $this->agentsVote('buy', 0.8);
+        $signal = $this->scan();
+        $this->assertSame(SignalStage::Approved, $signal->stage);
+
+        $this->travel(config('trading.signal_ttl_minutes') + 1)->minutes();
+        $this->quote($signal->asset, 100);
+
+        $this->assertCount(1, app(SignalScanner::class)->scan($signal->asset));
+        $this->assertSame(SignalStage::Rejected, $signal->fresh()->stage);
+        $this->assertStringContainsString('Expirado', $signal->fresh()->decision_reason);
+    }
+
+    public function test_approved_sell_without_an_open_position_is_rejected_at_analysis()
+    {
+        $this->agentsVote('sell', 0.8);
+        $signal = $this->scan();
+
+        $this->assertSame(SignalStage::Rejected, $signal->stage);
+        $this->assertStringContainsString('não há posição aberta', $signal->decision_reason);
     }
 }
