@@ -17,6 +17,11 @@ interface Broker
     public function cancelOrder(string $externalId): void;
 
     /**
+     * Current state of a previously sent order, for reconciliation.
+     */
+    public function getOrder(string $externalId): OrderResult;
+
+    /**
      * Free balance per currency as reported by the broker.
      *
      * @return array<string, float>

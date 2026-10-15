@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property float|null $price
  * @property float|null $stop_price
  * @property OrderStatus $status
+ * @property string|null $reason
  * @property float $fees
  * @property string|null $reject_reason
  * @property CarbonImmutable|null $filled_at
@@ -35,7 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Asset $asset
  * @property-read Collection<int, Fill> $fills
  */
-#[Fillable(['portfolio_id', 'signal_id', 'asset_id', 'broker', 'external_id', 'side', 'type', 'qty', 'price', 'stop_price', 'status', 'fees', 'reject_reason', 'filled_at'])]
+#[Fillable(['portfolio_id', 'signal_id', 'asset_id', 'broker', 'external_id', 'side', 'type', 'qty', 'price', 'stop_price', 'status', 'reason', 'fees', 'reject_reason', 'filled_at'])]
 class Order extends Model
 {
     /**

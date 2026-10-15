@@ -11,6 +11,7 @@ Painel em Laravel 13 + Inertia + Vue onde um grupo de agentes de IA analisa, des
 5. O consenso aprova quando o score ponderado passa do limite, pelo menos 4 votantes concordam e o agente de risco não vetou.
 6. Por padrão você confirma ou descarta o sinal no painel. A guarda de risco, escrita em código e sem LLM, ainda pode reduzir ou bloquear a ordem.
 7. A ordem vai para o `Broker` da carteira. Simulação e operação real seguem o mesmo caminho; só o broker muda.
+8. A posição guarda o sinal de origem, o stop e o alvo. `positions:check-exits` vende tudo quando o preço cruza um dos dois e, ao fim do período, liquida as posições e marca a carteira como finalizada (com um último snapshot). Cada ordem de saída grava o motivo (`stop`, `target`, `period_end`).
 
 ## Rodando localmente
 
@@ -28,12 +29,13 @@ Sem chave de API os agentes usam `AGENTS_DRIVER=fake` e votam sempre "aguardar".
 
 Comandos úteis:
 
-| Comando                             | O que faz                       |
-| ----------------------------------- | ------------------------------- |
-| `php artisan signals:scan BTCUSDT`  | Abre sinais para um ativo agora |
-| `php artisan trading:halt "motivo"` | Parada geral: nenhuma ordem sai |
-| `php artisan trading:halt --resume` | Retoma a negociação             |
-| `php artisan test`                  | Roda os testes                  |
+| Comando                             | O que faz                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `php artisan signals:scan BTCUSDT`  | Abre sinais para um ativo agora                                                            |
+| `php artisan trading:halt "motivo"` | Parada geral: nenhuma ordem sai                                                            |
+| `php artisan trading:halt --resume` | Retoma a negociação                                                                        |
+| `php artisan positions:check-exits` | Vende posições que bateram stop ou alvo e finaliza carteiras vencidas (roda a cada minuto) |
+| `php artisan test`                  | Roda os testes                                                                             |
 
 ## Onde está cada parte
 

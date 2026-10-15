@@ -6,6 +6,7 @@ use App\Enums\Market;
 use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
+use App\Trading\B3\B3Rules;
 use App\Trading\Contracts\Broker;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
@@ -22,6 +23,7 @@ class PaperBroker implements Broker
     public function __construct(
         private readonly PriceFeed $prices,
         private readonly MarketHours $hours,
+        private readonly B3Rules $b3 = new B3Rules,
     ) {}
 
     public function placeOrder(OrderRequest $order): OrderResult
@@ -29,7 +31,9 @@ class PaperBroker implements Broker
         $asset = $order->asset;
 
         if (! $this->hours->isOpen($asset->market)) {
-            return OrderResult::rejected('Mercado fechado.');
+            return OrderResult::rejected(
+                $this->hours->phase($asset->market)->isAuction() ? 'Mercado em leilão.' : 'Mercado fechado.',
+            );
         }
 
         $quote = $this->prices->quote($asset);
@@ -38,7 +42,9 @@ class PaperBroker implements Broker
             return OrderResult::rejected('Sem cotação para '.$asset->symbol.'.');
         }
 
-        $qty = $this->roundToLot($order->qty, (float) $asset->lot_size);
+        $qty = $asset->market === Market::B3
+            ? $this->b3->normalizeQuantity($asset, $order->qty)
+            : $this->roundToLot($order->qty, (float) $asset->lot_size);
 
         if ($qty <= 0) {
             return OrderResult::rejected('Quantidade abaixo do lote mínimo.');
@@ -72,6 +78,11 @@ class PaperBroker implements Broker
     public function cancelOrder(string $externalId): void
     {
         // Paper orders fill immediately; nothing stays open to cancel.
+    }
+
+    public function getOrder(string $externalId): OrderResult
+    {
+        return OrderResult::rejected('Ordens simuladas não têm estado externo.');
     }
 
     public function getBalances(): array

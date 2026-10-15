@@ -7,6 +7,7 @@ use App\Models\Portfolio;
 use App\Models\Position;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
+use App\Trading\Live\LiveLimits;
 use App\Trading\PortfolioValuation;
 use App\Trading\TradingHalt;
 
@@ -23,6 +24,7 @@ class RiskGuard
         private readonly TradingHalt $halt,
         private readonly PriceFeed $prices,
         private readonly PortfolioValuation $valuation,
+        private readonly LiveLimits $live,
     ) {}
 
     public function check(Portfolio $portfolio, OrderRequest $order): RiskDecision
@@ -32,6 +34,10 @@ class RiskGuard
 
         if ($this->halt->isHalted()) {
             return RiskDecision::block('Parada geral acionada.');
+        }
+
+        if ($portfolio->isLive() && ! $this->live->enabled()) {
+            return RiskDecision::block('Execução real desligada.');
         }
 
         if (! $portfolio->isRunning()) {
@@ -86,6 +92,11 @@ class RiskGuard
             'Limitada à exposição máxima no ativo.' => $profile->max_position_pct * $equity - ($position->qty ?? 0) * $price,
             'Limitada ao caixa disponível.' => $portfolio->cash / (1 + config('trading.costs.'.$asset->market->value.'.fee_rate')),
         ];
+
+        if ($portfolio->isLive()) {
+            $limits['Limitada ao valor máximo por ordem real.'] = $this->live->maxOrderValue();
+            $limits['Limitada ao limite diário real.'] = $this->live->remainingToday($portfolio);
+        }
 
         $qty = $order->qty;
 

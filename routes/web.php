@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\BrokerCredentialController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioReportController;
 use App\Http\Controllers\SignalDecisionController;
 use App\Http\Controllers\TradingHaltController;
 use Illuminate\Support\Facades\Route;
@@ -11,8 +13,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
 
     Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show']);
+    Route::get('portfolios/{portfolio}/reports/tax.csv', [PortfolioReportController::class, 'tax'])->name('portfolios.reports.tax');
     Route::post('signals/{signal}/confirm', [SignalDecisionController::class, 'confirm'])->name('signals.confirm');
     Route::post('signals/{signal}/reject', [SignalDecisionController::class, 'reject'])->name('signals.reject');
+    Route::post('broker-credentials', [BrokerCredentialController::class, 'store'])->name('broker-credentials.store');
     Route::post('trading/halt', [TradingHaltController::class, 'store'])->name('trading.halt');
     Route::delete('trading/halt', [TradingHaltController::class, 'destroy'])->name('trading.resume');
 });
