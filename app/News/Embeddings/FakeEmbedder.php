@@ -24,7 +24,7 @@ class FakeEmbedder implements Embedder
             $vector[crc32($word) % $this->dimensions] += 1.0;
         }
 
-        return self::normalize($vector);
+        return self::normalize(array_values($vector));
     }
 
     /**
