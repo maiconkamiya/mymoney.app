@@ -4,7 +4,7 @@ Painel em Laravel 13 + Inertia + Vue onde um grupo de agentes de IA analisa, des
 
 ## Como funciona
 
-1. O worker de mercado grava candles de 1 minuto (`market:sync-binance`, a cada minuto).
+1. O worker de mercado (`market:stream`) mantém um WebSocket aberto com a Binance, grava os candles de 1 minuto e os transmite ao painel pelo Laravel Reverb.
 2. O coletor busca notícias por RSS, remove duplicadas e classifica cada uma com um modelo rápido. As relevantes ganham uma análise com o modelo forte e disparam uma rodada de agentes.
 3. O scanner (`signals:scan`, a cada 15 minutos) abre um sinal para cada carteira em execução.
 4. Cinco agentes votam (técnico, notícias, fundamentos, quantitativo, risco). O cético lê os votos e publica uma objeção, e cada agente pode rever o voto uma vez.
@@ -22,7 +22,9 @@ cp .env.example .env
 php artisan key:generate
 php artisan migrate --seed    # usuário test@example.com / password, 3 criptos e 10 ações
 composer run dev              # servidor, fila e Vite
-php artisan schedule:work     # em outro terminal: candles, notícias e scanner
+php artisan schedule:work     # em outro terminal: notícias e scanner
+php artisan reverb:start      # em outro terminal: WebSocket do painel
+php artisan market:stream     # em outro terminal: candles ao vivo da Binance
 ```
 
 Sem chave de API os agentes usam `AGENTS_DRIVER=fake` e votam sempre "aguardar". Para usar Claude, defina `AGENTS_DRIVER=anthropic` e `ANTHROPIC_API_KEY`. Os modelos ficam em `AGENTS_FAST_MODEL` e `AGENTS_STRONG_MODEL`, e o custo de cada voto é gravado em `agent_votes.cost`.
@@ -31,6 +33,7 @@ Comandos úteis:
 
 | Comando                             | O que faz                                                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `php artisan market:stream`         | Candles ao vivo da Binance                                                                 |
 | `php artisan signals:scan BTCUSDT`  | Abre sinais para um ativo agora                                                            |
 | `php artisan trading:halt "motivo"` | Parada geral: nenhuma ordem sai                                                            |
 | `php artisan trading:halt --resume` | Retoma a negociação                                                                        |
@@ -44,7 +47,7 @@ Comandos úteis:
 | `app/Agents`                    | Agentes, cenário, rodada de desafio, consenso e clientes de LLM             |
 | `app/Trading`                   | Interface `Broker`, `PaperBroker`, guarda de risco, executor e parada geral |
 | `app/News`                      | Fontes RSS, deduplicação e triagem de notícias                              |
-| `app/MarketData`                | Candles e cotações da Binance                                               |
+| `app/MarketData`                | Candles e fluxo ao vivo da Binance                                          |
 | `config/agents.php`             | Prompts de cada papel, modelos e preços                                     |
 | `config/trading.php`            | Brokers, taxas, slippage e horário do pregão                                |
 | `resources/js/pages/portfolios` | Telas de carteiras e sinais                                                 |

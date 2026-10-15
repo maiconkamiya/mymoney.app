@@ -9,7 +9,6 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('market:sync-binance')->everyMinute()->withoutOverlapping();
 Schedule::command('market:sync-b3')->everyMinute()->weekdays()->withoutOverlapping();
 Schedule::command('market:sync-b3 --fundamentals')->dailyAt('07:00')->weekdays();
 Schedule::command('positions:check-exits')->everyMinute()->withoutOverlapping();
