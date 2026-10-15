@@ -69,7 +69,7 @@ class SignalPipeline
         $signal->moveTo(SignalStage::Analyzed);
         $signal->moveTo($result->approved ? SignalStage::Approved : SignalStage::Rejected, $result->reason);
 
-        if ($result->approved && $signal->portfolio->auto_execute) {
+        if ($result->approved && $signal->portfolio->auto_execute && ! $signal->portfolio->isLive()) {
             $signal->update(['decided_by' => 'auto']);
             $signal->moveTo(SignalStage::Confirmed);
             $this->executor->execute($signal, 'auto');

@@ -3,6 +3,8 @@
 namespace App\Agents;
 
 use App\Agents\Data\Scenario;
+use App\Enums\Market;
+use App\MarketData\B3Fundamentals;
 use App\Models\Candle;
 use App\Models\NewsAsset;
 use App\Models\Signal;
@@ -14,6 +16,7 @@ class ScenarioBuilder
     public function __construct(
         private readonly PriceFeed $prices,
         private readonly PortfolioValuation $valuation,
+        private readonly B3Fundamentals $fundamentals,
     ) {}
 
     public function build(Signal $signal): ?Scenario
@@ -78,6 +81,7 @@ class ScenarioBuilder
             position: $position ? ['qty' => $position->qty, 'avg_price' => $position->avg_price, 'stop' => $position->stop_price] : null,
             cash: $portfolio->cash,
             equity: $this->valuation->equity($portfolio),
+            fundamentals: $asset->market === Market::B3 ? $this->fundamentals->for($asset) : null,
         );
     }
 }

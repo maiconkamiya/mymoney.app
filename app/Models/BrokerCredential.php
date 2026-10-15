@@ -16,11 +16,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $api_key
  * @property string $api_secret
  * @property bool $can_withdraw
+ * @property CarbonImmutable|null $verified_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read User $user
  */
-#[Fillable(['user_id', 'broker', 'label', 'api_key', 'api_secret', 'can_withdraw'])]
+#[Fillable(['user_id', 'broker', 'label', 'api_key', 'api_secret', 'can_withdraw', 'verified_at'])]
 #[Hidden(['api_key', 'api_secret'])]
 class BrokerCredential extends Model
 {
@@ -33,6 +34,7 @@ class BrokerCredential extends Model
             'api_key' => 'encrypted',
             'api_secret' => 'encrypted',
             'can_withdraw' => 'boolean',
+            'verified_at' => 'datetime',
         ];
     }
 

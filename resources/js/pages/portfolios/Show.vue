@@ -3,6 +3,7 @@ import { Form, Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
 import Heading from '@/components/Heading.vue';
+import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,12 +15,22 @@ import {
     stageLabels,
 } from '@/lib/trading';
 import { index } from '@/routes/portfolios';
-import type { PortfolioSummary, PositionRow, SignalRow } from '@/types';
+import type {
+    AgentScoreRow,
+    Performance,
+    PortfolioSummary,
+    PositionRow,
+    SignalRow,
+    TaxMonth,
+} from '@/types';
 
 const props = defineProps<{
     portfolio: PortfolioSummary;
     positions: PositionRow[];
     signals: SignalRow[];
+    performance: Performance;
+    agent_scores: AgentScoreRow[];
+    tax_months: TaxMonth[];
 }>();
 
 defineOptions({
@@ -75,6 +86,14 @@ const stageVariant = (stage: string) =>
                 </p>
             </div>
         </div>
+
+        <PerformancePanel
+            :portfolio-id="portfolio.id"
+            :market="portfolio.market"
+            :performance="performance"
+            :agent-scores="agent_scores"
+            :tax-months="tax_months"
+        />
 
         <section>
             <Heading variant="small" title="Posições abertas" />
