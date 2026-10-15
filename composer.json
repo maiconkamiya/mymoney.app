@@ -66,6 +66,11 @@
             "npm run types:check",
             "@test"
         ],
+        "ci": [
+            "Composer\\Config::disableProcessTimeout",
+            "@ci:check",
+            "npm run build"
+        ],
         "types:check": [
             "phpstan analyse"
         ],
@@ -92,14 +97,16 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "hooks:install": [
+            "git config core.hooksPath .githooks"
         ]
     },
     "extra": {
         "laravel": {
             "dont-discover": [],
             "installer": {
-                "post-create-project": [
-                ]
+                "post-create-project": []
             }
         }
     },

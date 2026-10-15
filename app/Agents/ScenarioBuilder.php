@@ -4,7 +4,7 @@ namespace App\Agents;
 
 use App\Agents\Data\Scenario;
 use App\Models\Candle;
-use App\Models\NewsItem;
+use App\Models\NewsAsset;
 use App\Models\Signal;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\PortfolioValuation;
@@ -45,21 +45,24 @@ class ScenarioBuilder
             ->all();
 
         // Only news that already existed "now": simulations must never see the future.
-        $news = $asset->news()
-            ->where('fetched_at', '<=', now())
-            ->where('fetched_at', '>=', now()->subHours(48))
-            ->orderByDesc('news_asset.relevance')
+        $news = NewsAsset::query()
+            ->with('newsItem')
+            ->where('asset_id', $asset->id)
+            ->whereHas('newsItem', fn ($query) => $query
+                ->where('fetched_at', '<=', now())
+                ->where('fetched_at', '>=', now()->subHours(48)))
+            ->orderByDesc('relevance')
             ->limit(10)
             ->get()
-            ->map(fn (NewsItem $n) => [
-                'id' => "news:{$n->id}",
-                'title' => $n->title,
-                'source' => $n->source,
-                'published_at' => $n->published_at?->toIso8601String(),
-                'fetched_at' => $n->fetched_at->toIso8601String(),
-                'sentiment' => (float) $n->pivot->sentiment,
-                'relevance' => (float) $n->pivot->relevance,
-                'is_new_fact' => (bool) $n->pivot->is_new_fact,
+            ->map(fn (NewsAsset $link) => [
+                'id' => "news:{$link->newsItem->id}",
+                'title' => $link->newsItem->title,
+                'source' => $link->newsItem->source,
+                'published_at' => $link->newsItem->published_at?->toIso8601String(),
+                'fetched_at' => $link->newsItem->fetched_at->toIso8601String(),
+                'sentiment' => $link->sentiment,
+                'relevance' => $link->relevance,
+                'is_new_fact' => $link->is_new_fact,
             ])
             ->all();
 
@@ -70,8 +73,8 @@ class ScenarioBuilder
             market: $asset->market->value,
             price: $quote->price,
             asOf: $quote->at->toIso8601String(),
-            candles: $candles,
-            news: $news,
+            candles: array_values($candles),
+            news: array_values($news),
             position: $position ? ['qty' => $position->qty, 'avg_price' => $position->avg_price, 'stop' => $position->stop_price] : null,
             cash: $portfolio->cash,
             equity: $this->valuation->equity($portfolio),

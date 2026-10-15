@@ -8,7 +8,6 @@ use App\Enums\SignalStage;
 use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Portfolio;
-use App\Models\Position;
 use App\Models\Signal;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
@@ -124,7 +123,6 @@ class OrderExecutor
     {
         $value = $result->filledQty * $result->avgPrice;
 
-        /** @var Position|null $position */
         $position = $portfolio->openPositions()->where('asset_id', $request->asset->id)->lockForUpdate()->first();
 
         if ($request->side === OrderSide::Buy) {

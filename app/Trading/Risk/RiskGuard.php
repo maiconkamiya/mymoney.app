@@ -45,11 +45,10 @@ class RiskGuard
             return RiskDecision::block('Cotação ausente ou atrasada para '.$asset->symbol.'.');
         }
 
-        /** @var Position|null $position */
         $position = $portfolio->openPositions()->where('asset_id', $asset->id)->first();
 
         if ($order->side === OrderSide::Sell) {
-            $held = $position?->qty ?? 0;
+            $held = $position->qty ?? 0;
 
             if ($held <= 0) {
                 return RiskDecision::block('Venda a descoberto não é permitida.');
@@ -84,7 +83,7 @@ class RiskGuard
         $reasons = [];
         $limits = [
             'Limitada ao valor máximo por ordem.' => $profile->max_order_pct * $equity,
-            'Limitada à exposição máxima no ativo.' => $profile->max_position_pct * $equity - ($position?->qty ?? 0) * $price,
+            'Limitada à exposição máxima no ativo.' => $profile->max_position_pct * $equity - ($position->qty ?? 0) * $price,
             'Limitada ao caixa disponível.' => $portfolio->cash / (1 + config('trading.costs.'.$asset->market->value.'.fee_rate')),
         ];
 

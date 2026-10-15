@@ -16,7 +16,7 @@ class PortfolioValuation
     public function exposure(Portfolio $portfolio): float
     {
         return $portfolio->openPositions()->with('asset')->get()
-            ->sum(fn (Position $position) => $position->qty * ($this->prices->quote($position->asset)?->price ?? $position->avg_price));
+            ->sum(fn (Position $position) => $position->qty * ($this->prices->quote($position->asset)->price ?? $position->avg_price));
     }
 
     public function equity(Portfolio $portfolio): float
@@ -34,7 +34,7 @@ class PortfolioValuation
             ->oldest('taken_at')
             ->first();
 
-        return $snapshot?->equity ?? $portfolio->initial_cash;
+        return $snapshot->equity ?? $portfolio->initial_cash;
     }
 
     public function peakEquity(Portfolio $portfolio): float

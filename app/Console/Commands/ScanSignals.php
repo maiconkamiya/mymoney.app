@@ -14,10 +14,15 @@ class ScanSignals extends Command
 {
     public function handle(SignalScanner $scanner): int
     {
-        $assets = Asset::query()
-            ->where('active', true)
-            ->when($this->argument('symbol'), fn ($query, $symbol) => $query->where('symbol', strtoupper($symbol)))
-            ->get();
+        $symbol = $this->argument('symbol');
+
+        $query = Asset::query()->where('active', true);
+
+        if (is_string($symbol)) {
+            $query->where('symbol', strtoupper($symbol));
+        }
+
+        $assets = $query->get();
 
         $count = 0;
 

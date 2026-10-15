@@ -2,6 +2,7 @@
 
 namespace App\Agents\Llm;
 
+use Anthropic\Beta\Messages\BetaTextBlock;
 use Anthropic\Client;
 
 /**
@@ -33,7 +34,7 @@ class AnthropicLlmClient implements LlmClient
         }
 
         foreach ($message->content as $block) {
-            if ($block->type === 'text') {
+            if ($block instanceof BetaTextBlock) {
                 $data = json_decode($block->text, true);
 
                 if (! is_array($data)) {

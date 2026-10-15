@@ -20,7 +20,8 @@ class HaltTrading extends Command
             return self::SUCCESS;
         }
 
-        $halt->halt('console', (string) $this->argument('reason'));
+        $reason = $this->argument('reason');
+        $halt->halt('console', is_string($reason) ? $reason : '');
         $this->warn('Parada geral acionada. Nenhuma ordem será enviada.');
 
         return self::SUCCESS;

@@ -6,6 +6,7 @@ use App\News\NewsIngestor;
 use App\News\RssNewsSource;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use InvalidArgumentException;
 
 class FetchNewsJob implements ShouldQueue
 {
@@ -19,6 +20,7 @@ class FetchNewsJob implements ShouldQueue
 
         $feed = match ($config['driver']) {
             'rss' => new RssNewsSource($config['url']),
+            default => throw new InvalidArgumentException("Fonte de notícias [{$this->source}] com driver desconhecido."),
         };
 
         foreach ($ingestor->ingest($this->source, $feed->fetch()) as $news) {

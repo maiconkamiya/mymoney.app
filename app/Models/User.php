@@ -49,6 +49,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         ];
     }
 
+    /** @return HasMany<Portfolio, $this> */
     public function portfolios(): HasMany
     {
         return $this->hasMany(Portfolio::class);

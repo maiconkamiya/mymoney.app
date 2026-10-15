@@ -22,13 +22,13 @@ class BinanceKlines
             ->throw()
             ->json();
 
-        return array_map(fn (array $row) => [
+        return array_values(array_map(fn (array $row) => [
             'open_at' => Carbon::createFromTimestampMs($row[0]),
             'open' => (float) $row[1],
             'high' => (float) $row[2],
             'low' => (float) $row[3],
             'close' => (float) $row[4],
             'volume' => (float) $row[5],
-        ], $rows);
+        ], $rows));
     }
 }
