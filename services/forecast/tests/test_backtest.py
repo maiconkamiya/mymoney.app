@@ -1,0 +1,31 @@
+from forecast.backtest import BacktestConfig, walk_forward
+from forecast.data import load_dataset
+from tests.conftest import synthetic_candles
+
+
+def test_walk_forward_finds_edge_in_predictable_series(candles_csv):
+    dataset = load_dataset(candles_csv, None, horizon=1)
+    metrics = walk_forward(dataset, BacktestConfig(horizon=1, threshold=0.55, fee_bps=0))
+    assert metrics["ok"]
+    assert metrics["accuracy"] > metrics["baseline_accuracy"] + 0.05
+    assert metrics["validated"] is True
+
+
+def test_walk_forward_rejects_random_walk(tmp_path):
+    frame = synthetic_candles(2500, seed=3, predictable=False)
+    frame.insert(0, "timeframe", "1m")
+    frame.insert(0, "symbol", "X")
+    path = tmp_path / "c.csv"
+    frame.to_csv(path, index=False)
+    metrics = walk_forward(load_dataset(path, None, horizon=1), BacktestConfig(horizon=1, fee_bps=20))
+    assert metrics["validated"] is False
+
+
+def test_too_little_data_is_not_validated(tmp_path):
+    frame = synthetic_candles(200)
+    frame.insert(0, "timeframe", "1m")
+    frame.insert(0, "symbol", "X")
+    path = tmp_path / "c.csv"
+    frame.to_csv(path, index=False)
+    metrics = walk_forward(load_dataset(path, None, horizon=5), BacktestConfig(horizon=5))
+    assert metrics["ok"] is False

@@ -4,6 +4,7 @@ namespace App\Agents;
 
 use App\Agents\Data\Scenario;
 use App\Enums\Market;
+use App\Forecast\ForecastClient;
 use App\MarketData\B3Fundamentals;
 use App\Models\Candle;
 use App\Models\NewsAsset;
@@ -19,6 +20,7 @@ class ScenarioBuilder
         private readonly PortfolioValuation $valuation,
         private readonly B3Fundamentals $fundamentals,
         private readonly NewsHistory $history,
+        private readonly ForecastClient $forecasts,
     ) {}
 
     public function build(Signal $signal): ?Scenario
@@ -75,6 +77,9 @@ class ScenarioBuilder
 
         $similarNews = $this->history->forAsset($asset, $links->map(fn (NewsAsset $link) => $link->newsItem));
 
+        $candles = array_values($candles);
+        $news = array_values($news);
+
         $position = $portfolio->openPositions()->where('asset_id', $asset->id)->first();
 
         return new Scenario(
@@ -82,13 +87,14 @@ class ScenarioBuilder
             market: $asset->market->value,
             price: $quote->price,
             asOf: $quote->at->toIso8601String(),
-            candles: array_values($candles),
-            news: array_values($news),
+            candles: $candles,
+            news: $news,
             similarNews: $similarNews,
             position: $position ? ['qty' => $position->qty, 'avg_price' => $position->avg_price, 'stop' => $position->stop_price] : null,
             cash: $portfolio->cash,
             equity: $this->valuation->equity($portfolio),
             fundamentals: $asset->market === Market::B3 ? $this->fundamentals->for($asset) : null,
+            forecast: $this->forecasts->predict($asset->symbol, $asset->market->value, $candles, $news),
         );
     }
 }
