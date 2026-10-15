@@ -23,6 +23,11 @@ class AssetFactory extends Factory
         ];
     }
 
+    public function benchmark(string $symbol = 'IBOV'): static
+    {
+        return $this->b3($symbol)->state(fn () => ['is_benchmark' => true]);
+    }
+
     public function b3(string $symbol = 'PETR4'): static
     {
         return $this->state(fn () => [

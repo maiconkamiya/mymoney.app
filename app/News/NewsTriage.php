@@ -19,7 +19,7 @@ class NewsTriage
      */
     public function triage(NewsItem $news): array
     {
-        $symbols = Asset::query()->where('active', true)->pluck('symbol')->all();
+        $symbols = Asset::query()->where('active', true)->where('is_benchmark', false)->pluck('symbol')->all();
 
         $response = $this->llm->json(
             config('agents.models.fast'),

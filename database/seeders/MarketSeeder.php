@@ -36,5 +36,11 @@ class MarketSeeder extends Seeder
                 ['quote_currency' => 'BRL', 'lot_size' => 100, 'tick_size' => '0.01', 'sector' => $sector],
             );
         }
+
+        // Ibovespa: reference series for the performance report, never traded.
+        Asset::updateOrCreate(
+            ['market' => Market::B3, 'symbol' => 'IBOV'],
+            ['name' => 'Ibovespa', 'quote_currency' => 'BRL', 'lot_size' => 1, 'tick_size' => '0.01', 'is_benchmark' => true],
+        );
     }
 }

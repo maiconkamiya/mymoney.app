@@ -22,12 +22,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $tick_size
  * @property string|null $sector
  * @property bool $active
+ * @property bool $is_benchmark
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read Collection<int, Candle> $candles
  * @property-read Collection<int, NewsItem> $news
  */
-#[Fillable(['symbol', 'market', 'name', 'quote_currency', 'lot_size', 'tick_size', 'sector', 'active'])]
+#[Fillable(['symbol', 'market', 'name', 'quote_currency', 'lot_size', 'tick_size', 'sector', 'active', 'is_benchmark'])]
 class Asset extends Model
 {
     /** @use HasFactory<AssetFactory> */
@@ -43,6 +44,7 @@ class Asset extends Model
             'lot_size' => 'decimal:8',
             'tick_size' => 'decimal:8',
             'active' => 'boolean',
+            'is_benchmark' => 'boolean',
         ];
     }
 
