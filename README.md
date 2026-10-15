@@ -52,6 +52,7 @@ As notícias entram por `FetchNewsJob`, uma vez por fonte de `config/news.php`, 
 | `app/News`                      | Fontes RSS, deduplicação e triagem de notícias                              |
 | `app/MarketData`                | Candles e fundamentos (Binance e brapi.dev)                                 |
 | `app/Reports`                   | Snapshots, desempenho, placar dos agentes e relatório de IR                 |
+| `services/forecast`             | Serviço Python de previsão (desligado por padrão; veja o README da pasta)   |
 | `config/agents.php`             | Prompts de cada papel, modelos e preços                                     |
 | `config/trading.php`            | Brokers, taxas, slippage e horário do pregão                                |
 | `resources/js/pages/portfolios` | Telas de carteiras e sinais                                                 |
@@ -60,6 +61,6 @@ As notícias entram por `FetchNewsJob`, uma vez por fonte de `config/news.php`, 
 
 - Execução real: `BinanceBroker` e `Mt5Broker` existem, mas só enviam ordens de carteira `live`, com credencial verificada, aprovação manual e `TRADING_LIVE_ENABLED=true` (desligado por padrão).
 - Provedor definitivo de cotações da B3 (hoje brapi.dev, precisa de `BRAPI_TOKEN`) e escolha entre Binance e Mercado Bitcoin.
-- Serviço Python de previsão; o agente quantitativo vota "aguardar" até ele existir.
+- Ligar o serviço de previsão (`FORECAST_ENABLED=true`) depois de treinar com `php artisan forecast:train` e conferir o backtest; sem modelo validado, o agente quantitativo vota "aguardar".
 - Deduplicação de notícias por embedding (hoje só por URL) e pgvector em produção.
 - WebSocket com Reverb para gráficos ao vivo; hoje o painel atualiza ao recarregar.
