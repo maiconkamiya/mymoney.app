@@ -39,15 +39,15 @@ Comandos úteis:
 
 ## Onde está cada parte
 
-| Pasta                           | Conteúdo                                                                    |
-| ------------------------------- | --------------------------------------------------------------------------- |
-| `app/Agents`                    | Agentes, cenário, rodada de desafio, consenso e clientes de LLM             |
-| `app/Trading`                   | Interface `Broker`, `PaperBroker`, guarda de risco, executor e parada geral |
+| Pasta                           | Conteúdo                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| `app/Agents`                    | Agentes, cenário, rodada de desafio, consenso e clientes de LLM                |
+| `app/Trading`                   | Interface `Broker`, `PaperBroker`, guarda de risco, executor e parada geral    |
 | `app/News`                      | Fontes RSS, embeddings, deduplicação semântica, busca de semelhantes e triagem |
-| `app/MarketData`                | Candles e cotações da Binance                                               |
-| `config/agents.php`             | Prompts de cada papel, modelos e preços                                     |
-| `config/trading.php`            | Brokers, taxas, slippage e horário do pregão                                |
-| `resources/js/pages/portfolios` | Telas de carteiras e sinais                                                 |
+| `app/MarketData`                | Candles e cotações da Binance                                                  |
+| `config/agents.php`             | Prompts de cada papel, modelos e preços                                        |
+| `config/trading.php`            | Brokers, taxas, slippage e horário do pregão                                   |
+| `resources/js/pages/portfolios` | Telas de carteiras e sinais                                                    |
 
 ## O que ainda falta
 
@@ -61,14 +61,14 @@ Comandos úteis:
 
 Cada notícia coletada ganha um embedding (título mais o começo do corpo) antes da triagem pelo LLM. Se ela for semanticamente parecida com uma notícia das últimas `NEWS_DEDUP_WINDOW_HOURS` horas (similaridade de cosseno >= `NEWS_DEDUP_THRESHOLD`), é gravada com `duplicate_of_id` e não passa pela triagem. O agente de notícias também recebe em `similarNews` notícias parecidas do passado e quanto o preço andou nas 24 horas seguintes (nunca com dados posteriores a `now()`).
 
-| Variável                     | Padrão                                  | Para que serve                                                   |
-| ---------------------------- | --------------------------------------- | ---------------------------------------------------------------- |
-| `NEWS_EMBEDDINGS_DRIVER`     | `fake`                                  | `fake` (sem chave, usado nos testes) ou `http` (formato OpenAI)  |
-| `NEWS_EMBEDDINGS_KEY`        |                                         | Chave do provedor (ex.: Voyage AI), só no `.env`                 |
-| `NEWS_EMBEDDINGS_URL`        | `https://api.voyageai.com/v1/embeddings` | Endpoint de embeddings                                           |
-| `NEWS_EMBEDDINGS_MODEL`      | `voyage-3`                              | Modelo do provedor                                               |
-| `NEWS_EMBEDDINGS_DIMENSIONS` | `1024`                                  | Tamanho do vetor; precisa bater com o modelo e com a coluna     |
-| `NEWS_DEDUP_THRESHOLD`       | `0.92`                                  | Limiar de similaridade para considerar duplicata                 |
-| `NEWS_VECTOR_STORE`          | `auto`                                  | `auto`, `memory` ou `pgvector`                                   |
+| Variável                     | Padrão                                   | Para que serve                                                  |
+| ---------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
+| `NEWS_EMBEDDINGS_DRIVER`     | `fake`                                   | `fake` (sem chave, usado nos testes) ou `http` (formato OpenAI) |
+| `NEWS_EMBEDDINGS_KEY`        |                                          | Chave do provedor (ex.: Voyage AI), só no `.env`                |
+| `NEWS_EMBEDDINGS_URL`        | `https://api.voyageai.com/v1/embeddings` | Endpoint de embeddings                                          |
+| `NEWS_EMBEDDINGS_MODEL`      | `voyage-3`                               | Modelo do provedor                                              |
+| `NEWS_EMBEDDINGS_DIMENSIONS` | `1024`                                   | Tamanho do vetor; precisa bater com o modelo e com a coluna     |
+| `NEWS_DEDUP_THRESHOLD`       | `0.92`                                   | Limiar de similaridade para considerar duplicata                |
+| `NEWS_VECTOR_STORE`          | `auto`                                   | `auto`, `memory` ou `pgvector`                                  |
 
 **Ativar o pgvector (produção):** use Postgres com a extensão disponível (imagem `pgvector/pgvector` ou `CREATE EXTENSION vector` com permissão), configure `DB_CONNECTION=pgsql` e rode `php artisan migrate`. A migração converte `news_items.embedding` para `vector(NEWS_EMBEDDINGS_DIMENSIONS)` e cria um índice HNSW de cosseno; a busca passa a usar o operador `<=>` do banco. Defina as dimensões antes de migrar: trocar de modelo depois exige recriar a coluna e os embeddings. Em SQLite (testes e desenvolvimento) o embedding fica em JSON e a busca é uma varredura em memória das últimas 2000 notícias.
