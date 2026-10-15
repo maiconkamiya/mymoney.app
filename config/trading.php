@@ -3,6 +3,7 @@
 use App\Trading\Brokers\BinanceBroker;
 use App\Trading\Brokers\Mt5Broker;
 use App\Trading\Brokers\PaperBroker;
+use App\Trading\Gateways\Mt5HttpGateway;
 use App\Trading\Gateways\RefusingOrderGateway;
 
 return [
@@ -78,10 +79,11 @@ return [
     ],
 
     /*
-    | Live order gateway for B3. Phase 5 replaces the refusing default.
+    | Live order gateway for B3. Refuses everything until MT5_GATEWAY_URL points
+    | at the bridge next to the terminal.
     */
 
-    'b3_gateway' => RefusingOrderGateway::class,
+    'b3_gateway' => env('MT5_GATEWAY_URL') ? Mt5HttpGateway::class : RefusingOrderGateway::class,
 
     /*
     |--------------------------------------------------------------------------
@@ -95,6 +97,34 @@ return [
     'max_price_age_seconds' => [
         'crypto' => 30,
         'b3' => 900,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Real-money execution (phase 5)
+    |--------------------------------------------------------------------------
+    |
+    | Off by default. Even when enabled, every real order needs a person's
+    | explicit approval, stays under these absolute caps (in the portfolio's
+    | currency) and requires a verified credential without withdrawal rights.
+    |
+    */
+
+    'live' => [
+        'enabled' => (bool) env('TRADING_LIVE_ENABLED', false),
+        'max_order_value' => (float) env('TRADING_LIVE_MAX_ORDER_VALUE', 20),
+        'max_daily_value' => (float) env('TRADING_LIVE_MAX_DAILY_VALUE', 100),
+    ],
+
+    'binance' => [
+        'base_url' => env('BINANCE_BASE_URL', 'https://api.binance.com'),
+        'recv_window' => (int) env('BINANCE_RECV_WINDOW', 5000),
+    ],
+
+    // Bridge in front of the MT5 terminal (MT5 has no official REST API).
+    'mt5' => [
+        'gateway_url' => env('MT5_GATEWAY_URL'),
+        'gateway_token' => env('MT5_GATEWAY_TOKEN'),
     ],
 
 ];

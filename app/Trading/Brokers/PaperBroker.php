@@ -80,6 +80,11 @@ class PaperBroker implements Broker
         // Paper orders fill immediately; nothing stays open to cancel.
     }
 
+    public function getOrder(string $externalId): OrderResult
+    {
+        return OrderResult::rejected('Ordens simuladas não têm estado externo.');
+    }
+
     public function getBalances(): array
     {
         // Paper balances live on the portfolio row.

@@ -3,17 +3,23 @@
 namespace App\Trading\Brokers;
 
 use App\Enums\Market;
+use App\Models\Portfolio;
 use App\Trading\B3\B3Rules;
 use App\Trading\Contracts\Broker;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
+use App\Trading\Gateways\LiveGateway;
 use App\Trading\Gateways\OrderGateway;
+use App\Trading\Live\LiveLimits;
+use App\Trading\Live\LiveTradingException;
 use App\Trading\MarketHours;
 
 /**
  * Live B3 execution. Session, lot and tick are checked here so the gateway
  * only ever receives an order the exchange would accept. The default gateway
- * refuses everything; real routing arrives with phase 5 of the spec.
+ * refuses everything. For a real portfolio (built by the BrokerManager) every
+ * call re-checks the live guard rails and binds the verified credential to a
+ * `LiveGateway` such as Mt5HttpGateway.
  */
 class Mt5Broker implements Broker
 {
@@ -21,10 +27,13 @@ class Mt5Broker implements Broker
         private readonly OrderGateway $gateway,
         private readonly MarketHours $hours,
         private readonly B3Rules $rules = new B3Rules,
+        private readonly ?Portfolio $portfolio = null,
+        private readonly ?LiveLimits $limits = null,
     ) {}
 
     public function placeOrder(OrderRequest $order): OrderResult
     {
+        $gateway = $this->gateway();
         $asset = $order->asset;
 
         if (! $this->hours->isOpen($asset->market)) {
@@ -41,23 +50,53 @@ class Mt5Broker implements Broker
 
         $limit = $order->limitPrice === null ? null : $this->rules->normalizePrice($asset, $order->limitPrice);
 
-        return $this->gateway->send(new OrderRequest(
+        return $gateway->send(new OrderRequest(
             $asset, $order->side, $qty, $order->type, $limit, $order->stopPrice, $order->clientId,
         ));
     }
 
     public function cancelOrder(string $externalId): void
     {
-        $this->gateway->cancel($externalId);
+        $this->gateway()->cancel($externalId);
+    }
+
+    public function getOrder(string $externalId): OrderResult
+    {
+        $gateway = $this->gateway();
+
+        if (! $gateway instanceof LiveGateway) {
+            throw new LiveTradingException('O canal de ordens da B3 não suporta conciliação.');
+        }
+
+        return $gateway->fetch($externalId);
     }
 
     public function getBalances(): array
     {
-        return $this->gateway->balances();
+        return $this->gateway()->balances();
     }
 
     public function supports(Market $market): bool
     {
         return $market === Market::B3;
+    }
+
+    private function gateway(): OrderGateway
+    {
+        if ($this->portfolio === null || ! $this->portfolio->isLive()) {
+            return $this->gateway;
+        }
+
+        $credential = ($this->limits ?? app(LiveLimits::class))->assertCanSend($this->portfolio, $this->portfolio->brokerCredential);
+
+        if ($credential->broker !== 'mt5') {
+            throw new LiveTradingException('A credencial da carteira não é do MT5.');
+        }
+
+        if (! $this->gateway instanceof LiveGateway) {
+            return $this->gateway;
+        }
+
+        return $this->gateway->using($credential);
     }
 }

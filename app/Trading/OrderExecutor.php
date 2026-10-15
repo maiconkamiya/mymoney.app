@@ -13,6 +13,7 @@ use App\Models\Signal;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
+use App\Trading\Live\LiveTradingException;
 use App\Trading\Risk\RiskGuard;
 use Illuminate\Support\Facades\DB;
 
@@ -39,6 +40,13 @@ class OrderExecutor
             return null;
         }
 
+        if ($signal->portfolio->isLive() && ! $this->approvedByPerson($signal)) {
+            $signal->moveTo(SignalStage::Rejected, 'Ordem real exige aprovação manual explícita.');
+            AuditLog::record($actor, 'order.blocked', $signal, ['reasons' => ['Sem aprovação manual.']]);
+
+            return null;
+        }
+
         $outcome = $this->submit($signal->portfolio, $request, $signal, $actor, null);
 
         if (is_string($outcome)) {
@@ -58,6 +66,8 @@ class OrderExecutor
 
     /**
      * Sell the whole open position at market ("stop", "target", "period_end"...).
+     * Exits only reduce risk, so they need no fresh approval, but on real portfolios
+     * they still pass the live switch, the halt and the credential checks.
      * The sell goes through the same risk guard and broker as any other order.
      */
     public function closePosition(Position $position, string $reason, string $actor): ?Order
@@ -104,13 +114,18 @@ class OrderExecutor
             'side' => $request->side,
             'type' => $request->type,
             'qty' => $request->qty,
-            'price' => $request->limitPrice,
+            // Market orders carry the reference quote so the live daily cap can count them.
+            'price' => $request->limitPrice ?? ($portfolio->isLive() ? $this->prices->quote($request->asset)?->price : null),
             'stop_price' => $request->stopPrice,
             'status' => OrderStatus::Pending,
             'reason' => $reason,
         ]);
 
-        $result = $this->brokers->for($portfolio)->placeOrder($request);
+        try {
+            $result = $this->brokers->for($portfolio)->placeOrder($request);
+        } catch (LiveTradingException $e) {
+            $result = OrderResult::rejected($e->getMessage());
+        }
 
         DB::transaction(function () use ($order, $result, $signal, $portfolio, $request, $reason) {
             $order->update([
@@ -139,6 +154,11 @@ class OrderExecutor
         AuditLog::record($actor, 'order.'.$order->status->value, $order, ['decision' => $decision->reasons, 'reason' => $reason]);
 
         return $order->refresh();
+    }
+
+    private function approvedByPerson(Signal $signal): bool
+    {
+        return $signal->stage === SignalStage::Confirmed && str_starts_with((string) $signal->decided_by, 'user:');
     }
 
     private function buildRequest(Signal $signal): ?OrderRequest
