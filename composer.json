@@ -10,6 +10,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "anthropic-ai/sdk": "^0.58.0",
         "inertiajs/inertia-laravel": "^3.0",
         "laravel/chisel": "^0.1.0",
         "laravel/fortify": "^1.37.2",
@@ -65,6 +66,11 @@
             "npm run types:check",
             "@test"
         ],
+        "ci": [
+            "Composer\\Config::disableProcessTimeout",
+            "@ci:check",
+            "npm run build"
+        ],
         "types:check": [
             "phpstan analyse"
         ],
@@ -79,7 +85,6 @@
             "@php artisan package:discover --ansi"
         ],
         "post-update-cmd": [
-            "@php artisan install:features --ansi",
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
         ],
         "post-root-package-install": [
@@ -92,15 +97,16 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "hooks:install": [
+            "git config core.hooksPath .githooks"
         ]
     },
     "extra": {
         "laravel": {
             "dont-discover": [],
             "installer": {
-                "post-create-project": [
-                    "@php artisan install:features --ansi"
-                ]
+                "post-create-project": []
             }
         }
     },

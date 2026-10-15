@@ -1,0 +1,4 @@
+#!/bin/sh
+# CI local: este projeto não usa GitHub Actions. Nada sobe sem `composer ci` verde.
+# Ative com: composer hooks:install
+exec composer ci
