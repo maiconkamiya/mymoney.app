@@ -89,8 +89,9 @@ class ReportsTest extends TestCase
         $news = AgentScore::where('agent', AgentRole::News)->where('market', Market::Crypto)->sole();
         $this->assertEquals(0.0, $news->hit_rate);
         $this->assertEquals(0.5, $news->weight);
-        $this->assertEquals(0, AgentScore::where('agent', AgentRole::Quant)->sole()->signals);
-        $this->assertEquals(1.0, AgentScore::where('agent', AgentRole::Quant)->sole()->weight);
+        $quant = AgentScore::where('agent', AgentRole::Quant)->where('market', Market::Crypto)->sole();
+        $this->assertEquals(0, $quant->signals);
+        $this->assertEquals(1.0, $quant->weight);
 
         $weights = AgentScore::query()->pluck('weight', 'agent')->map(fn ($w) => (float) $w)->all();
         $votes = [
