@@ -90,6 +90,24 @@ class PortfolioPagesTest extends TestCase
                 ->where('signals.0.stage', 'executed'));
     }
 
+    public function test_an_expired_signal_cannot_be_confirmed()
+    {
+        $user = User::factory()->create();
+        $portfolio = Portfolio::factory()->for($user)->create();
+        $asset = Asset::factory()->create(['lot_size' => '0.001']);
+        $this->quote($asset, 100);
+        $signal = Signal::create(['portfolio_id' => $portfolio->id, 'asset_id' => $asset->id, 'stage' => SignalStage::Approved, 'side' => 'buy', 'stop_price' => 95]);
+
+        $this->travel(config('trading.signal_ttl_minutes') + 1)->minutes();
+        $this->quote($asset, 100);
+
+        $this->actingAs($user)->post(route('signals.confirm', $signal))->assertStatus(422);
+
+        $this->assertSame(SignalStage::Rejected, $signal->fresh()->stage);
+        $this->assertStringContainsString('Expirado', $signal->fresh()->decision_reason);
+        $this->assertCount(0, $portfolio->openPositions()->get());
+    }
+
     public function test_discarding_a_signal_records_who_decided()
     {
         $user = User::factory()->create();

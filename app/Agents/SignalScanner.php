@@ -29,6 +29,12 @@ class SignalScanner
      */
     public function scan(Asset $asset): array
     {
+        Signal::query()
+            ->where('asset_id', $asset->id)
+            ->where('stage', SignalStage::Approved)
+            ->get()
+            ->each(fn (Signal $signal) => $signal->isExpired() && $signal->expire());
+
         if (! $this->tradable($asset)) {
             return [];
         }
