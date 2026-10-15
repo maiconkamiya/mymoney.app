@@ -75,7 +75,7 @@ class Mt5HttpGateway implements LiveGateway
 
     private function login(): string
     {
-        return $this->credential?->api_key ?? throw new LiveTradingException('Gateway MT5 sem credencial.');
+        return $this->credential->api_key ?? throw new LiveTradingException('Gateway MT5 sem credencial.');
     }
 
     private function http(): PendingRequest

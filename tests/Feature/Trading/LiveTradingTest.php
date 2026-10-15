@@ -82,7 +82,7 @@ class LiveTradingTest extends TestCase
 
     private function fakeBinanceFill(): void
     {
-        Http::fake(['api.binance.com/api/v3/order' => Http::response([
+        Http::fake(['api.binance.com/api/v3/order*' => Http::response([
             'orderId' => 77, 'status' => 'FILLED', 'executedQty' => '0.2', 'cummulativeQuoteQty' => '20',
             'transactTime' => now()->getTimestampMs(),
             'fills' => [['price' => '100', 'qty' => '0.2', 'commission' => '0.02', 'commissionAsset' => 'USDT']],
@@ -215,19 +215,22 @@ class LiveTradingTest extends TestCase
     public function test_reconciliation_halts_trading_on_divergence()
     {
         config(['trading.live.enabled' => true]);
-        $this->fakeBinanceFill();
+
+        // Http::fake stubs stack and the first match wins, so one stub answers with the exchange's current state.
+        $exchange = ['orderId' => 77, 'status' => 'FILLED', 'executedQty' => '0.2', 'cummulativeQuoteQty' => '20',
+            'transactTime' => now()->getTimestampMs(),
+            'fills' => [['price' => '100', 'qty' => '0.2', 'commission' => '0.02', 'commissionAsset' => 'USDT']]];
+        Http::fake(['api.binance.com/api/v3/order*' => function () use (&$exchange) {
+            return Http::response($exchange);
+        }]);
+
         $portfolio = $this->livePortfolio();
         $order = app(OrderExecutor::class)->execute($this->signal($portfolio), 'user:1');
 
-        Http::fake(['api.binance.com/api/v3/order*' => Http::response([
-            'orderId' => 77, 'status' => 'FILLED', 'executedQty' => '0.2', 'cummulativeQuoteQty' => '20',
-        ])]);
         $this->assertSame([], app(OrderReconciler::class)->reconcile());
         $this->assertFalse(app(TradingHalt::class)->isHalted());
 
-        Http::fake(['api.binance.com/api/v3/order*' => Http::response([
-            'orderId' => 77, 'status' => 'CANCELED', 'executedQty' => '0', 'cummulativeQuoteQty' => '0',
-        ])]);
+        $exchange = ['orderId' => 77, 'status' => 'CANCELED', 'executedQty' => '0', 'cummulativeQuoteQty' => '0'];
         $this->assertCount(1, app(OrderReconciler::class)->reconcile());
         $this->assertTrue(app(TradingHalt::class)->isHalted());
         $this->assertNotNull($order);
