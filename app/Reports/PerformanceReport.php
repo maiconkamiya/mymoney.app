@@ -16,7 +16,7 @@ class PerformanceReport
 {
     /**
      * @return array{
-     *     benchmark: string|null,
+     *     benchmark: string,
      *     curve: list<array{date: string, equity: float, benchmark: float|null}>,
      *     return: float,
      *     benchmark_return: float|null,
@@ -38,7 +38,7 @@ class PerformanceReport
         }
 
         $symbol = $this->benchmarkSymbol($portfolio);
-        $asset = $symbol === null ? null : Asset::query()->where('symbol', $symbol)->first();
+        $asset = Asset::query()->where('symbol', $symbol)->first();
         $base = $asset === null ? null : $this->priceAt($asset, $points[0]['at']);
 
         $curve = array_map(fn (array $point) => [
@@ -63,7 +63,7 @@ class PerformanceReport
         ];
     }
 
-    private function benchmarkSymbol(Portfolio $portfolio): ?string
+    private function benchmarkSymbol(Portfolio $portfolio): string
     {
         return $portfolio->benchmark ?? match ($portfolio->market) {
             Market::Crypto => 'BTCUSDT',

@@ -29,13 +29,13 @@ Sem chave de API os agentes usam `AGENTS_DRIVER=fake` e votam sempre "aguardar".
 
 Comandos úteis:
 
-| Comando                             | O que faz                       |
-| ----------------------------------- | ------------------------------- |
-| `php artisan signals:scan BTCUSDT`  | Abre sinais para um ativo agora |
-| `php artisan trading:halt "motivo"` | Parada geral: nenhuma ordem sai |
-| `php artisan trading:halt --resume` | Retoma a negociação             |
+| Comando                             | O que faz                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `php artisan signals:scan BTCUSDT`  | Abre sinais para um ativo agora                                                            |
+| `php artisan trading:halt "motivo"` | Parada geral: nenhuma ordem sai                                                            |
+| `php artisan trading:halt --resume` | Retoma a negociação                                                                        |
 | `php artisan positions:check-exits` | Vende posições que bateram stop ou alvo e finaliza carteiras vencidas (roda a cada minuto) |
-| `php artisan test`                  | Roda os testes                  |
+| `php artisan test`                  | Roda os testes                                                                             |
 
 ## Onde está cada parte
 
