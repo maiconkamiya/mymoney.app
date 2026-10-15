@@ -21,6 +21,11 @@ class PortfolioReportController extends Controller
 
         return response()->streamDownload(function () use ($operations) {
             $out = fopen('php://output', 'w');
+
+            if ($out === false) {
+                return;
+            }
+
             fputcsv($out, ['data', 'mes', 'ativo', 'lado', 'quantidade', 'preco', 'valor', 'taxas', 'resultado'], escape: '');
 
             foreach ($operations as $row) {

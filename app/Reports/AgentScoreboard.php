@@ -109,6 +109,6 @@ class AgentScoreboard
      */
     private function finalVotes(Signal $signal): array
     {
-        return $signal->votes->sortByDesc('round')->unique(fn (AgentVote $vote) => $vote->agent->value)->values()->all();
+        return array_values($signal->votes->sortByDesc('round')->unique(fn (AgentVote $vote) => $vote->agent->value)->all());
     }
 }
