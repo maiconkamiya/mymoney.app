@@ -45,6 +45,7 @@ Comandos úteis:
 | `app/Trading`                   | Interface `Broker`, `PaperBroker`, guarda de risco, executor e parada geral |
 | `app/News`                      | Fontes RSS, deduplicação e triagem de notícias                              |
 | `app/MarketData`                | Candles e cotações da Binance                                               |
+| `services/forecast`             | Serviço Python de previsão (desligado por padrão; veja o README da pasta)   |
 | `config/agents.php`             | Prompts de cada papel, modelos e preços                                     |
 | `config/trading.php`            | Brokers, taxas, slippage e horário do pregão                                |
 | `resources/js/pages/portfolios` | Telas de carteiras e sinais                                                 |
@@ -53,7 +54,7 @@ Comandos úteis:
 
 - `BinanceBroker` e `Mt5Broker` recusam qualquer ordem. Eles entram na fase 5 da especificação.
 - Cotações da B3, leilões, feriados e o agente de fundamentos com dados reais (fase 4).
-- Serviço Python de previsão; o agente quantitativo vota "aguardar" até ele existir.
+- Ligar o serviço de previsão (`FORECAST_ENABLED=true`) depois de treinar com `php artisan forecast:train` e conferir o backtest; sem modelo validado, o agente quantitativo vota "aguardar".
 - Deduplicação de notícias por embedding (hoje só por URL) e pgvector em produção.
 - Snapshots diários de patrimônio, relatório de desempenho, acerto por agente e relatório de IR (fase 3).
 - WebSocket com Reverb para gráficos ao vivo; hoje o painel atualiza ao recarregar.
