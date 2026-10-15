@@ -8,14 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-/* @chisel-registration */
 import { register } from '@/routes';
-/* @end-chisel-registration */
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
-/* @chisel-passkeys */
 import PasskeyVerify from '@/components/PasskeyVerify.vue';
-/* @end-chisel-passkeys */
 
 defineOptions({
     layout: {
@@ -40,9 +36,7 @@ defineProps<{
         {{ status }}
     </div>
 
-    <!-- @chisel-passkeys -->
     <PasskeyVerify />
-    <!-- @end-chisel-passkeys -->
 
     <Form
         v-bind="store.form()"
@@ -108,11 +102,9 @@ defineProps<{
             </Button>
         </div>
 
-        <!-- @chisel-registration -->
         <div class="text-center text-sm text-muted-foreground">
             Don't have an account?
             <TextLink :href="register()" :tabindex="5">Sign up</TextLink>
         </div>
-        <!-- @end-chisel-registration -->
     </Form>
 </template>
