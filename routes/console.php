@@ -11,6 +11,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command('market:sync-binance')->everyMinute()->withoutOverlapping();
 Schedule::command('signals:scan')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('trading:reconcile')->everyFiveMinutes()->withoutOverlapping();
 
 foreach (array_filter(array_keys(config('news.sources')), is_string(...)) as $source) {
     Schedule::job(new FetchNewsJob($source))->everyFiveMinutes();

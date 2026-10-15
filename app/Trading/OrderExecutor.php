@@ -12,6 +12,7 @@ use App\Models\Signal;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
+use App\Trading\Live\LiveTradingException;
 use App\Trading\Risk\RiskGuard;
 use Illuminate\Support\Facades\DB;
 
@@ -39,6 +40,13 @@ class OrderExecutor
             return null;
         }
 
+        if ($portfolio->isLive() && ! $this->approvedByPerson($signal)) {
+            $signal->moveTo(SignalStage::Rejected, 'Ordem real exige aprovação manual explícita.');
+            AuditLog::record($actor, 'order.blocked', $signal, ['reasons' => ['Sem aprovação manual.']]);
+
+            return null;
+        }
+
         $decision = $this->risk->check($portfolio, $request);
 
         if (! $decision->allowed) {
@@ -58,12 +66,17 @@ class OrderExecutor
             'side' => $request->side,
             'type' => $request->type,
             'qty' => $request->qty,
-            'price' => $request->limitPrice,
+            // Market orders carry the reference quote so the live daily cap can count them.
+            'price' => $request->limitPrice ?? ($portfolio->isLive() ? $this->prices->quote($request->asset)?->price : null),
             'stop_price' => $request->stopPrice,
             'status' => OrderStatus::Pending,
         ]);
 
-        $result = $this->brokers->for($portfolio)->placeOrder($request);
+        try {
+            $result = $this->brokers->for($portfolio)->placeOrder($request);
+        } catch (LiveTradingException $e) {
+            $result = OrderResult::rejected($e->getMessage());
+        }
 
         DB::transaction(function () use ($order, $result, $signal, $portfolio, $request) {
             $order->update([
@@ -95,6 +108,11 @@ class OrderExecutor
         AuditLog::record($actor, 'order.'.$order->status->value, $order, ['decision' => $decision->reasons]);
 
         return $order->refresh();
+    }
+
+    private function approvedByPerson(Signal $signal): bool
+    {
+        return $signal->stage === SignalStage::Confirmed && str_starts_with((string) $signal->decided_by, 'user:');
     }
 
     private function buildRequest(Signal $signal): ?OrderRequest

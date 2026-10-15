@@ -65,4 +65,32 @@ return [
         'b3' => 900,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Real-money execution (phase 5)
+    |--------------------------------------------------------------------------
+    |
+    | Off by default. Even when enabled, every real order needs a person's
+    | explicit approval, stays under these absolute caps (in the portfolio's
+    | currency) and requires a verified credential without withdrawal rights.
+    |
+    */
+
+    'live' => [
+        'enabled' => (bool) env('TRADING_LIVE_ENABLED', false),
+        'max_order_value' => (float) env('TRADING_LIVE_MAX_ORDER_VALUE', 20),
+        'max_daily_value' => (float) env('TRADING_LIVE_MAX_DAILY_VALUE', 100),
+    ],
+
+    'binance' => [
+        'base_url' => env('BINANCE_BASE_URL', 'https://api.binance.com'),
+        'recv_window' => (int) env('BINANCE_RECV_WINDOW', 5000),
+    ],
+
+    // Bridge in front of the MT5 terminal (MT5 has no official REST API).
+    'mt5' => [
+        'gateway_url' => env('MT5_GATEWAY_URL'),
+        'gateway_token' => env('MT5_GATEWAY_TOKEN'),
+    ],
+
 ];
