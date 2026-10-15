@@ -45,3 +45,35 @@ export type PositionRow = {
     avg_price: number;
     stop_price: number | null;
 };
+
+export type CurvePoint = {
+    date: string;
+    equity: number;
+    benchmark: number | null;
+};
+
+export type Performance = {
+    benchmark: string | null;
+    curve: CurvePoint[];
+    return: number;
+    benchmark_return: number | null;
+    excess_return: number | null;
+    max_drawdown: number;
+    sharpe: number | null;
+};
+
+export type AgentScoreRow = {
+    agent: string;
+    signals: number;
+    hits: number;
+    hit_rate: number;
+    weight: number;
+};
+
+export type TaxMonth = {
+    month: string;
+    bought: number;
+    sold: number;
+    fees: number;
+    result: number;
+};
