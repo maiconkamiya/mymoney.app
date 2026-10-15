@@ -1,0 +1,47 @@
+export type Market = 'crypto' | 'b3';
+
+export type PortfolioSummary = {
+    id: number;
+    name: string;
+    market: Market;
+    mode: 'backtest' | 'paper' | 'live';
+    status: 'draft' | 'running' | 'paused' | 'finished';
+    initial_cash: number;
+    equity: number;
+    cash?: number;
+    starts_at: string;
+    ends_at: string;
+    auto_execute: boolean;
+};
+
+export type AgentVote = {
+    agent: string;
+    round: number;
+    action: 'buy' | 'sell' | 'hold';
+    confidence: number;
+    veto: boolean;
+    reasons: string[];
+};
+
+export type SignalRow = {
+    id: number;
+    symbol: string;
+    stage: string;
+    side: 'buy' | 'sell' | null;
+    score: number | null;
+    entry_price: number | null;
+    stop_price: number | null;
+    target_price: number | null;
+    reason: string | null;
+    created_at: string;
+    cost: number;
+    votes: AgentVote[];
+};
+
+export type PositionRow = {
+    id: number;
+    symbol: string;
+    qty: number;
+    avg_price: number;
+    stop_price: number | null;
+};

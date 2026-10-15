@@ -1,0 +1,247 @@
+<script setup lang="ts">
+import { Form, Head } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
+import Heading from '@/components/Heading.vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    actionLabels,
+    agentLabels,
+    marketLabels,
+    money,
+    percent,
+    stageLabels,
+} from '@/lib/trading';
+import { index } from '@/routes/portfolios';
+import type { PortfolioSummary, PositionRow, SignalRow } from '@/types';
+
+const props = defineProps<{
+    portfolio: PortfolioSummary;
+    positions: PositionRow[];
+    signals: SignalRow[];
+}>();
+
+defineOptions({
+    layout: {
+        breadcrumbs: [{ title: 'Carteiras', href: index() }],
+    },
+});
+
+const result = computed(
+    () => props.portfolio.equity / props.portfolio.initial_cash - 1,
+);
+
+const stageVariant = (stage: string) =>
+    stage === 'approved'
+        ? 'default'
+        : stage === 'rejected'
+          ? 'destructive'
+          : 'secondary';
+</script>
+
+<template>
+    <Head :title="portfolio.name" />
+
+    <div class="flex flex-1 flex-col gap-8 p-4">
+        <Heading
+            :title="portfolio.name"
+            :description="`${marketLabels[portfolio.market]} · ${portfolio.mode === 'paper' ? 'simulada' : 'real'} · ${portfolio.starts_at} a ${portfolio.ends_at} · ${portfolio.auto_execute ? 'execução automática' : 'aprovação manual'}`"
+        />
+
+        <div class="grid gap-4 sm:grid-cols-3">
+            <div class="rounded-xl border p-4">
+                <p class="text-sm text-muted-foreground">Patrimônio</p>
+                <p class="text-2xl font-semibold tabular-nums">
+                    {{ money(portfolio.equity, portfolio.market) }}
+                </p>
+            </div>
+            <div class="rounded-xl border p-4">
+                <p class="text-sm text-muted-foreground">Caixa</p>
+                <p class="text-2xl font-semibold tabular-nums">
+                    {{ money(portfolio.cash, portfolio.market) }}
+                </p>
+            </div>
+            <div class="rounded-xl border p-4">
+                <p class="text-sm text-muted-foreground">
+                    Resultado sobre
+                    {{ money(portfolio.initial_cash, portfolio.market) }}
+                </p>
+                <p
+                    class="text-2xl font-semibold tabular-nums"
+                    :class="result < 0 ? 'text-destructive' : ''"
+                >
+                    {{ percent(result) }}
+                </p>
+            </div>
+        </div>
+
+        <section>
+            <Heading variant="small" title="Posições abertas" />
+            <p
+                v-if="positions.length === 0"
+                class="mt-2 text-sm text-muted-foreground"
+            >
+                Nenhuma posição aberta.
+            </p>
+            <div v-else class="mt-2 overflow-x-auto rounded-xl border">
+                <table class="w-full text-sm">
+                    <thead class="bg-muted/50 text-left text-muted-foreground">
+                        <tr>
+                            <th class="px-4 py-2 font-medium">Ativo</th>
+                            <th class="px-4 py-2 text-right font-medium">
+                                Quantidade
+                            </th>
+                            <th class="px-4 py-2 text-right font-medium">
+                                Preço médio
+                            </th>
+                            <th class="px-4 py-2 text-right font-medium">
+                                Stop
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="position in positions"
+                            :key="position.id"
+                            class="border-t"
+                        >
+                            <td class="px-4 py-2 font-medium">
+                                {{ position.symbol }}
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">
+                                {{ position.qty }}
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">
+                                {{
+                                    money(position.avg_price, portfolio.market)
+                                }}
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">
+                                {{
+                                    money(position.stop_price, portfolio.market)
+                                }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section>
+            <Heading
+                variant="small"
+                title="Sinais"
+                description="Cada sinal mostra o voto final de cada agente. Sinais aprovados esperam sua confirmação."
+            />
+
+            <p
+                v-if="signals.length === 0"
+                class="mt-2 text-sm text-muted-foreground"
+            >
+                Nenhum sinal ainda. Eles aparecem quando o scanner ou uma
+                notícia relevante dispara uma rodada de agentes.
+            </p>
+
+            <div class="mt-2 space-y-4">
+                <article
+                    v-for="signal in signals"
+                    :key="signal.id"
+                    class="rounded-xl border p-4"
+                >
+                    <header class="flex flex-wrap items-center gap-2">
+                        <span class="font-medium">{{ signal.symbol }}</span>
+                        <Badge :variant="stageVariant(signal.stage)">
+                            {{ stageLabels[signal.stage] ?? signal.stage }}
+                        </Badge>
+                        <span
+                            v-if="signal.side"
+                            class="text-sm text-muted-foreground"
+                        >
+                            {{ actionLabels[signal.side] }} · score
+                            {{ signal.score?.toFixed(2) }}
+                        </span>
+                        <span class="ml-auto text-xs text-muted-foreground">
+                            {{
+                                new Date(signal.created_at).toLocaleString(
+                                    'pt-BR',
+                                )
+                            }}
+                            · custo US$ {{ signal.cost.toFixed(4) }}
+                        </span>
+                    </header>
+
+                    <p
+                        v-if="signal.reason"
+                        class="mt-1 text-sm text-muted-foreground"
+                    >
+                        {{ signal.reason }}
+                    </p>
+
+                    <p
+                        v-if="signal.entry_price"
+                        class="mt-1 text-sm tabular-nums"
+                    >
+                        Entrada
+                        {{ money(signal.entry_price, portfolio.market) }} · stop
+                        {{ money(signal.stop_price, portfolio.market) }} · alvo
+                        {{ money(signal.target_price, portfolio.market) }}
+                    </p>
+
+                    <ul
+                        v-if="signal.votes.length"
+                        class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+                    >
+                        <li
+                            v-for="vote in signal.votes"
+                            :key="vote.agent"
+                            class="rounded-lg bg-muted/40 p-3 text-sm"
+                        >
+                            <p class="font-medium">
+                                {{ agentLabels[vote.agent] ?? vote.agent }}:
+                                {{ actionLabels[vote.action] }}
+                                {{ Math.round(vote.confidence * 100) }}%
+                                <span v-if="vote.veto" class="text-destructive">
+                                    · veto
+                                </span>
+                            </p>
+                            <p class="text-muted-foreground">
+                                {{ vote.reasons.join(' ') }}
+                            </p>
+                        </li>
+                    </ul>
+
+                    <div
+                        v-if="signal.stage === 'approved'"
+                        class="mt-3 flex gap-2"
+                    >
+                        <Form
+                            v-bind="
+                                SignalDecisionController.confirm.form(signal.id)
+                            "
+                            v-slot="{ processing }"
+                        >
+                            <Button size="sm" :disabled="processing">
+                                Confirmar e executar
+                            </Button>
+                        </Form>
+                        <Form
+                            v-bind="
+                                SignalDecisionController.reject.form(signal.id)
+                            "
+                            v-slot="{ processing }"
+                        >
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                :disabled="processing"
+                            >
+                                Descartar
+                            </Button>
+                        </Form>
+                    </div>
+                </article>
+            </div>
+        </section>
+    </div>
+</template>
