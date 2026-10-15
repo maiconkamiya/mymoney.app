@@ -9,7 +9,6 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('market:sync-binance')->everyMinute()->withoutOverlapping();
 Schedule::command('signals:scan')->everyFifteenMinutes()->withoutOverlapping();
 
 foreach (array_filter(array_keys(config('news.sources')), is_string(...)) as $source) {

@@ -38,9 +38,9 @@ class CandleAggregator
     /**
      * @param  array{open_at: CarbonInterface, open: float, high: float, low: float, close: float, volume: float}  $kline
      */
-    public function upsertKline(Asset $asset, array $kline, string $timeframe = '1m'): void
+    public function upsertKline(Asset $asset, array $kline, string $timeframe = '1m'): Candle
     {
-        Candle::updateOrCreate(
+        return Candle::updateOrCreate(
             ['asset_id' => $asset->id, 'timeframe' => $timeframe, 'open_at' => $kline['open_at']],
             collect($kline)->except('open_at')->all(),
         );

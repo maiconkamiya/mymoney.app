@@ -6,15 +6,15 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Public Binance market data over REST. Polling 1-minute klines is enough for
- * phase 1; the WebSocket stream can replace it without touching the rest.
+ * Public Binance market data over REST. The WebSocket stream (`market:stream`)
+ * feeds live candles; this only backfills history when the stream (re)connects.
  */
 class BinanceKlines
 {
     /**
      * @return list<array{open_at: Carbon, open: float, high: float, low: float, close: float, volume: float}>
      */
-    public function latest(string $symbol, int $limit = 5): array
+    public function latest(string $symbol, int $limit = 120): array
     {
         $rows = Http::baseUrl('https://api.binance.com')
             ->timeout(10)
