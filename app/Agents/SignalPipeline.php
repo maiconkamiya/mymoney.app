@@ -7,6 +7,7 @@ use App\Agents\Consensus\ConsensusResult;
 use App\Agents\Data\Vote;
 use App\Agents\Llm\LlmClient;
 use App\Enums\AgentRole;
+use App\Enums\OrderSide;
 use App\Enums\SignalStage;
 use App\Models\AgentScore;
 use App\Models\Signal;
@@ -67,6 +68,13 @@ class SignalPipeline
             'target_price' => $this->median($finalVotes, $result, 'target'),
         ]);
         $signal->moveTo(SignalStage::Analyzed);
+
+        if ($result->approved && $result->side === OrderSide::Sell && ! $signal->portfolio->openPositions()->where('asset_id', $signal->asset_id)->exists()) {
+            $signal->moveTo(SignalStage::Rejected, 'Venda aprovada, mas não há posição aberta para vender.');
+
+            return $result;
+        }
+
         $signal->moveTo($result->approved ? SignalStage::Approved : SignalStage::Rejected, $result->reason);
 
         if ($result->approved && $signal->portfolio->auto_execute && ! $signal->portfolio->isLive()) {

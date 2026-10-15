@@ -48,5 +48,10 @@ class SignalDecisionController extends Controller
     {
         abort_unless($signal->portfolio->user_id === $request->user()->id, 403);
         abort_unless($signal->stage === SignalStage::Approved, 422, 'Só sinais aprovados pelo consenso podem ser decididos.');
+
+        if ($signal->isExpired()) {
+            $signal->expire();
+            abort(422, 'Sinal expirado: o preço, o stop e o alvo já não valem.');
+        }
     }
 }

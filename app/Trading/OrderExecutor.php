@@ -82,7 +82,19 @@ class OrderExecutor
         $outcome = $this->submit($position->portfolio, $request, $position->signal, $actor, $reason);
 
         if (is_string($outcome)) {
-            AuditLog::record($actor, 'position.close_blocked', $position, ['reason' => $reason, 'detail' => $outcome]);
+            // The exits job retries every minute; log the same block once an hour, not once a minute.
+            $payload = ['reason' => $reason, 'detail' => $outcome];
+            $repeated = AuditLog::query()
+                ->where('action', 'position.close_blocked')
+                ->where('subject_type', $position->getMorphClass())
+                ->where('subject_id', $position->getKey())
+                ->where('created_at', '>=', now()->subHour())
+                ->get()
+                ->contains(fn (AuditLog $log) => $log->payload === $payload);
+
+            if (! $repeated) {
+                AuditLog::record($actor, 'position.close_blocked', $position, $payload);
+            }
 
             return null;
         }

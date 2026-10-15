@@ -9,7 +9,7 @@ Painel em Laravel 13 + Inertia + Vue onde um grupo de agentes de IA analisa, des
 3. O scanner (`signals:scan`, a cada 15 minutos) abre um sinal para cada carteira em execução. Ele pula ativos com o mercado fechado ou sem cotação recente, para não gastar chamadas de LLM em ordens que seriam recusadas.
 4. Cinco agentes votam (técnico, notícias, fundamentos, quantitativo, risco). O cético lê os votos e publica uma objeção, e cada agente pode rever o voto uma vez.
 5. O consenso aprova quando o score ponderado passa do limite, pelo menos 4 votantes concordam e o agente de risco não vetou.
-6. Por padrão você confirma ou descarta o sinal no painel. A guarda de risco, escrita em código e sem LLM, ainda pode reduzir ou bloquear a ordem.
+6. Por padrão você confirma ou descarta o sinal no painel; sinal aprovado e não decidido em `TRADING_SIGNAL_TTL_MINUTES` (60) expira. A guarda de risco, escrita em código e sem LLM, ainda pode reduzir ou bloquear a ordem.
 7. A ordem vai para o `Broker` da carteira. Simulação e operação real seguem o mesmo caminho; só o broker muda.
 8. A posição guarda o sinal de origem, o stop e o alvo. `positions:check-exits` vende tudo quando o preço cruza um dos dois e, ao fim do período, liquida as posições e marca a carteira como finalizada (com um último snapshot). Cada ordem de saída grava o motivo (`stop`, `target`, `period_end`).
 
