@@ -12,14 +12,17 @@ use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Signal;
 use App\Models\User;
+use App\Trading\BrokerManager;
 use App\Trading\Brokers\BinanceBroker;
 use App\Trading\Data\OrderRequest;
+use App\Trading\Gateways\Mt5HttpGateway;
 use App\Trading\Live\CredentialVerifier;
 use App\Trading\Live\LiveTradingException;
 use App\Trading\Live\OrderReconciler;
 use App\Trading\OrderExecutor;
 use App\Trading\TradingHalt;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Tests\Concerns\BuildsMarket;
 use Tests\TestCase;
@@ -228,5 +231,24 @@ class LiveTradingTest extends TestCase
         $this->assertCount(1, app(OrderReconciler::class)->reconcile());
         $this->assertTrue(app(TradingHalt::class)->isHalted());
         $this->assertNotNull($order);
+    }
+
+    public function test_mt5_live_orders_go_through_the_guarded_http_gateway()
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 11:00', 'America/Sao_Paulo'));
+        config(['trading.live.enabled' => true, 'trading.mt5.gateway_url' => 'http://mt5.test', 'trading.b3_gateway' => Mt5HttpGateway::class]);
+        Http::fake(['mt5.test/orders' => Http::response(['ticket' => 9, 'status' => 'filled', 'filled_volume' => 100, 'avg_price' => 38, 'fee' => 1])]);
+        $asset = Asset::factory()->b3()->create();
+        $portfolio = $this->livePortfolio($this->credential(['broker' => 'mt5', 'api_key' => '123']), ['market' => $asset->market, 'broker' => 'mt5']);
+        $request = new OrderRequest($asset, OrderSide::Buy, 100);
+
+        $result = app(BrokerManager::class)->for($portfolio)->placeOrder($request);
+
+        $this->assertSame('9', $result->externalId);
+        Http::assertSent(fn ($r) => $r['login'] === '123' && $r['volume'] == 100);
+
+        app(TradingHalt::class)->halt('teste');
+        $this->expectException(LiveTradingException::class);
+        app(BrokerManager::class)->for($portfolio)->placeOrder($request);
     }
 }

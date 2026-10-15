@@ -3,6 +3,8 @@
 use App\Trading\Brokers\BinanceBroker;
 use App\Trading\Brokers\Mt5Broker;
 use App\Trading\Brokers\PaperBroker;
+use App\Trading\Gateways\Mt5HttpGateway;
+use App\Trading\Gateways\RefusingOrderGateway;
 
 return [
 
@@ -38,18 +40,50 @@ return [
             'slippage_bps' => (float) env('TRADING_CRYPTO_SLIPPAGE_BPS', 5),
         ],
         'b3' => [
-            // Emolumentos + liquidação; corretagem is configured separately.
-            'fee_rate' => (float) env('TRADING_B3_FEE_RATE', 0.0003),
+            // Emolumentos (0,005%) + liquidação (0,0275%); corretagem is configured separately.
+            'fee_rate' => (float) env('TRADING_B3_FEE_RATE', 0.000325),
             'brokerage_per_order' => (float) env('TRADING_B3_BROKERAGE', 0),
             'slippage_bps' => (float) env('TRADING_B3_SLIPPAGE_BPS', 5),
         ],
     ],
 
+    /*
+    | Cash equity session. Orders only fill in continuous trading
+    | (opens_at to closes_at); the auctions are modelled as non-filling phases.
+    */
+
     'b3_session' => [
         'timezone' => 'America/Sao_Paulo',
+        'opening_auction_at' => '09:45',
         'opens_at' => '10:00',
         'closes_at' => '16:55',
+        'closing_call_until' => '17:00',
     ],
+
+    /*
+    | Extra closings beyond the national calendar (Y-m-d), for example a
+    | day the exchange announces it will not trade.
+    */
+
+    'b3_extra_holidays' => array_filter(explode(',', (string) env('TRADING_B3_EXTRA_HOLIDAYS', ''))),
+
+    /*
+    | B3 market data provider (brapi.dev). Free plans only serve daily candles
+    | for most tickers; set the interval your plan allows.
+    */
+
+    'b3_data' => [
+        'token' => env('BRAPI_TOKEN'),
+        'interval' => env('B3_CANDLE_INTERVAL', '1m'),
+        'range' => env('B3_CANDLE_RANGE', '1d'),
+    ],
+
+    /*
+    | Live order gateway for B3. Refuses everything until MT5_GATEWAY_URL points
+    | at the bridge next to the terminal.
+    */
+
+    'b3_gateway' => env('MT5_GATEWAY_URL') ? Mt5HttpGateway::class : RefusingOrderGateway::class,
 
     /*
     |--------------------------------------------------------------------------
