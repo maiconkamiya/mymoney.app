@@ -53,39 +53,39 @@ const taxUrl = computed(
         />
 
         <div class="grid gap-4 sm:grid-cols-4">
-            <div class="rounded-xl border p-4">
+            <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">Retorno</p>
                 <p class="text-xl font-semibold tabular-nums">
                     {{ percent(performance.return) }}
                 </p>
             </div>
-            <div class="rounded-xl border p-4">
+            <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">
                     vs {{ performance.benchmark ?? 'benchmark' }}
                 </p>
                 <p class="text-xl font-semibold tabular-nums">
                     {{
                         performance.excess_return === null
-                            ? '—'
+                            ? '-'
                             : percent(performance.excess_return)
                     }}
                 </p>
             </div>
-            <div class="rounded-xl border p-4">
+            <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">Drawdown máximo</p>
                 <p class="text-xl font-semibold tabular-nums">
                     {{ percent(-performance.max_drawdown) }}
                 </p>
             </div>
-            <div class="rounded-xl border p-4">
+            <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">Sharpe</p>
                 <p class="text-xl font-semibold tabular-nums">
-                    {{ performance.sharpe?.toFixed(2) ?? '—' }}
+                    {{ performance.sharpe?.toFixed(2) ?? '-' }}
                 </p>
             </div>
         </div>
 
-        <div class="rounded-xl border p-4">
+        <div class="rounded-2xl border bg-card p-4">
             <svg
                 :viewBox="`0 0 ${width} ${height}`"
                 class="h-40 w-full"
@@ -128,7 +128,7 @@ const taxUrl = computed(
         >
             O placar é calculado todo dia depois que há sinais executados.
         </p>
-        <div v-else class="overflow-x-auto rounded-xl border">
+        <div v-else class="overflow-x-auto rounded-2xl border bg-card">
             <table class="w-full text-sm">
                 <thead class="bg-muted/50 text-left text-muted-foreground">
                     <tr>
@@ -180,7 +180,7 @@ const taxUrl = computed(
         <p v-if="taxMonths.length === 0" class="text-sm text-muted-foreground">
             Sem operações executadas.
         </p>
-        <div v-else class="overflow-x-auto rounded-xl border">
+        <div v-else class="overflow-x-auto rounded-2xl border bg-card">
             <table class="w-full text-sm">
                 <thead class="bg-muted/50 text-left text-muted-foreground">
                     <tr>
@@ -209,7 +209,7 @@ const taxUrl = computed(
                         </td>
                         <td
                             class="px-4 py-2 text-right tabular-nums"
-                            :class="m.result < 0 ? 'text-destructive' : ''"
+                            :class="m.result < 0 ? 'text-down' : 'text-up'"
                         >
                             {{ money(m.result, market) }}
                         </td>
