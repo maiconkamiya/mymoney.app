@@ -63,6 +63,7 @@
         "ci:check": [
             "Composer\\Config::disableProcessTimeout",
             "npm run check",
+            "@php artisan wayfinder:generate --with-form",
             "npm run types:check",
             "@test",
             "@versoes"
@@ -78,7 +79,7 @@
             "npm run build"
         ],
         "types:check": [
-            "phpstan analyse"
+            "phpstan analyse --memory-limit=1G"
         ],
         "test": [
             "@php artisan config:clear --ansi",
