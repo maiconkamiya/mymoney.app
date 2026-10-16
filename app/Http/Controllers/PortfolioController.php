@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Agents\AgentActivity;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
 use App\Http\Requests\StorePortfolioRequest;
@@ -63,7 +64,7 @@ class PortfolioController extends Controller
         return to_route('portfolios.show', $portfolio);
     }
 
-    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax): Response
+    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
@@ -125,6 +126,7 @@ class PortfolioController extends Controller
                 'weight' => $score->weight,
             ]),
             'tax_months' => $tax->months($portfolio),
+            'agent_activity' => $activity->for($portfolio),
         ]);
     }
 }

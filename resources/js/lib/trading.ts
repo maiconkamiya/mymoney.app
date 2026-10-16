@@ -9,6 +9,8 @@ export const stageLabels: Record<string, string> = {
 };
 
 export const agentLabels: Record<string, string> = {
+    coordinator: 'Coordenador',
+    executor: 'Executor',
     technical: 'Técnico',
     news: 'Notícias',
     fundamentals: 'Fundamentos',
