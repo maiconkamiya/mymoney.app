@@ -204,7 +204,7 @@ onBeforeUnmount(stopMarket);
                 </div>
                 <p
                     v-if="pending_signals.length === 0"
-                    class="mx-4 mb-4 flex-1 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground md:mx-6 md:mb-6"
+                    class="mx-4 mb-4 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground md:mx-6 md:mb-6"
                 >
                     Nenhum sinal esperando agora.
                 </p>

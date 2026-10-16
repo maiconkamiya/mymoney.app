@@ -56,7 +56,8 @@ defineProps<{
                 <p
                     class="absolute inset-x-10 bottom-10 max-w-md text-2xl leading-snug font-semibold text-white"
                 >
-                    Seis agentes votam. Você vê cada voto.
+                    <span class="block">Seis agentes votam.</span>
+                    <span class="block">Você vê cada voto.</span>
                 </p>
             </div>
         </div>
