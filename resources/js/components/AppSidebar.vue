@@ -5,6 +5,7 @@ import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
+import VersaoDoSistema from '@/components/VersaoDoSistema.vue';
 import {
     Sidebar,
     SidebarContent,
@@ -66,6 +67,7 @@ const footerNavItems: NavItem[] = [
         <SidebarFooter>
             <NavFooter :items="footerNavItems" />
             <NavUser />
+            <VersaoDoSistema />
         </SidebarFooter>
     </Sidebar>
     <slot />

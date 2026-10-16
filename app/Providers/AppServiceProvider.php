@@ -9,6 +9,7 @@ use App\Agents\Llm\LlmClient;
 use App\News\Embeddings\Embedder;
 use App\News\Embeddings\FakeEmbedder;
 use App\News\Embeddings\HttpEmbedder;
+use App\Support\VersaoDoSistema;
 use App\Trading\CandlePriceFeed;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Gateways\OrderGateway;
@@ -28,6 +29,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(PriceFeed::class, CandlePriceFeed::class);
         $this->app->singleton(TradingHalt::class);
+        // Uma leitura de arquivo por request/job; um deploy novo é visto sem reiniciar workers.
+        $this->app->scoped(VersaoDoSistema::class);
         $this->app->bind(OrderGateway::class, fn () => app(config('trading.b3_gateway')));
 
         $this->app->singleton(LlmClient::class, fn (): LlmClient => match (config('agents.driver')) {
