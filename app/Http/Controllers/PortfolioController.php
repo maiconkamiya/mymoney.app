@@ -14,6 +14,7 @@ use App\Models\RiskProfile;
 use App\Models\Signal;
 use App\Reports\PerformanceReport;
 use App\Reports\TaxReport;
+use App\Trading\PortfolioCharts;
 use App\Trading\PortfolioValuation;
 use App\Trading\TradingHalt;
 use Illuminate\Http\RedirectResponse;
@@ -64,7 +65,7 @@ class PortfolioController extends Controller
         return to_route('portfolios.show', $portfolio);
     }
 
-    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity): Response
+    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
@@ -127,6 +128,7 @@ class PortfolioController extends Controller
             ]),
             'tax_months' => $tax->months($portfolio),
             'agent_activity' => $activity->for($portfolio),
+            'charts' => $charts->for($portfolio),
         ]);
     }
 }

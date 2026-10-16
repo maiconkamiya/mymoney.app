@@ -3,6 +3,7 @@ import { Form, Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
 import Heading from '@/components/Heading.vue';
+import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ import type {
     AgentActivity,
     AgentScoreRow,
     Performance,
+    PortfolioCharts,
     PortfolioSummary,
     PositionRow,
     SignalRow,
@@ -34,6 +36,7 @@ const props = defineProps<{
     agent_scores: AgentScoreRow[];
     tax_months: TaxMonth[];
     agent_activity: AgentActivity;
+    charts: PortfolioCharts;
 }>();
 
 defineOptions({
@@ -91,6 +94,12 @@ const stageVariant = (stage: string) =>
                 </p>
             </div>
         </div>
+
+        <AssetChartsCard
+            :portfolio-id="portfolio.id"
+            :market="portfolio.market"
+            :initial="charts"
+        />
 
         <AgentSwarmCard
             :portfolio-id="portfolio.id"

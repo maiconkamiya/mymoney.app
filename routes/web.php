@@ -4,6 +4,7 @@ use App\Http\Controllers\BrokerCredentialController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NovidadesController;
 use App\Http\Controllers\PortfolioAgentActivityController;
+use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioController;
 use App\Http\Controllers\PortfolioReportController;
 use App\Http\Controllers\SignalDecisionController;
@@ -20,6 +21,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show']);
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');
+    Route::get('portfolios/{portfolio}/graficos', PortfolioChartsController::class)->name('portfolios.charts');
     Route::get('portfolios/{portfolio}/reports/tax.csv', [PortfolioReportController::class, 'tax'])->name('portfolios.reports.tax');
     Route::post('signals/{signal}/confirm', [SignalDecisionController::class, 'confirm'])->name('signals.confirm');
     Route::post('signals/{signal}/reject', [SignalDecisionController::class, 'reject'])->name('signals.reject');
