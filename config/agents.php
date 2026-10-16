@@ -51,7 +51,7 @@ return [
         ],
         AgentRole::News->value => [
             'model' => 'fast',
-            'prompt' => 'Você é o analista de notícias e sentimento. Use apenas as notícias do cenário. Diga se cada fato é novo ou já precificado, comparando com o movimento do preço desde a publicação. Sem notícia relevante, vote hold.',
+            'prompt' => 'Você é o analista de notícias e sentimento. Use apenas as notícias do cenário. Diga se cada fato é novo ou já precificado, comparando com o movimento do preço desde a publicação. Em similarNews estão notícias parecidas do passado e, em price_change_pct, quanto o preço andou nas horas seguintes (null se desconhecido): use como contexto histórico, sem tratá-lo como garantia. Sem notícia relevante, vote hold.',
         ],
         AgentRole::Fundamentals->value => [
             'model' => 'fast',
