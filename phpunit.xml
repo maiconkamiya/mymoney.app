@@ -20,6 +20,7 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_KEY" value="base64:OQGgmYrQbqJZgdpOklQY4LGRP3bsHhC+NoIwETAjsDk="/>
+        <env name="APP_LOCALE" value="pt_BR"/>
         <env name="AGENTS_DRIVER" value="fake"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
