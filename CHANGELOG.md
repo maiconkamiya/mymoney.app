@@ -8,7 +8,13 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 
 ### Adicionado
 
-- **Cotações cripto gravadas a cada segundo.** Um novo coletor escuta os negócios de Bitcoin, Ethereum e Solana direto na Binance e atualiza o candle de 1 minuto quase em tempo real, em vez de esperar a busca de cada minuto. Cada atualização também é transmitida pelo canal "mercado", pronta para o painel receber sem recarregar. Por padrão ele usa o endereço público de dados de mercado da Binance, que responde nos lugares onde o endereço principal é bloqueado. O coletor só começa a valer quando o processo for ligado no servidor; até lá tudo continua como antes.
+- **Cotações cripto gravadas a cada segundo.** Um novo coletor escuta os negócios de Bitcoin, Ethereum e Solana direto na Binance e atualiza o candle de 1 minuto quase em tempo real, em vez de esperar a busca de cada minuto. Cada atualização também é transmitida pelo canal "mercado", e o painel mostra, logo abaixo do gráfico, o último preço e há quanto tempo cada cotação chegou (aparece só quando as atualizações em tempo real estão ligadas). Por padrão ele usa o endereço público de dados de mercado da Binance, que responde nos lugares onde o endereço principal é bloqueado. O coletor só começa a valer quando o processo for ligado no servidor; até lá tudo continua como antes.
+
+## [0.3.6] - 2026-10-16
+
+### Alterado
+
+- **Agentes em ação em tempo real.** O quadro dos agentes na carteira deixa de repetir animações por tempo: cada movimento agora acontece porque o agente realmente fez aquilo. O agente sai para ler a fonte quando começa a consultar o modelo, volta quando entrega o voto, e as mensagens (voto, objeção do cético, decisão, ordem) aparecem no instante em que são enviadas. Entre um passo e outro o quadro fica parado, e com a carteira ociosa ele mostra o último ciclo. Se a conexão em tempo real cair, o quadro avisa e passa a se atualizar a cada 15 segundos.
 
 ## [0.3.5] - 2026-10-16
 

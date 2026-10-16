@@ -1,21 +1,31 @@
 <script setup lang="ts">
+import {
+    echoIsConfigured,
+    useConnectionStatus,
+    useEcho,
+} from '@laravel/echo-vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PortfolioAgentActivityController from '@/actions/App/Http/Controllers/PortfolioAgentActivityController';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
+import { applyAgentEvent } from '@/lib/agentActivityState';
 import { AgentCanvas } from '@/lib/agentCanvas';
 import { agentLabels, stageLabels } from '@/lib/trading';
-import type { AgentActivity } from '@/types';
+import type { AgentActivity, AgentLiveEvent } from '@/types';
 
 const props = defineProps<{
     portfolioId: number;
     initial: AgentActivity;
 }>();
 
-const POLL_MS = 4000;
+/** Only a safety net: with the socket down, a slow snapshot keeps the card honest. */
+const FALLBACK_POLL_MS = 15000;
 
 const activity = ref<AgentActivity>(props.initial);
 const failed = ref(false);
+const realtime = echoIsConfigured();
+const connection = realtime ? useConnectionStatus() : ref('failed');
+const connected = computed(() => connection.value === 'connected');
 const canvasEl = ref<HTMLCanvasElement | null>(null);
 const wrapperEl = ref<HTMLElement | null>(null);
 
@@ -61,13 +71,15 @@ const dot: Record<string, string> = {
     analyzing: 'bg-pink-500',
     waiting: 'bg-pink-500',
     approved: 'bg-up',
+    buy: 'bg-up',
+    sell: 'bg-down',
     rejected: 'bg-down',
     neutral: 'bg-muted-foreground',
     veto: 'bg-amber-400',
 };
 
 async function refresh() {
-    if (inFlight || document.hidden) {
+    if (inFlight || document.hidden || connected.value) {
         return;
     }
 
@@ -87,6 +99,7 @@ async function refresh() {
         }
 
         activity.value = (await response.json()) as AgentActivity;
+        canvas?.setActivity(activity.value);
         failed.value = false;
     } catch {
         failed.value = true;
@@ -97,23 +110,56 @@ async function refresh() {
 
 function onVisibility() {
     if (document.hidden) {
-        canvas?.stop();
-
         return;
     }
 
-    canvas?.start();
     void refresh();
 }
 
-watch(activity, (value) => canvas?.setActivity(value));
+function onEvent(event: AgentLiveEvent) {
+    activity.value = applyAgentEvent(activity.value, event);
+    canvas?.applyEvent(event, activity.value);
+}
+
+if (realtime) {
+    useEcho<AgentLiveEvent>(
+        `portfolios.${props.portfolioId}.agents`,
+        '.agent.activity',
+        onEvent,
+    );
+}
+
+/** A snapshot from the safety-net poll: states only, nothing travels. */
+watch(connected, (up) => {
+    if (up) {
+        void refreshOnce();
+    }
+});
+
+async function refreshOnce() {
+    try {
+        const response = await fetch(
+            PortfolioAgentActivityController.url(props.portfolioId),
+            {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            },
+        );
+
+        if (response.ok) {
+            activity.value = (await response.json()) as AgentActivity;
+            canvas?.setActivity(activity.value);
+        }
+    } catch {
+        failed.value = true;
+    }
+}
 
 onMounted(() => {
     if (canvasEl.value) {
         canvas = new AgentCanvas(canvasEl.value);
         canvas.resize();
         canvas.setActivity(activity.value);
-        canvas.start();
     }
 
     if (wrapperEl.value) {
@@ -121,7 +167,7 @@ onMounted(() => {
         observer.observe(wrapperEl.value);
     }
 
-    timer = setInterval(refresh, POLL_MS);
+    timer = setInterval(refresh, FALLBACK_POLL_MS);
     document.addEventListener('visibilitychange', onVisibility);
 });
 
@@ -146,7 +192,12 @@ onBeforeUnmount(() => {
                 description="Quem está lendo, analisando, votando e contestando no ciclo mais recente da carteira."
             />
             <div class="flex items-center gap-2 text-xs text-muted-foreground">
-                <span v-if="failed">Sem atualização, tentando de novo.</span>
+                <span v-if="!connected">
+                    Tempo real fora do ar, atualizando a cada 15 s.
+                </span>
+                <span v-else-if="failed"
+                    >Sem atualização, tentando de novo.</span
+                >
                 <Badge
                     :variant="
                         activity.status === 'live' ? 'default' : 'secondary'
@@ -159,7 +210,7 @@ onBeforeUnmount(() => {
 
         <div
             ref="wrapperEl"
-            class="relative aspect-[16/10] min-h-[340px] w-full overflow-hidden rounded-2xl border bg-[#07080c]"
+            class="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border bg-[#07080c] sm:aspect-[16/10] sm:min-h-[340px]"
         >
             <canvas
                 ref="canvasEl"
