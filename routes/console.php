@@ -14,6 +14,7 @@ Schedule::command('market:sync-b3')->everyMinute()->weekdays()->withoutOverlappi
 Schedule::command('market:sync-b3 --fundamentals')->dailyAt('07:00')->weekdays();
 Schedule::command('positions:check-exits')->everyMinute()->withoutOverlapping();
 Schedule::command('signals:scan')->cron('*/'.config('trading.scan_interval_minutes').' * * * *')->withoutOverlapping();
+Schedule::command('binance:sync')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('trading:reconcile')->everyFiveMinutes()->withoutOverlapping();
 
 foreach (array_filter(array_keys(config('news.sources')), is_string(...)) as $source) {
