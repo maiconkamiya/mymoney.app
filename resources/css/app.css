@@ -2,6 +2,9 @@
 
 @import 'tw-animate-css';
 
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource-variable/geist-mono/wght.css';
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
@@ -9,8 +12,10 @@
 
 @theme inline {
     --font-sans:
-        Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-    --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+        'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+        sans-serif;
+    --font-mono:
+        'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
@@ -85,8 +90,8 @@
     body,
     html {
         --font-sans:
-            Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
-            sans-serif;
+            'Geist Variable', ui-sans-serif, system-ui, -apple-system,
+            'Segoe UI', sans-serif;
     }
 }
 
