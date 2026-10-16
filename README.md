@@ -4,7 +4,7 @@ Painel em Laravel 13 + Inertia + Vue onde um grupo de agentes de IA analisa, des
 
 ## Como funciona
 
-1. Os workers de mercado gravam candles de 1 minuto: `market:sync-binance` (cripto) e `market:sync-b3` (B3, só durante o pregão, via brapi.dev), a cada minuto.
+1. Os workers de mercado gravam candles de 1 minuto: `market:sync-binance` (cripto, pelo endereço de dados públicos `BINANCE_MARKET_DATA_URL`, padrão `https://data-api.binance.vision`, que responde onde `api.binance.com` devolve 451) e `market:sync-b3` (B3, só durante o pregão, via brapi.dev), a cada minuto.
 2. O coletor busca notícias por RSS, remove duplicadas e classifica cada uma com um modelo rápido. As relevantes ganham uma análise com o modelo forte e disparam uma rodada de agentes.
 3. O scanner (`signals:scan`, a cada 15 minutos) abre um sinal para cada carteira em execução. Ele pula ativos com o mercado fechado ou sem cotação recente, para não gastar chamadas de LLM em ordens que seriam recusadas.
 4. Cinco agentes votam (técnico, notícias, fundamentos, quantitativo, risco). O cético lê os votos e publica uma objeção, e cada agente pode rever o voto uma vez.
