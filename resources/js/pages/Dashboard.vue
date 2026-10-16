@@ -2,6 +2,7 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowUpRight, ShieldCheck, ShieldOff } from '@lucide/vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import CotacoesDoServidor from '@/components/CotacoesDoServidor.vue';
 import FeedStatus from '@/components/landing/FeedStatus.vue';
 import PriceChart from '@/components/landing/PriceChart.vue';
 import { Badge } from '@/components/ui/badge';
@@ -192,6 +193,7 @@ onBeforeUnmount(stopMarket);
                 <div class="mt-4">
                     <PriceChart :data="series" :up="change >= 0" />
                 </div>
+                <CotacoesDoServidor class="mt-6 border-t pt-4" />
             </section>
 
             <section class="flex flex-col rounded-2xl border bg-card">

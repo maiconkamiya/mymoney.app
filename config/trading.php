@@ -169,6 +169,9 @@ return [
         // Public candles only. data-api.binance.vision serves the same /api/v3
         // market data and answers where api.binance.com returns 451.
         'market_data_url' => env('BINANCE_MARKET_DATA_URL', 'https://data-api.binance.vision'),
+        // WebSocket de negócios em tempo real; o espelho público data-stream.binance.vision
+        // responde onde stream.binance.com devolve 451.
+        'stream_url' => env('BINANCE_STREAM_URL', 'wss://data-stream.binance.vision'),
         'recv_window' => (int) env('BINANCE_RECV_WINDOW', 5000),
     ],
 
