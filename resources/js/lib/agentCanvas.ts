@@ -758,12 +758,11 @@ export class AgentCanvas {
             message.state === 'approved' ||
             message.state === 'rejected' ||
             message.state === 'veto';
-        const text = withText
-            ? `${SHORT_LABEL[message.from] ?? message.from}: ${message.text}`.slice(
-                  0,
-                  this.width < 600 ? 30 : 46,
-              )
+        const full = withText
+            ? `${SHORT_LABEL[message.from] ?? message.from}: ${message.text}`
             : '';
+        const max = this.width < 600 ? 30 : 46;
+        const text = full.length > max ? `${full.slice(0, max - 1)}…` : full;
 
         ctx.save();
         ctx.globalAlpha = Math.max(alpha, 0);
