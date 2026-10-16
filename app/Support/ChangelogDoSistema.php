@@ -9,7 +9,7 @@ namespace App\Support;
  *.
  *
  * É um parser deliberadamente simples, só para o formato que o projeto usa:
- * `## [X.Y.Z] – data`, seções `### Adicionado` e itens `- texto`. Devolve
+ * `## [X.Y.Z] - data`, seções `### Adicionado` e itens `- texto`. Devolve
  * TEXTO PURO: nada de HTML vai para a tela (o Vue só transforma `**negrito**`
  * em `<strong>` por nós próprios, nunca por `v-html` do que vem daqui).
  */

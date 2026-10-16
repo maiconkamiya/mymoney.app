@@ -20,7 +20,7 @@ const pacote = (versao) =>
         versao === null ? { name: 'x' } : { name: 'x', version: versao },
     );
 const changelog = (...versoes) =>
-    `# Changelog\n\n${versoes.map((v) => `## [${v}] – 2026-09-30\n\n### Adicionado\n\n- algo\n`).join('\n')}`;
+    `# Changelog\n\n${versoes.map((v) => `## [${v}] - 2026-09-30\n\n### Adicionado\n\n- algo\n`).join('\n')}`;
 
 const CODIGO = ['app/Http/Controllers/PortfolioController.php'];
 
@@ -350,7 +350,7 @@ test('analisarSemver recusa o que não é SemVer', () => {
 });
 
 test('changelogTemSecao exige o título "## [X.Y.Z]" e não confunde 1.0.0 com 1.0.01', () => {
-    assert.equal(changelogTemSecao('## [1.0.0] – 2026-09-30\n', '1.0.0'), true);
+    assert.equal(changelogTemSecao('## [1.0.0] - 2026-09-30\n', '1.0.0'), true);
     assert.equal(changelogTemSecao('## [1.0.0]\n', '1.0'), false);
     assert.equal(changelogTemSecao('## [1x0x0]\n', '1.0.0'), false);
     assert.equal(changelogTemSecao('texto [1.0.0] solto\n', '1.0.0'), false);
@@ -358,7 +358,7 @@ test('changelogTemSecao exige o título "## [X.Y.Z]" e não confunde 1.0.0 com 1
 
 test('extrairSecaoChangelog devolve só o corpo da seção pedida', () => {
     const texto =
-        '# Changelog\n\n## [1.1.0] – 2026-10-02\n\n### Adicionado\n\n- novo\n\n## [1.0.0] – 2026-09-30\n\n- antigo\n\n[1.1.0]: https://x\n';
+        '# Changelog\n\n## [1.1.0] - 2026-10-02\n\n### Adicionado\n\n- novo\n\n## [1.0.0] – 2026-09-30\n\n- antigo\n\n[1.1.0]: https://x\n';
 
     assert.equal(
         extrairSecaoChangelog(texto, '1.1.0'),

@@ -18,7 +18,7 @@ Resumo geral que não pertence a nenhuma versão.
 
 - Ainda não saiu.
 
-## [1.1.0] – 2026-10-20
+## [1.1.0] - 2026-10-20
 
 Texto de abertura da versão.
 
@@ -32,7 +32,7 @@ Texto de abertura da versão.
 
 - Um erro de cálculo.
 
-## [1.0.0] – 2026-10-16
+## [1.0.0] - 2026-10-16
 
 ### Adicionado
 
