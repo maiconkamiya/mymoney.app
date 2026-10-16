@@ -32,9 +32,11 @@ const inThirtyDays = new Date(Date.now() + 30 * 86_400_000)
 <template>
     <Head title="Carteiras" />
 
-    <div class="flex flex-1 flex-col gap-8 p-4">
+    <div
+        class="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-8 p-4 md:p-6 lg:p-8"
+    >
         <div
-            class="flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4"
+            class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4"
             :class="
                 halted
                     ? 'border-destructive/50 bg-destructive/10'
@@ -71,12 +73,12 @@ const inThirtyDays = new Date(Date.now() + 30 * 86_400_000)
 
             <div
                 v-if="portfolios.length === 0"
-                class="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground"
+                class="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground"
             >
                 Nenhuma carteira ainda. Crie a primeira simulação abaixo.
             </div>
 
-            <div v-else class="overflow-x-auto rounded-xl border">
+            <div v-else class="overflow-x-auto rounded-2xl border bg-card">
                 <table class="w-full text-sm">
                     <thead class="bg-muted/50 text-left text-muted-foreground">
                         <tr>

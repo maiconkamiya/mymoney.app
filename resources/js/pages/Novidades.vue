@@ -41,7 +41,7 @@ const versaoAtual = computed(() => page.props.sistema?.versao ?? null);
 
         <p
             v-if="versoes.length === 0"
-            class="rounded-xl border bg-card p-5 text-sm text-muted-foreground"
+            class="rounded-2xl border bg-card p-5 text-sm text-muted-foreground"
         >
             Ainda não há novidades registradas.
         </p>
@@ -49,7 +49,7 @@ const versaoAtual = computed(() => page.props.sistema?.versao ?? null);
         <article
             v-for="versao in versoes"
             :key="versao.versao"
-            class="rounded-xl border bg-card p-5"
+            class="rounded-2xl border bg-card p-5"
             :data-testid="`novidades-versao-${versao.versao}`"
         >
             <header class="flex flex-wrap items-center gap-2">

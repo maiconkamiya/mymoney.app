@@ -37,7 +37,7 @@ export const marketLabels: Record<string, string> = {
 
 export function money(value: number | null | undefined, market = 'b3'): string {
     if (value === null || value === undefined) {
-        return '—';
+        return '-';
     }
 
     return new Intl.NumberFormat('pt-BR', {

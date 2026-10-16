@@ -9,9 +9,8 @@
 
 @theme inline {
     --font-sans:
-        Instrument Sans, ui-sans-serif, system-ui, sans-serif,
-        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-        'Noto Color Emoji';
+        Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
@@ -40,6 +39,9 @@
 
     --color-destructive: var(--destructive);
     --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-up: var(--up);
+    --color-down: var(--down);
 
     --color-border: var(--border);
     --color-input: var(--input);
@@ -83,83 +85,91 @@
     body,
     html {
         --font-sans:
-            'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
-            'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-            'Noto Color Emoji';
+            Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+            sans-serif;
     }
 }
 
+/*
+  Tema MyMoney: grafite frio com um único acento cobalto, Geist e Geist Mono.
+  Verde e vermelho são semânticos (alta e baixa), nunca acento.
+  Raio: botões em pílula, painéis 16px (rounded-2xl), campos 10px (--radius).
+*/
 :root {
-    --background: hsl(0 0% 100%);
-    --foreground: hsl(0 0% 3.9%);
-    --card: hsl(0 0% 100%);
-    --card-foreground: hsl(0 0% 3.9%);
-    --popover: hsl(0 0% 100%);
-    --popover-foreground: hsl(0 0% 3.9%);
-    --primary: hsl(0 0% 9%);
-    --primary-foreground: hsl(0 0% 98%);
-    --secondary: hsl(0 0% 92.1%);
-    --secondary-foreground: hsl(0 0% 9%);
-    --muted: hsl(0 0% 96.1%);
-    --muted-foreground: hsl(0 0% 45.1%);
-    --accent: hsl(0 0% 96.1%);
-    --accent-foreground: hsl(0 0% 9%);
-    --destructive: hsl(0 84.2% 60.2%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 92.8%);
-    --input: hsl(0 0% 89.8%);
-    --ring: hsl(0 0% 3.9%);
-    --chart-1: hsl(12 76% 61%);
-    --chart-2: hsl(173 58% 39%);
-    --chart-3: hsl(197 37% 24%);
-    --chart-4: hsl(43 74% 66%);
-    --chart-5: hsl(27 87% 67%);
-    --radius: 0.5rem;
-    --sidebar-background: hsl(0 0% 98%);
-    --sidebar-foreground: hsl(240 5.3% 26.1%);
-    --sidebar-primary: hsl(0 0% 10%);
-    --sidebar-primary-foreground: hsl(0 0% 98%);
-    --sidebar-accent: hsl(0 0% 94%);
-    --sidebar-accent-foreground: hsl(0 0% 30%);
-    --sidebar-border: hsl(0 0% 91%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(0 0% 98%);
+    --background: #f6f7f9;
+    --foreground: #12151b;
+    --card: #ffffff;
+    --card-foreground: #12151b;
+    --popover: #ffffff;
+    --popover-foreground: #12151b;
+    --primary: #2f55e0;
+    --primary-foreground: #ffffff;
+    --secondary: #eceff4;
+    --secondary-foreground: #12151b;
+    --muted: #eceff4;
+    --muted-foreground: #556070;
+    --accent: #eceff4;
+    --accent-foreground: #12151b;
+    --destructive: #c8352f;
+    --destructive-foreground: #ffffff;
+    --border: #dde1e8;
+    --input: #d3d8e1;
+    --ring: #2f55e0;
+    --up: #13805a;
+    --down: #c8352f;
+    --chart-1: #2f55e0;
+    --chart-2: #13805a;
+    --chart-3: #c8352f;
+    --chart-4: #8a6a00;
+    --chart-5: #556070;
+    --radius: 0.625rem;
+    --sidebar-background: #ffffff;
+    --sidebar-foreground: #2a303b;
+    --sidebar-primary: #2f55e0;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #eceff4;
+    --sidebar-accent-foreground: #12151b;
+    --sidebar-border: #dde1e8;
+    --sidebar-ring: #2f55e0;
+    --sidebar: #ffffff;
 }
 
 .dark {
-    --background: hsl(0 0% 3.9%);
-    --foreground: hsl(0 0% 98%);
-    --card: hsl(0 0% 3.9%);
-    --card-foreground: hsl(0 0% 98%);
-    --popover: hsl(0 0% 3.9%);
-    --popover-foreground: hsl(0 0% 98%);
-    --primary: hsl(0 0% 98%);
-    --primary-foreground: hsl(0 0% 9%);
-    --secondary: hsl(0 0% 14.9%);
-    --secondary-foreground: hsl(0 0% 98%);
-    --muted: hsl(0 0% 16.08%);
-    --muted-foreground: hsl(0 0% 63.9%);
-    --accent: hsl(0 0% 14.9%);
-    --accent-foreground: hsl(0 0% 98%);
-    --destructive: hsl(0 84% 60%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 14.9%);
-    --input: hsl(0 0% 14.9%);
-    --ring: hsl(0 0% 83.1%);
-    --chart-1: hsl(220 70% 50%);
-    --chart-2: hsl(160 60% 45%);
-    --chart-3: hsl(30 80% 55%);
-    --chart-4: hsl(280 65% 60%);
-    --chart-5: hsl(340 75% 55%);
-    --sidebar-background: hsl(0 0% 7%);
-    --sidebar-foreground: hsl(0 0% 95.9%);
-    --sidebar-primary: hsl(360, 100%, 100%);
-    --sidebar-primary-foreground: hsl(0 0% 100%);
-    --sidebar-accent: hsl(0 0% 15.9%);
-    --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-    --sidebar-border: hsl(0 0% 15.9%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(240 5.9% 10%);
+    --background: #0c0e12;
+    --foreground: #eef0f4;
+    --card: #13161c;
+    --card-foreground: #eef0f4;
+    --popover: #13161c;
+    --popover-foreground: #eef0f4;
+    --primary: #6d8dff;
+    --primary-foreground: #0c0e12;
+    --secondary: #1a1e26;
+    --secondary-foreground: #eef0f4;
+    --muted: #1a1e26;
+    --muted-foreground: #9aa3b2;
+    --accent: #1a1e26;
+    --accent-foreground: #eef0f4;
+    --destructive: #ef6461;
+    --destructive-foreground: #0c0e12;
+    --border: #262b35;
+    --input: #2e3440;
+    --ring: #6d8dff;
+    --up: #3fb68b;
+    --down: #ef6461;
+    --chart-1: #6d8dff;
+    --chart-2: #3fb68b;
+    --chart-3: #ef6461;
+    --chart-4: #d7b44a;
+    --chart-5: #9aa3b2;
+    --sidebar-background: #0f1116;
+    --sidebar-foreground: #c9cfd9;
+    --sidebar-primary: #6d8dff;
+    --sidebar-primary-foreground: #0c0e12;
+    --sidebar-accent: #1a1e26;
+    --sidebar-accent-foreground: #eef0f4;
+    --sidebar-border: #262b35;
+    --sidebar-ring: #6d8dff;
+    --sidebar: #0f1116;
 }
 
 @layer base {
@@ -168,5 +178,82 @@
     }
     body {
         @apply bg-background text-foreground;
+    }
+}
+
+/* Números de mercado: mono e colunas alinhadas. */
+.num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Flash de preço: confirma que um negócio novo chegou. */
+@keyframes flash-up {
+    from {
+        color: var(--up);
+    }
+    to {
+        color: var(--foreground);
+    }
+}
+@keyframes flash-down {
+    from {
+        color: var(--down);
+    }
+    to {
+        color: var(--foreground);
+    }
+}
+.flash-up {
+    animation: flash-up 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.flash-down {
+    animation: flash-down 900ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Faixa de ativos da página inicial (o único marquee). */
+@keyframes marquee {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-50%);
+    }
+}
+.marquee-track {
+    animation: marquee 38s linear infinite;
+}
+
+/* Indicador de conexão ao vivo (estado real da conexão). */
+@keyframes pulse-ring {
+    0% {
+        transform: scale(1);
+        opacity: 0.55;
+    }
+    100% {
+        transform: scale(2.4);
+        opacity: 0;
+    }
+}
+.live-ring {
+    animation: pulse-ring 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.press {
+    transition:
+        transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+        background-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 200ms;
+}
+.press:active {
+    transform: translateY(1px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .flash-up,
+    .flash-down,
+    .marquee-track,
+    .live-ring {
+        animation: none !important;
     }
 }
