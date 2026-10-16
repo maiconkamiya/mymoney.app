@@ -27,7 +27,7 @@ class SignalScanner
     /**
      * @return list<Signal>
      */
-    public function scan(Asset $asset): array
+    public function scan(Asset $asset, ?string $reason = null): array
     {
         Signal::query()
             ->where('asset_id', $asset->id)
@@ -61,7 +61,11 @@ class SignalScanner
             $signal = $portfolio->signals()->create([
                 'asset_id' => $asset->id,
                 'stage' => SignalStage::Scanned,
-                'stage_history' => [['stage' => SignalStage::Scanned->value, 'at' => now()->toIso8601String()]],
+                'stage_history' => [array_filter([
+                    'stage' => SignalStage::Scanned->value,
+                    'at' => now()->toIso8601String(),
+                    'reason' => $reason,
+                ])],
             ]);
 
             AnalyzeSignalJob::dispatch($signal->id);
