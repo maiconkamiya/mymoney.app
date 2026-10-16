@@ -11,6 +11,12 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 - **Sistema todo em português.** Login, cadastro, recuperação e redefinição de senha, confirmação de e-mail, verificação em duas etapas, passkeys, configurações de perfil, segurança e aparência e o menu do usuário agora estão em português.
 - **Mensagens em português.** Erros de login, avisos de formulário, limite de tentativas e os e-mails de confirmação e de redefinição de senha passam a chegar em português.
 
+## [0.2.1] - 2026-10-16
+
+### Alterado
+
+- **Fontes servidas pelo próprio sistema.** As fontes Geist e Geist Mono deixam de ser baixadas de um site externo: o visual é o mesmo, mas as páginas abrem sem depender de outro servidor e sem enviar seu acesso a terceiros.
+
 ## [0.2.0] - 2026-10-16
 
 ### Adicionado
