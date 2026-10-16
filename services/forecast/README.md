@@ -37,8 +37,16 @@ Colunas: candles = `symbol,timeframe,open_at,open,high,low,close,volume`; notíc
 - `POST /predict` com `{symbol, market, candles[], news[]}` (candles do mais antigo ao mais novo, ao menos 61):
 
 ```json
-{"direction": "up", "probability_up": 0.61, "probability_down": 0.39, "confidence": 0.22,
- "horizon_candles": 15, "validated": true, "model_version": "20261015120000", "backtest": {}}
+{
+    "direction": "up",
+    "probability_up": 0.61,
+    "probability_down": 0.39,
+    "confidence": 0.22,
+    "horizon_candles": 15,
+    "validated": true,
+    "model_version": "20261015120000",
+    "backtest": {}
+}
 ```
 
 `FORECAST_TOKEN` (opcional) exige `Authorization: Bearer <token>`. Sem modelo treinado a API responde 503, e o Laravel trata como "sem previsão".
