@@ -87,3 +87,55 @@ export type PendingSignal = {
     score: number | null;
     created_at: string;
 };
+
+export type AgentState =
+    | 'idle'
+    | 'analyzing'
+    | 'waiting'
+    | 'approved'
+    | 'rejected'
+    | 'neutral'
+    | 'veto';
+
+export type AgentActivityAgent = {
+    role: string;
+    state: AgentState;
+    detail: string;
+    action: 'buy' | 'sell' | 'hold' | null;
+    confidence: number | null;
+    round: number | null;
+    veto: boolean;
+};
+
+export type AgentActivityMessage = {
+    from: string;
+    to: string;
+    kind: 'vote' | 'revision' | 'challenge' | 'veto' | 'decision';
+    state: AgentState | 'challenge';
+    round: number | null;
+    text: string;
+};
+
+export type AgentActivity = {
+    status: 'live' | 'idle' | 'empty';
+    signal: {
+        id: number;
+        symbol: string;
+        stage: string;
+        side: 'buy' | 'sell' | null;
+        score: number | null;
+        reason: string | null;
+        updated_at: string | null;
+        version: string;
+    } | null;
+    agents: AgentActivityAgent[];
+    messages: AgentActivityMessage[];
+    recent: {
+        id: number;
+        symbol: string;
+        stage: string;
+        side: 'buy' | 'sell' | null;
+        updated_at: string | null;
+    }[];
+    generated_at: string;
+};
