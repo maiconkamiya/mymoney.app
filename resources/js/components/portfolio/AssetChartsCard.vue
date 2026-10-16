@@ -53,7 +53,10 @@ const cards = computed(() =>
         const price = last ? last[4] : null;
         const fmt = (v: number) =>
             asset.quote_currency === 'USDT'
-                ? money(v, 'crypto')
+                ? new Intl.NumberFormat('pt-BR', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: v < 1 ? 6 : 2,
+                  }).format(v)
                 : money(v, 'b3');
         const pnl =
             asset.position && price !== null
