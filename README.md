@@ -43,6 +43,12 @@ Comandos úteis (os agendados rodam pelo `schedule:work`; a fila precisa estar d
 
 As notícias entram por `FetchNewsJob`, uma vez por fonte de `config/news.php`, a cada 5 minutos. Horários da agenda em UTC (`config/app.php`); o pregão da B3 usa `America/Sao_Paulo`.
 
+### Tempo real (Reverb)
+
+O card "Agentes em ação" da carteira se move só por eventos reais: cada passo do pipeline (agente começou a analisar, agente votou, consenso decidido, ordem enviada) é transmitido pelo Laravel Reverb em um canal privado da carteira (`portfolios.{id}.agents`, evento `agent.activity`). Sem o Reverb o app funciona igual: o card mostra o último ciclo e avisa que o tempo real está fora do ar.
+
+Localmente, além do `composer run dev`, deixe de pé `php artisan reverb:start` e defina no `.env` as variáveis `REVERB_*` e `VITE_REVERB_*` (o `.env.example` traz o modelo; gere `REVERB_APP_ID`, `REVERB_APP_KEY` e `REVERB_APP_SECRET` com valores aleatórios). Os testes usam `BROADCAST_CONNECTION=null` e nunca sobem servidor. Em produção o Reverb é um processo permanente a mais, atrás do proxy do servidor: veja o guia de deploy.
+
 ### CI local
 
 Não usamos GitHub Actions: `composer ci` roda `vp check`, Wayfinder, `vue-tsc`, Pint, PHPStan, PHPUnit e o build do Vite. Rode `composer hooks:install` uma vez por clone para o pre-push chamar a CI. Funciona logo depois de `composer install` e `npm install`, sem `.env` nem build prévio. O PHP precisa da extensão `pdo_sqlite` (os testes usam SQLite em memória); no Windows, descomente `extension=pdo_sqlite` no `php.ini`.

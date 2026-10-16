@@ -2,6 +2,7 @@ import type {
     AgentActivity,
     AgentActivityAgent,
     AgentActivityMessage,
+    AgentLiveEvent,
 } from '@/types';
 
 type Point = { x: number; y: number };
@@ -45,6 +46,16 @@ const VOTER_ORDER = [
     'skeptic',
 ];
 
+/** Each voter sits on the ring next to the source it reads (the skeptic, with no source, on the right). */
+const VOTER_ANGLE: Record<string, number> = {
+    technical: 240,
+    news: 300,
+    fundamentals: 120,
+    quant: 60,
+    risk: 180,
+    skeptic: 0,
+};
+
 const SHORT_LABEL: Record<string, string> = {
     coordinator: 'coordenador',
     executor: 'executor',
@@ -60,6 +71,8 @@ const STATE_TEXT: Record<string, string> = {
     idle: 'ocioso',
     analyzing: 'analisando',
     waiting: 'aguardando',
+    buy: 'compra',
+    sell: 'venda',
     approved: 'aprova',
     rejected: 'rejeita',
     neutral: 'neutro',
@@ -70,10 +83,9 @@ const MONO = '"Geist Mono Variable", "Geist Mono", ui-monospace, monospace';
 const TEAL = '#35d6c5';
 const PINK = '#ff4d8d';
 
-const MESSAGE_GAP_MS = 520;
 const MESSAGE_FLIGHT_MS = 1300;
 const MESSAGE_LINGER_MS = 2600;
-const TRIP_MS = 4200;
+const TRAVEL_PER_SECOND = 1.4;
 
 function rng(seed: number): () => number {
     let a = seed;
@@ -104,10 +116,14 @@ function quad(a: Point, c: Point, b: Point, t: number): Point {
     };
 }
 
+type Packet = { message: AgentActivityMessage; start: number };
+
 /**
- * Draws the agents at work: data nebulae, the agents travelling to read them,
- * and the messages they pass on the table. It holds no data of its own; it
- * paints whatever AgentActivity it is given.
+ * Draws the agents at work: data nebulae, the agents that go to read them and
+ * the messages they pass on the table. Nothing moves on its own: an agent
+ * leaves for its source when its start is announced, comes back when its vote
+ * arrives, and a message flies when someone really sent it. Between events
+ * the picture is still and the loop sleeps.
  */
 export class AgentCanvas {
     private ctx: CanvasRenderingContext2D;
@@ -115,14 +131,17 @@ export class AgentCanvas {
     private height = 0;
     private dpr = 1;
     private activity: AgentActivity | null = null;
-    private playStart = 0;
-    private replay = false;
     private raf = 0;
-    private running = false;
+    private looping = false;
+    private lastFrame = 0;
     private reduced: boolean;
     private sources: Source[] = [];
     private nebulae: HTMLCanvasElement | null = null;
     private colors = { up: '#2fbf8f', down: '#ef5a53', warn: '#f5b84b' };
+    /** How far each agent is on its way to its source (0 home, 1 reading), and where it is heading. */
+    private away = new Map<string, { value: number; target: 0 | 1 }>();
+    private packets: Packet[] = [];
+    private cycleActive = false;
 
     constructor(private canvas: HTMLCanvasElement) {
         this.ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
@@ -132,19 +151,83 @@ export class AgentCanvas {
         this.readColors();
     }
 
+    /** The picture as it is now: states and the last messages, with nobody travelling. */
     setActivity(activity: AgentActivity): void {
-        const changed =
-            this.activity?.signal?.version !== activity.signal?.version;
         this.activity = activity;
 
-        if (changed && activity.status !== 'empty') {
-            this.playStart = performance.now();
-            this.replay = true;
+        if (!this.cycleActive) {
+            this.away.clear();
         }
 
-        if (this.reduced) {
-            this.frame(performance.now());
+        this.wake();
+    }
+
+    /** One real thing an agent did; `activity` already includes it. */
+    applyEvent(event: AgentLiveEvent, activity: AgentActivity): void {
+        this.activity = activity;
+        const now = performance.now();
+
+        switch (event.type) {
+            case 'cycle.started':
+                this.cycleActive = true;
+                this.away.clear();
+                this.packets = [];
+                break;
+            case 'agent.started':
+                if (SOURCE_OF[event.role]) {
+                    this.away.set(event.role, {
+                        value: this.away.get(event.role)?.value ?? 0,
+                        target: 1,
+                    });
+                }
+
+                break;
+            case 'agent.voted': {
+                const entry = this.away.get(event.role);
+
+                if (entry) {
+                    entry.target = 0;
+                }
+
+                const sent = activity.messages
+                    .filter((m) => m.from === event.role)
+                    .slice(-2);
+                sent.forEach((message) =>
+                    this.packets.push({ message, start: now }),
+                );
+                break;
+            }
+            case 'order.started':
+                this.packets.push({
+                    message: {
+                        from: 'coordinator',
+                        to: 'executor',
+                        kind: 'decision',
+                        state: 'approved',
+                        round: null,
+                        text: 'Enviando a ordem.',
+                    },
+                    start: now,
+                });
+                break;
+            case 'consensus.decided': {
+                this.cycleActive = false;
+                const decision = activity.messages.find(
+                    (m) => m.kind === 'decision',
+                );
+
+                if (decision) {
+                    this.packets.push({ message: decision, start: now });
+                }
+
+                break;
+            }
+            case 'order.finished':
+                this.cycleActive = false;
+                break;
         }
+
+        this.wake();
     }
 
     resize(): void {
@@ -161,32 +244,67 @@ export class AgentCanvas {
         this.canvas.height = Math.round(rect.height * this.dpr);
         this.readColors();
         this.buildNebulae();
-
-        if (this.reduced || !this.running) {
-            this.frame(performance.now());
-        }
+        this.frame(performance.now(), 0);
     }
 
-    start(): void {
-        if (this.running || this.reduced) {
+    stop(): void {
+        this.looping = false;
+        cancelAnimationFrame(this.raf);
+    }
+
+    /** Starts the loop if something is still moving; it stops by itself when everything settles. */
+    private wake(): void {
+        if (this.reduced) {
+            this.settle();
+            this.frame(performance.now(), 0);
+
             return;
         }
 
-        this.running = true;
+        if (this.looping) {
+            return;
+        }
+
+        this.looping = true;
+        this.lastFrame = performance.now();
         const loop = (now: number) => {
-            if (!this.running) {
+            if (!this.looping) {
                 return;
             }
 
-            this.frame(now);
-            this.raf = requestAnimationFrame(loop);
+            const dt = Math.min((now - this.lastFrame) / 1000, 0.1);
+            this.lastFrame = now;
+            this.frame(now, dt);
+
+            if (this.moving(now)) {
+                this.raf = requestAnimationFrame(loop);
+            } else {
+                this.looping = false;
+            }
         };
         this.raf = requestAnimationFrame(loop);
     }
 
-    stop(): void {
-        this.running = false;
-        cancelAnimationFrame(this.raf);
+    /** With reduced motion nobody travels: the states alone tell the story. */
+    private settle(): void {
+        this.away.clear();
+        this.packets = [];
+    }
+
+    private moving(now: number): boolean {
+        const travelling = [...this.away.values()].some(
+            (a) => a.value !== a.target,
+        );
+        const busy =
+            this.activity?.agents.some((a) => a.state === 'analyzing') ?? false;
+
+        return (
+            travelling ||
+            (busy && this.cycleActive) ||
+            this.packets.some(
+                (p) => now - p.start < MESSAGE_FLIGHT_MS + MESSAGE_LINGER_MS,
+            )
+        );
     }
 
     private readColors(): void {
@@ -274,15 +392,16 @@ export class AgentCanvas {
         }
 
         if (role === 'executor') {
-            return { x: cx, y: this.height * 0.9 };
+            // Fixed distance from the bottom so its label is never cut off.
+            return { x: cx, y: this.height - 62 };
         }
 
-        const index = Math.max(VOTER_ORDER.indexOf(role), 0);
-        const angle = ((210 + index * 60) * Math.PI) / 180;
+        const angle = ((VOTER_ANGLE[role] ?? 0) * Math.PI) / 180;
+        const reach = this.width < 600 ? 0.3 : 0.23;
 
         return {
-            x: cx + Math.cos(angle) * this.width * 0.23,
-            y: cy + Math.sin(angle) * this.height * 0.3,
+            x: cx + Math.cos(angle) * this.width * reach,
+            y: cy + Math.sin(angle) * this.height * 0.26,
         };
     }
 
@@ -295,8 +414,10 @@ export class AgentCanvas {
     private stateColor(state: string): string {
         switch (state) {
             case 'approved':
+            case 'buy':
                 return this.colors.up;
             case 'rejected':
+            case 'sell':
                 return this.colors.down;
             case 'veto':
                 return this.colors.warn;
@@ -310,12 +431,8 @@ export class AgentCanvas {
         }
     }
 
-    /** Position of an agent: reading trips happen while it analyzes or while the cycle replays. */
-    private position(
-        agent: AgentActivityAgent,
-        now: number,
-        index: number,
-    ): {
+    /** Agents move only along their own away value, which only events change. */
+    private position(agent: AgentActivityAgent): {
         at: Point;
         away: number;
         from: Point;
@@ -337,39 +454,29 @@ export class AgentCanvas {
             x: (from.x + to.x) / 2,
             y: Math.min(from.y, to.y) - this.height * 0.12,
         };
-        let phase: number | null = null;
-
-        if (agent.state === 'analyzing' && !this.reduced) {
-            phase = (((now / TRIP_MS + index * 0.17) % 1) + 1) % 1;
-        } else if (this.replay && !this.reduced) {
-            const elapsed = (now - this.playStart) / TRIP_MS - index * 0.06;
-            phase = elapsed >= 0 && elapsed < 1 ? elapsed : null;
-        }
-
-        if (phase === null) {
-            return { at: from, away: 0, from, to, control };
-        }
-
-        const away =
-            phase < 0.35
-                ? ease(phase / 0.35)
-                : phase < 0.65
-                  ? 1
-                  : 1 - ease((phase - 0.65) / 0.35);
+        const away = ease(this.away.get(agent.role)?.value ?? 0);
 
         return { at: quad(from, control, to, away), away, from, to, control };
     }
 
-    private frame(now: number): void {
+    private step(dt: number): void {
+        this.away.forEach((entry) => {
+            const delta = TRAVEL_PER_SECOND * dt;
+            entry.value =
+                entry.target === 1
+                    ? Math.min(entry.value + delta, 1)
+                    : Math.max(entry.value - delta, 0);
+        });
+    }
+
+    private frame(now: number, dt: number): void {
         const { ctx, width, height } = this;
 
         if (!width || !height || !this.activity) {
             return;
         }
 
-        if (this.replay && now - this.playStart > this.replayLength()) {
-            this.replay = false;
-        }
+        this.step(dt);
 
         ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         ctx.fillStyle = '#07080c';
@@ -379,52 +486,31 @@ export class AgentCanvas {
             ctx.drawImage(this.nebulae, 0, 0, width, height);
         }
 
-        this.drawSourceLabels(now);
-
         const agents = this.activity.agents;
-        const live = this.activity.status === 'live';
         const positions = new Map(
-            agents.map((agent, i) => [
-                agent.role,
-                this.position(agent, now, i),
-            ]),
+            agents.map((agent) => [agent.role, this.position(agent)]),
         );
 
+        this.drawSourceLabels(positions);
         this.drawLinks(agents, positions, now);
         this.drawTrails(positions);
 
         agents.forEach((agent) => {
-            const pos = positions.get(agent.role)!;
-            this.drawAgent(agent, pos.at, now, live);
+            this.drawAgent(agent, positions.get(agent.role)!.at, now);
         });
 
-        this.drawPackets(positions, now);
+        this.drawTags(positions, now);
     }
 
-    private replayLength(): number {
-        const count = this.activity?.messages.length ?? 0;
-
-        return (
-            TRIP_MS +
-            count * MESSAGE_GAP_MS +
-            MESSAGE_FLIGHT_MS +
-            MESSAGE_LINGER_MS
-        );
-    }
-
-    private drawSourceLabels(now: number): void {
+    private drawSourceLabels(
+        positions: Map<string, ReturnType<AgentCanvas['position']>>,
+    ): void {
         const { ctx } = this;
         const reading = new Set<string>();
 
-        this.activity?.agents.forEach((agent, i) => {
-            const pos = this.position(agent, now, i);
-
-            if (pos.away > 0.9) {
-                const key = SOURCE_OF[agent.role];
-
-                if (key) {
-                    reading.add(key);
-                }
+        positions.forEach((pos, role) => {
+            if (pos.away > 0.9 && SOURCE_OF[role]) {
+                reading.add(SOURCE_OF[role]);
             }
         });
 
@@ -434,13 +520,12 @@ export class AgentCanvas {
             const y =
                 src.at.y * this.height -
                 Math.min(this.width, this.height) * 0.19;
-            const align = src.at.x < 0.5 ? 'left' : 'right';
             const anchorX =
                 src.at.x < 0.5
                     ? Math.max(x - 60, 10)
                     : Math.min(x + 60, this.width - 10);
 
-            ctx.textAlign = align;
+            ctx.textAlign = src.at.x < 0.5 ? 'left' : 'right';
             ctx.font = `600 11px ${MONO}`;
             ctx.fillStyle = `hsl(${src.hue}, 80%, 85%)`;
             ctx.fillText(src.label, anchorX, Math.max(y, 18));
@@ -464,25 +549,23 @@ export class AgentCanvas {
 
         ctx.lineWidth = 1;
         agents.forEach((agent) => {
-            if (agent.role === 'coordinator') {
+            if (
+                agent.role === 'coordinator' ||
+                (agent.role === 'executor' && agent.state === 'idle')
+            ) {
                 return;
             }
 
-            const to = center;
             const pos = positions.get(agent.role)!.at;
             const active = agent.state !== 'idle';
-
-            if (agent.role === 'executor' && agent.state === 'idle') {
-                return;
-            }
 
             ctx.strokeStyle = this.stateColor(agent.state);
             ctx.globalAlpha = active ? 0.45 : 0.12;
             ctx.setLineDash(agent.role === 'executor' ? [] : [2, 5]);
-            ctx.lineDashOffset = this.reduced ? 0 : -now / 60;
+            ctx.lineDashOffset = agent.state === 'analyzing' ? -now / 60 : 0;
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
-            ctx.lineTo(to.x, to.y);
+            ctx.lineTo(center.x, center.y);
             ctx.stroke();
         });
         ctx.setLineDash([]);
@@ -519,18 +602,14 @@ export class AgentCanvas {
         });
     }
 
-    private drawAgent(
-        agent: AgentActivityAgent,
-        at: Point,
-        now: number,
-        live: boolean,
-    ): void {
+    private drawAgent(agent: AgentActivityAgent, at: Point, now: number): void {
         const { ctx } = this;
         const big = agent.role === 'coordinator';
         const radius = big ? 17 : 12;
         const color = this.stateColor(agent.state);
-        const t = this.reduced ? 0 : now / 1000;
         const busy = agent.state === 'analyzing' || agent.state === 'waiting';
+        // Only an agent doing something pulses; a quiet one is still.
+        const t = busy && this.cycleActive && !this.reduced ? now / 1000 : 0;
         const spikes = big ? 36 : 26;
 
         ctx.save();
@@ -539,12 +618,10 @@ export class AgentCanvas {
         ctx.strokeStyle = TEAL;
         ctx.fillStyle = TEAL;
 
-        ctx.globalAlpha = agent.state === 'idle' && !live ? 0.55 : 0.9;
+        ctx.globalAlpha = agent.state === 'idle' ? 0.55 : 0.9;
         for (let i = 0; i < spikes; i++) {
             const angle = (i / spikes) * Math.PI * 2;
-            const breath =
-                1 +
-                (busy ? 0.45 : 0.15) * Math.sin(t * (busy ? 3 : 1.2) + i * 0.9);
+            const breath = 1 + (t > 0 ? 0.45 * Math.sin(t * 3 + i * 0.9) : 0);
             const inner = radius * 1.05;
             const outer = radius * (1.55 + (i % 3) * 0.18) * breath;
             ctx.beginPath();
@@ -572,7 +649,7 @@ export class AgentCanvas {
         ctx.fillStyle = color;
         ctx.shadowColor = color;
         ctx.shadowBlur = busy ? 12 : 6;
-        const core = radius * (0.38 + (busy ? 0.08 * Math.sin(t * 5) : 0));
+        const core = radius * (0.38 + (t > 0 ? 0.08 * Math.sin(t * 5) : 0));
         ctx.beginPath();
         ctx.arc(0, 0, core, 0, Math.PI * 2);
         ctx.fill();
@@ -605,28 +682,28 @@ export class AgentCanvas {
         return [this.home(role)];
     }
 
-    /** Message tags flying between the agents, then lingering where they landed. */
-    private drawPackets(
+    /** Messages that really flew, lingering where they landed; at rest, the last ones of the cycle. */
+    private drawTags(
         positions: Map<string, ReturnType<AgentCanvas['position']>>,
         now: number,
     ): void {
-        const messages = this.activity?.messages ?? [];
+        const live = this.packets.filter(
+            (p) => now - p.start < MESSAGE_FLIGHT_MS + MESSAGE_LINGER_MS,
+        );
 
-        if (this.reduced || !this.replay) {
-            this.drawResting(messages);
+        this.packets = live;
+
+        if (live.length === 0) {
+            if (!this.cycleActive) {
+                this.drawResting(this.activity?.messages ?? []);
+            }
 
             return;
         }
 
-        const base = now - this.playStart - TRIP_MS * 0.55;
-
-        messages.forEach((message, i) => {
-            const age = base - i * MESSAGE_GAP_MS;
-
-            if (age < 0 || age > MESSAGE_FLIGHT_MS + MESSAGE_LINGER_MS) {
-                return;
-            }
-
+        live.forEach((packet, i) => {
+            const age = now - packet.start;
+            const { message } = packet;
             const from =
                 positions.get(message.from)?.at ?? this.home(message.from);
             const targets = this.target(message.to);
@@ -658,18 +735,12 @@ export class AgentCanvas {
         });
     }
 
+    /** The last messages of the cycle, one per line in the free band at the top, clear of every agent and label. */
     private drawResting(messages: AgentActivityMessage[]): void {
-        const center = this.home('coordinator');
-        const shown = messages.slice(-4);
+        const shown = messages.slice(this.width < 600 ? -3 : -4);
 
         shown.forEach((message, i) => {
-            this.drawTag(
-                message,
-                center.x + (i % 2 === 0 ? -1 : 1) * 70,
-                center.y - 30 + Math.floor(i / 2) * 26,
-                0.9,
-                true,
-            );
+            this.drawTag(message, this.width / 2, 44 + i * 19, 0.92, true);
         });
     }
 
@@ -687,12 +758,11 @@ export class AgentCanvas {
             message.state === 'approved' ||
             message.state === 'rejected' ||
             message.state === 'veto';
-        const text = withText
-            ? `${SHORT_LABEL[message.from] ?? message.from}: ${message.text}`.slice(
-                  0,
-                  46,
-              )
+        const full = withText
+            ? `${SHORT_LABEL[message.from] ?? message.from}: ${message.text}`
             : '';
+        const max = this.width < 600 ? 30 : 46;
+        const text = full.length > max ? `${full.slice(0, max - 1)}…` : full;
 
         ctx.save();
         ctx.globalAlpha = Math.max(alpha, 0);
