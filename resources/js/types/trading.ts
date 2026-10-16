@@ -162,3 +162,24 @@ export type AgentLiveEvent = { at: string; signal_id: number } & (
     | { type: 'order.started'; role: string }
     | { type: 'order.finished'; snapshot: AgentActivity }
 );
+
+/** [abertura ms, abertura, máxima, mínima, fechamento, volume] */
+export type ChartCandle = [number, number, number, number, number, number];
+
+export type ChartAsset = {
+    symbol: string;
+    name: string | null;
+    quote_currency: string;
+    series: ChartCandle[];
+    position: {
+        qty: number;
+        avg_price: number;
+        stop_price: number | null;
+    } | null;
+};
+
+export type PortfolioCharts = {
+    market_open: boolean;
+    phase: string;
+    assets: ChartAsset[];
+};
