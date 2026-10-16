@@ -3,12 +3,16 @@
 namespace Tests\Feature\MarketData;
 
 use App\Events\CotacaoAtualizada;
+use App\Jobs\AnalyzeSignalJob;
 use App\MarketData\TradeStream;
 use App\Models\Asset;
 use App\Models\Candle;
+use App\Models\Portfolio;
 use Closure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class StreamBinanceTradesTest extends TestCase
@@ -41,6 +45,39 @@ class StreamBinanceTradesTest extends TestCase
 
         Event::assertDispatchedTimes(CotacaoAtualizada::class, 1);
         Event::assertDispatched(CotacaoAtualizada::class, fn ($e) => $e->symbol === 'BTCUSDT' && $e->price === 110.0 && $e->candle['close'] === 110.0);
+    }
+
+    public function test_gravar_o_mesmo_candle_a_cada_segundo_chama_os_agentes_uma_vez_so(): void
+    {
+        Cache::flush();
+        Queue::fake();
+        Event::fake([CotacaoAtualizada::class]);
+        $this->travelTo(now()->startOfMinute()->addSeconds(30));
+        config(['trading.move_trigger' => ['enabled' => true, 'pct' => 1.0, 'window_minutes' => 5, 'cooldown_minutes' => 15]]);
+
+        $btc = Asset::factory()->create(['symbol' => 'BTCUSDT', 'market' => 'crypto']);
+        Portfolio::factory()->create(['market' => $btc->market]);
+        Candle::create([
+            'asset_id' => $btc->id, 'timeframe' => '1m', 'open_at' => now()->startOfMinute()->subMinutes(5),
+            'open' => 100, 'high' => 100, 'low' => 100, 'close' => 100, 'volume' => 1,
+        ]);
+
+        $this->app->instance(TradeStream::class, new class(now()->getTimestampMs()) implements TradeStream
+        {
+            public function __construct(private readonly int $ms) {}
+
+            public function listen(array $symbols, Closure $onTrade, Closure $onTick): void
+            {
+                foreach ([98.0, 97.5, 97.0, 96.5] as $price) {
+                    $onTrade('BTCUSDT', $price, 1.0, $this->ms);
+                    $onTick();
+                }
+            }
+        });
+
+        $this->artisan('market:stream-binance', ['--max-seconds' => 1])->assertSuccessful();
+
+        Queue::assertPushed(AnalyzeSignalJob::class, 1);
     }
 
     public function test_o_evento_vai_para_o_canal_publico_mercado(): void

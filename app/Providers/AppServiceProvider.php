@@ -6,8 +6,10 @@ use Anthropic\Client;
 use App\Agents\Llm\AnthropicLlmClient;
 use App\Agents\Llm\FakeLlmClient;
 use App\Agents\Llm\LlmClient;
+use App\Agents\PriceMoveTrigger;
 use App\MarketData\BinanceTradeStream;
 use App\MarketData\TradeStream;
+use App\Models\Candle;
 use App\News\Embeddings\Embedder;
 use App\News\Embeddings\FakeEmbedder;
 use App\News\Embeddings\HttpEmbedder;
@@ -62,6 +64,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        Candle::saved(fn (Candle $candle) => app(PriceMoveTrigger::class)->handle($candle));
     }
 
     /**

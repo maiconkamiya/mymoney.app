@@ -125,6 +125,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Scanner and price-move trigger
+    |--------------------------------------------------------------------------
+    |
+    | The scheduled scanner opens signals every `scan_interval_minutes`. The
+    | trigger does not wait for it: when the last close moves by at least
+    | `pct` percent against the close `window_minutes` ago, the agents are
+    | called right away (at most once per `cooldown_minutes` per asset).
+    | The usual guards still apply: running portfolio, open market, fresh
+    | quote, one analysis per asset at a time, and the risk guard.
+    |
+    */
+
+    'scan_interval_minutes' => max(1, min(59, (int) env('TRADING_SCAN_INTERVAL_MINUTES', 15))),
+
+    'move_trigger' => [
+        'enabled' => (bool) env('TRADING_MOVE_TRIGGER_ENABLED', true),
+        'pct' => (float) env('TRADING_MOVE_TRIGGER_PCT', 1.0),
+        'window_minutes' => max(1, (int) env('TRADING_MOVE_TRIGGER_WINDOW_MINUTES', 5)),
+        'cooldown_minutes' => max(0, (int) env('TRADING_MOVE_TRIGGER_COOLDOWN_MINUTES', 15)),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Real-money execution (phase 5)
     |--------------------------------------------------------------------------
     |
