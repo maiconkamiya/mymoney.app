@@ -23,6 +23,8 @@ composer ci            # vp check, vue-tsc, Pint, PHPStan, PHPUnit e build do Vi
 composer hooks:install # uma vez por clone: o pre-push passa a rodar `composer ci`
 ```
 
+**Sessões na nuvem (Claude Code):** o hook `SessionStart` em `.claude/hooks/session-start.sh` prepara o ambiente sozinho, só quando `CLAUDE_CODE_REMOTE=true`. Ele existe porque o proxy da sessão devolve 403 para os zips de `api.github.com` (o `composer install` falhava no `phpstan/phpstan`): o hook monta cada zip com `git fetch` + `git archive`, coloca no cache do Composer e roda `composer install`, cria o `.env` e roda `npm install`. Na sua máquina ele não faz nada. Não precisa de passo manual; se mexer no `composer.lock`, o hook se ajusta sozinho.
+
 Rode `composer ci` antes de todo push e registre no PR que ela passou. Se algo falhar, corrija a causa: não desligue teste, não adicione `@phpstan-ignore`, baseline ou `@var` para calar o PHPStan. Para formatar: `composer lint` e `npm run check:fix`.
 
 ## Versão e release
