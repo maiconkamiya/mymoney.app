@@ -61,6 +61,10 @@ Não usamos GitHub Actions: `composer ci` roda `vp check`, Wayfinder, `vue-tsc`,
 | `config/trading.php`            | Brokers, taxas, slippage e horário do pregão                                   |
 | `resources/js/pages/portfolios` | Telas de carteiras e sinais                                                    |
 
+## Fontes
+
+As fontes Geist e Geist Mono (licença SIL OFL 1.1) vêm dos pacotes npm `@fontsource-variable/geist` e `@fontsource-variable/geist-mono`, importados em `resources/css/app.css`. O Vite copia os arquivos woff2 para `public/build`, então nada é baixado de sites externos, nem no build nem em produção. Para atualizar: `npm update @fontsource-variable/geist @fontsource-variable/geist-mono`.
+
 ## O que ainda falta
 
 - Execução real: `BinanceBroker` e `Mt5Broker` existem, mas só enviam ordens de carteira `live`, com credencial verificada, aprovação manual e `TRADING_LIVE_ENABLED=true` (desligado por padrão).
