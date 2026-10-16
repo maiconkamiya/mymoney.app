@@ -12,12 +12,10 @@ use WebSocket\Message\Text;
  */
 class BinanceTradeStream implements TradeStream
 {
-    public function __construct(private readonly string $baseUrl = 'wss://stream.binance.com:9443') {}
-
     public function listen(array $symbols, Closure $onTrade, Closure $onTick): void
     {
         $streams = implode('/', array_map(fn (string $s) => strtolower($s).'@aggTrade', $symbols));
-        $client = new Client("{$this->baseUrl}/stream?streams={$streams}");
+        $client = new Client(rtrim((string) config('trading.binance.stream_url'), '/')."/stream?streams={$streams}");
         $client->setTimeout(1);
 
         $client

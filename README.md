@@ -74,7 +74,7 @@ As fontes Geist e Geist Mono (licença SIL OFL 1.1) vêm dos pacotes npm `@fonts
 
 ## Coletor de cotações por WebSocket
 
-`php artisan market:stream-binance` fica ouvindo o WebSocket público da Binance, grava o candle de 1 minuto dos ativos cripto ativos (uma gravação por ativo por segundo) e dispara `CotacaoAtualizada` no canal público `mercado`. Reconecta sozinho com espera crescente. É um processo permanente: em produção precisa de um daemon (por exemplo, no Forge, com reinício automático), configurado pelo Maicon. O `market:sync-binance` por minuto continua como rede de segurança.
+`php artisan market:stream-binance` fica ouvindo o WebSocket público da Binance (endereço em `BINANCE_STREAM_URL`, padrão `wss://data-stream.binance.vision`, que responde onde `stream.binance.com` devolve 451), grava o candle de 1 minuto dos ativos cripto ativos (uma gravação por ativo por segundo) e dispara `CotacaoAtualizada` no canal público `mercado`. Reconecta sozinho com espera crescente. É um processo permanente: em produção precisa de um daemon (por exemplo, no Forge, com reinício automático), configurado pelo Maicon. O `market:sync-binance` por minuto continua como rede de segurança.
 
 ## Notícias: embeddings, deduplicação e pgvector
 
