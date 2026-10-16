@@ -164,8 +164,11 @@ return [
     ],
 
     'binance' => [
-        // Signed requests (orders, account) for real-money execution.
-        'base_url' => env('BINANCE_BASE_URL', 'https://api.binance.com'),
+        // Signed requests (orders, account). BINANCE_TESTNET=true aponta para o
+        // testnet spot (sem dinheiro real); BINANCE_API_URL troca a base à mão.
+        // A api.binance.com responde 451 em regiões bloqueadas (nuvem, Forge).
+        'testnet' => (bool) env('BINANCE_TESTNET', false),
+        'base_url' => env('BINANCE_API_URL', env('BINANCE_BASE_URL', env('BINANCE_TESTNET', false) ? 'https://testnet.binance.vision' : 'https://api.binance.com')),
         // Public candles only. data-api.binance.vision serves the same /api/v3
         // market data and answers where api.binance.com returns 451.
         'market_data_url' => env('BINANCE_MARKET_DATA_URL', 'https://data-api.binance.vision'),
