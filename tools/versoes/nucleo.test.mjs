@@ -358,7 +358,7 @@ test('changelogTemSecao exige o título "## [X.Y.Z]" e não confunde 1.0.0 com 1
 
 test('extrairSecaoChangelog devolve só o corpo da seção pedida', () => {
     const texto =
-        '# Changelog\n\n## [1.1.0] - 2026-10-02\n\n### Adicionado\n\n- novo\n\n## [1.0.0] – 2026-09-30\n\n- antigo\n\n[1.1.0]: https://x\n';
+        '# Changelog\n\n## [1.1.0] - 2026-10-02\n\n### Adicionado\n\n- novo\n\n## [1.0.0] - 2026-09-30\n\n- antigo\n\n[1.1.0]: https://x\n';
 
     assert.equal(
         extrairSecaoChangelog(texto, '1.1.0'),
