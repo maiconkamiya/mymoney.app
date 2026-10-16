@@ -20,6 +20,11 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            sistema: {
+                versao: string;
+                commit: string;
+                aviso_novidade: boolean;
+            };
             [key: string]: unknown;
         };
     }

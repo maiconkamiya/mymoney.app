@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\VersaoDoSistema;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -24,6 +25,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
+ * @property string|null $ultima_versao_vista
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -34,6 +36,29 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+
+    protected static function booted(): void
+    {
+        // Quem acaba de se cadastrar não vê o aviso da versão que já estava no ar.
+        static::creating(function (self $usuario): void {
+            $usuario->ultima_versao_vista ??= app(VersaoDoSistema::class)->versao();
+        });
+    }
+
+    /** `true` quando a versão do sistema é posterior à última que esta pessoa viu. */
+    public function temNovidadeNaoVista(VersaoDoSistema $versaoDoSistema): bool
+    {
+        return VersaoDoSistema::ehPosterior($versaoDoSistema->versao(), $this->ultima_versao_vista);
+    }
+
+    /** Grava a versão corrente como vista, sem tocar em `updated_at` (não é edição do cadastro). */
+    public function marcarVersaoComoVista(VersaoDoSistema $versaoDoSistema): void
+    {
+        $versao = $versaoDoSistema->versao();
+
+        $this->newQuery()->whereKey($this->getKey())->toBase()->update(['ultima_versao_vista' => $versao]);
+        $this->setAttribute('ultima_versao_vista', $versao)->syncOriginalAttribute('ultima_versao_vista');
+    }
 
     /**
      * Get the attributes that should be cast.

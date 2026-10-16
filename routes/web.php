@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BrokerCredentialController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NovidadesController;
 use App\Http\Controllers\PortfolioController;
 use App\Http\Controllers\PortfolioReportController;
 use App\Http\Controllers\SignalDecisionController;
@@ -12,6 +13,9 @@ Route::inertia('/', 'Welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+
+    Route::get('novidades', [NovidadesController::class, 'show'])->name('novidades');
+    Route::post('novidades/vista', [NovidadesController::class, 'marcarComoVista'])->name('novidades.vista');
 
     Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show']);
     Route::get('portfolios/{portfolio}/reports/tax.csv', [PortfolioReportController::class, 'tax'])->name('portfolios.reports.tax');

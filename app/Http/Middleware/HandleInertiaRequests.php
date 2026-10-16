@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
+use App\Support\VersaoDoSistema;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -41,7 +43,26 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'sistema' => fn () => $this->sistema($request),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+        ];
+    }
+
+    /**
+     * Versão e commit do build, no rodapé do menu. `aviso_novidade` é o aviso "Nova versão X":
+     * só para quem está logado e ainda não viu a versão corrente.
+     *
+     * @return array{versao: string, commit: string, aviso_novidade: bool}
+     */
+    private function sistema(Request $request): array
+    {
+        $versao = app(VersaoDoSistema::class);
+        $usuario = $request->user();
+
+        return [
+            'versao' => $versao->versao(),
+            'commit' => $versao->commit(),
+            'aviso_novidade' => $usuario instanceof User && $usuario->temNovidadeNaoVista($versao),
         ];
     }
 }

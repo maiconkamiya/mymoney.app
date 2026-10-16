@@ -1,14 +1,20 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
+    "name": "mymoney",
+    "version": "0.1.0",
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vp build",
-        "build:ssr": "vp build && vp build --ssr",
+        "build": "vp build && node tools/versoes/gerar-versao.mjs",
+        "build:ssr": "vp build && node tools/versoes/gerar-versao.mjs && vp build --ssr",
         "dev": "vp dev",
         "check": "vp check",
         "check:fix": "vp check --fix",
-        "types:check": "vue-tsc --noEmit"
+        "types:check": "vue-tsc --noEmit",
+        "test:versoes": "node --test \"tools/versoes/*.test.mjs\"",
+        "test:js": "node --experimental-strip-types --test resources/js/lib/novidadesTexto.test.ts",
+        "versoes": "node tools/versoes/cli.mjs",
+        "release": "node tools/versoes/release.mjs"
     },
     "dependencies": {
         "@inertiajs/vite": "^3.0.0",

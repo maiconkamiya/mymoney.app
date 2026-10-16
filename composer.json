@@ -65,7 +65,13 @@
             "npm run check",
             "@php artisan wayfinder:generate --with-form",
             "npm run types:check",
-            "@test"
+            "@test",
+            "@versoes"
+        ],
+        "versoes": [
+            "npm run test:versoes",
+            "npm run test:js",
+            "npm run versoes"
         ],
         "ci": [
             "Composer\\Config::disableProcessTimeout",
