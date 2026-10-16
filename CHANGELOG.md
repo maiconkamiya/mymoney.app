@@ -10,6 +10,12 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 
 - **Gráficos dos ativos em tempo real na carteira.** A tela da carteira ganhou o quadro "Ativos em tempo real": um gráfico por ativo que ela opera, com o preço atual, a variação da janela e a linha de preço por minuto. Ativos com posição aberta aparecem primeiro, com o preço médio e o stop marcados por linhas tracejadas e o ganho ou perda da posição. Na cripto os preços se movem a cada negócio, direto da Binance no seu navegador. Na B3 a cotação atualiza a cada 30 segundos com o pregão aberto, e com o pregão fechado o quadro avisa e mostra a última cotação. Se a conexão em tempo real cair, a página continua funcionando: aparece um aviso discreto e os gráficos se atualizam a cada 15 segundos.
 
+## [0.3.9] - 2026-10-16
+
+### Adicionado
+
+- **Cotações cripto gravadas a cada segundo.** Um novo coletor escuta os negócios de Bitcoin, Ethereum e Solana direto na Binance e atualiza o candle de 1 minuto quase em tempo real, em vez de esperar a busca de cada minuto. Cada atualização também é transmitida pelo canal "mercado", e o painel mostra, logo abaixo do gráfico, o último preço e há quanto tempo cada cotação chegou (aparece só quando as atualizações em tempo real estão ligadas). Por padrão ele usa o endereço público de dados de mercado da Binance, que responde nos lugares onde o endereço principal é bloqueado. O coletor só começa a valer quando o processo for ligado no servidor; até lá tudo continua como antes.
+
 ## [0.3.8] - 2026-10-16
 
 ### Adicionado

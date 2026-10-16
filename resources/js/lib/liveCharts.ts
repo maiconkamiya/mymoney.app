@@ -11,6 +11,27 @@ export type Kline = {
     v: string;
 };
 
+/** Candle de 1 minuto transmitido pelo servidor no canal `mercado`. */
+export type ServerCandle = {
+    open_at: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+};
+
+export function klineFromServer(c: ServerCandle): Kline {
+    return {
+        t: Date.parse(c.open_at),
+        o: String(c.open),
+        h: String(c.high),
+        l: String(c.low),
+        c: String(c.close),
+        v: String(c.volume),
+    };
+}
+
 /**
  * Aplica um candle de 1 minuto vindo da Binance à série: atualiza o candle
  * aberto ou acrescenta o novo. Candle mais antigo que o último é ignorado.

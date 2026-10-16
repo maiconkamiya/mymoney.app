@@ -7,6 +7,8 @@ use App\Agents\Llm\AnthropicLlmClient;
 use App\Agents\Llm\FakeLlmClient;
 use App\Agents\Llm\LlmClient;
 use App\Agents\PriceMoveTrigger;
+use App\MarketData\BinanceTradeStream;
+use App\MarketData\TradeStream;
 use App\Models\Candle;
 use App\News\Embeddings\Embedder;
 use App\News\Embeddings\FakeEmbedder;
@@ -31,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(PriceFeed::class, CandlePriceFeed::class);
         $this->app->singleton(TradingHalt::class);
+        $this->app->bind(TradeStream::class, BinanceTradeStream::class);
         // Uma leitura de arquivo por request/job; um deploy novo é visto sem reiniciar workers.
         $this->app->scoped(VersaoDoSistema::class);
         $this->app->bind(OrderGateway::class, fn () => app(config('trading.b3_gateway')));

@@ -1,10 +1,16 @@
 <script setup lang="ts">
+import { echoIsConfigured, useEchoPublic } from '@laravel/echo-vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import PortfolioChartsController from '@/actions/App/Http/Controllers/PortfolioChartsController';
 import AssetChart from '@/components/portfolio/AssetChart.vue';
 import Heading from '@/components/Heading.vue';
-import { applyKline, klineStreamUrl, windowChange } from '@/lib/liveCharts';
-import type { Kline } from '@/lib/liveCharts';
+import {
+    applyKline,
+    klineFromServer,
+    klineStreamUrl,
+    windowChange,
+} from '@/lib/liveCharts';
+import type { Kline, ServerCandle } from '@/lib/liveCharts';
 import { money, percent } from '@/lib/trading';
 import type { ChartAsset, ChartCandle, PortfolioCharts } from '@/types';
 
@@ -27,13 +33,16 @@ const series = ref<Record<string, ChartCandle[]>>(
 );
 const flash = ref<Record<string, 'up' | 'down' | null>>({});
 const socketUp = ref(false);
+const serverLive = ref(false);
 const failed = ref(false);
 const isCrypto = props.market === 'crypto';
 
 let socket: WebSocket | null = null;
+let clock: ReturnType<typeof setInterval> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let retry: ReturnType<typeof setTimeout> | null = null;
 let inFlight = false;
+let lastServerEvent = 0;
 let stopped = false;
 
 const cards = computed(() =>
@@ -59,12 +68,14 @@ const status = computed(() => {
     if (isCrypto) {
         return socketUp.value
             ? { text: 'Ao vivo', live: true }
-            : {
-                  text: failed.value
-                      ? 'Sem atualização, tentando de novo.'
-                      : 'Tempo real fora do ar, atualizando a cada 15 s.',
-                  live: false,
-              };
+            : serverLive.value
+              ? { text: 'Ao vivo pelo servidor', live: true }
+              : {
+                    text: failed.value
+                        ? 'Sem atualização, tentando de novo.'
+                        : 'Tempo real fora do ar, atualizando a cada 15 s.',
+                    live: false,
+                };
     }
 
     return charts.value.market_open
@@ -73,7 +84,12 @@ const status = computed(() => {
 });
 
 async function refresh() {
-    if (inFlight || document.hidden || (isCrypto && socketUp.value)) {
+    if (
+        inFlight ||
+        document.hidden ||
+        (isCrypto && socketUp.value) ||
+        Date.now() - lastServerEvent < POLL_MS
+    ) {
         return;
     }
 
@@ -105,6 +121,44 @@ async function refresh() {
     }
 }
 
+function applyCandle(symbol: string, kline: Kline) {
+    const before = series.value[symbol];
+
+    if (!before) {
+        return;
+    }
+
+    const next = applyKline(before, kline);
+    const was = before[before.length - 1]?.[4];
+    const now = next[next.length - 1]?.[4];
+
+    series.value = { ...series.value, [symbol]: next };
+
+    if (was !== undefined && now !== undefined && now !== was) {
+        flash.value = { ...flash.value, [symbol]: now > was ? 'up' : 'down' };
+        setTimeout(() => {
+            flash.value = { ...flash.value, [symbol]: null };
+        }, 600);
+    }
+}
+
+/** Com o navegador sem acesso à Binance, o coletor do servidor assume pelo canal `mercado`. */
+if (isCrypto && echoIsConfigured()) {
+    useEchoPublic<{ symbol: string; price: number; candle: ServerCandle }>(
+        'mercado',
+        '.cotacao.atualizada',
+        (event) => {
+            if (socketUp.value) {
+                return;
+            }
+
+            lastServerEvent = Date.now();
+            serverLive.value = true;
+            applyCandle(event.symbol, klineFromServer(event.candle));
+        },
+    );
+}
+
 function connect() {
     if (stopped || !isCrypto || charts.value.assets.length === 0) {
         return;
@@ -133,28 +187,7 @@ function connect() {
             return;
         }
 
-        const symbol = message.data.s;
-        const before = series.value[symbol];
-
-        if (!before) {
-            return;
-        }
-
-        const next = applyKline(before, message.data.k);
-        const was = before[before.length - 1]?.[4];
-        const now = next[next.length - 1]?.[4];
-
-        series.value = { ...series.value, [symbol]: next };
-
-        if (was !== undefined && now !== undefined && now !== was) {
-            flash.value = {
-                ...flash.value,
-                [symbol]: now > was ? 'up' : 'down',
-            };
-            setTimeout(() => {
-                flash.value = { ...flash.value, [symbol]: null };
-            }, 600);
-        }
+        applyCandle(message.data.s, message.data.k);
     };
     socket.onclose = () => {
         socketUp.value = false;
@@ -170,6 +203,9 @@ function connect() {
 onMounted(() => {
     connect();
     timer = setInterval(refresh, isCrypto ? POLL_MS : POLL_B3_MS);
+    clock = setInterval(() => {
+        serverLive.value = Date.now() - lastServerEvent < POLL_MS;
+    }, 5000);
     document.addEventListener('visibilitychange', refresh);
 });
 
@@ -179,6 +215,10 @@ onBeforeUnmount(() => {
 
     if (timer) {
         clearInterval(timer);
+    }
+
+    if (clock) {
+        clearInterval(clock);
     }
 
     if (retry) {
