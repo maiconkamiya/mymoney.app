@@ -23,7 +23,10 @@ export function dividirNegrito(texto: string): TrechoDeTexto[] {
         const inicio = par.index ?? 0;
 
         if (inicio > cursor) {
-            trechos.push({ texto: texto.slice(cursor, inicio), negrito: false });
+            trechos.push({
+                texto: texto.slice(cursor, inicio),
+                negrito: false,
+            });
         }
 
         trechos.push({ texto: par[1], negrito: true });
@@ -42,7 +45,8 @@ export function dividirNegrito(texto: string): TrechoDeTexto[] {
  * data ISO (o CHANGELOG é texto livre).
  */
 export function formatarDataDaVersao(data: string | null): string {
-    const partes = data === null ? null : /^(\d{4})-(\d{2})-(\d{2})$/.exec(data);
+    const partes =
+        data === null ? null : /^(\d{4})-(\d{2})-(\d{2})$/.exec(data);
 
     return partes === null || data === null
         ? (data ?? '')

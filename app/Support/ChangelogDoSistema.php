@@ -45,61 +45,54 @@ class ChangelogDoSistema
      */
     public function analisar(string $conteudo): array
     {
-        $versoes = [];
-        $versaoAtual = null;
-        $secaoAtual = null;
-        $resumo = [];
-        $ultimoItem = null;
+        $blocos = [];
 
-        $fechar = function () use (&$versoes, &$versaoAtual, &$secaoAtual, &$resumo, &$ultimoItem): void {
-            if ($versaoAtual !== null) {
-                if ($secaoAtual !== null) {
-                    $versaoAtual['secoes'][] = $secaoAtual;
-                }
-                $texto = trim(implode(' ', $resumo));
-                $versaoAtual['resumo'] = $texto === '' ? null : $texto;
-                $versoes[] = $versaoAtual;
-            }
-            $versaoAtual = null;
-            $secaoAtual = null;
-            $resumo = [];
-            $ultimoItem = null;
-        };
-
+        // 1) Quebra o arquivo em blocos, um por título `## [X.Y.Z]`. Títulos como "[Não lançado]"
+        //    fecham o bloco anterior mas não abrem versão: só versões numeradas entram.
+        $atual = null;
         foreach (preg_split('/\R/u', $conteudo) ?: [] as $linha) {
             if (preg_match('/^##\s*\[([^\]]+)\]\s*(?:[–—-]\s*(\S.*?))?\s*$/u', $linha, $m) === 1) {
-                $fechar();
-
-                // "[Não lançado]" e afins não são uma versão: só versões numeradas entram.
-                if (preg_match('/^\d+\.\d+\.\d+/', $m[1]) === 1) {
-                    $versaoAtual = [
-                        'versao' => $m[1],
-                        'data' => isset($m[2]) && $m[2] !== '' ? $m[2] : null,
-                        'resumo' => null,
-                        'secoes' => [],
-                    ];
+                if ($atual !== null) {
+                    $blocos[] = $atual;
                 }
+                $atual = preg_match('/^\d+\.\d+\.\d+/', $m[1]) === 1
+                    ? ['versao' => $m[1], 'data' => ($m[2] ?? '') !== '' ? $m[2] : null, 'linhas' => []]
+                    : null;
 
                 continue;
             }
 
-            if ($versaoAtual === null) {
-                continue;
+            if ($atual !== null) {
+                $atual['linhas'][] = $linha;
             }
+        }
+        if ($atual !== null) {
+            $blocos[] = $atual;
+        }
 
+        return array_map(fn (array $bloco): array => $this->analisarBloco($bloco['versao'], $bloco['data'], $bloco['linhas']), $blocos);
+    }
+
+    /**
+     * @param  list<string>  $linhas
+     * @return array{versao: string, data: string|null, resumo: string|null, secoes: list<array{titulo: string, itens: list<string>}>}
+     */
+    private function analisarBloco(string $versao, ?string $data, array $linhas): array
+    {
+        $secoes = [];
+        $resumo = [];
+
+        foreach ($linhas as $linha) {
             if (preg_match('/^###\s+(.+?)\s*$/u', $linha, $m) === 1) {
-                if ($secaoAtual !== null) {
-                    $versaoAtual['secoes'][] = $secaoAtual;
-                }
-                $secaoAtual = ['titulo' => $m[1], 'itens' => []];
-                $ultimoItem = null;
+                $secoes[] = ['titulo' => $m[1], 'itens' => []];
 
                 continue;
             }
 
-            if (preg_match('/^\s*[-*]\s+(.+?)\s*$/u', $linha, $m) === 1 && $secaoAtual !== null) {
-                $secaoAtual['itens'][] = $m[1];
-                $ultimoItem = array_key_last($secaoAtual['itens']);
+            $ultima = array_key_last($secoes);
+
+            if ($ultima !== null && preg_match('/^\s*[-*]\s+(.+?)\s*$/u', $linha, $m) === 1) {
+                $secoes[$ultima]['itens'][] = $m[1];
 
                 continue;
             }
@@ -109,15 +102,26 @@ class ChangelogDoSistema
                 continue;
             }
 
-            if ($secaoAtual === null) {
+            if ($ultima === null) {
                 $resumo[] = $texto;
-            } elseif ($ultimoItem !== null) {
-                $secaoAtual['itens'][$ultimoItem] .= ' '.$texto;
+
+                continue;
+            }
+
+            // Linha de continuação do último item da seção.
+            $ultimoItem = array_key_last($secoes[$ultima]['itens']);
+            if ($ultimoItem !== null) {
+                $secoes[$ultima]['itens'][$ultimoItem] .= ' '.$texto;
             }
         }
 
-        $fechar();
+        $textoResumo = implode(' ', $resumo);
 
-        return $versoes;
+        return [
+            'versao' => $versao,
+            'data' => $data,
+            'resumo' => $textoResumo === '' ? null : $textoResumo,
+            'secoes' => $secoes,
+        ];
     }
 }

@@ -24,63 +24,79 @@ export const SEM_COMMIT = 'sem-commit';
  * @return {string}
  */
 export function identificarCommit({ hash, suja }) {
-  if (hash === null || hash === '') {
-    return SEM_COMMIT;
-  }
+    if (hash === null || hash === '') {
+        return SEM_COMMIT;
+    }
 
-  return suja ? `${hash}-modificado` : hash;
+    return suja ? `${hash}-modificado` : hash;
 }
 
 /**
  * @return {{versao: string, commit: string, gerado_em: string}}
  */
 export function montarVersaoJson({ versao, commit, agora }) {
-  return { versao, commit, gerado_em: agora.toISOString() };
+    return { versao, commit, gerado_em: agora.toISOString() };
 }
 
 function executarGit(raiz, args) {
-  try {
-    return execFileSync('git', args, { cwd: raiz, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    return null;
-  }
+    try {
+        return execFileSync('git', args, {
+            cwd: raiz,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+    } catch {
+        return null;
+    }
 }
 
 function lerEstadoDoGit(raiz) {
-  const hash = executarGit(raiz, ['rev-parse', '--short=7', 'HEAD']);
-  if (hash === null || hash === '') {
-    const informado = (process.env.MYMONEY_COMMIT ?? '').trim();
+    const hash = executarGit(raiz, ['rev-parse', '--short=7', 'HEAD']);
+    if (hash === null || hash === '') {
+        const informado = (process.env.MYMONEY_COMMIT ?? '').trim();
 
-    return { hash: informado === '' ? null : informado.slice(0, 7), suja: false };
-  }
+        return {
+            hash: informado === '' ? null : informado.slice(0, 7),
+            suja: false,
+        };
+    }
 
-  const status = executarGit(raiz, ['status', '--porcelain']);
+    const status = executarGit(raiz, ['status', '--porcelain']);
 
-  return { hash, suja: status !== null && status !== '' };
+    return { hash, suja: status !== null && status !== '' };
 }
 
 function gerar() {
-  const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-  const { version } = JSON.parse(readFileSync(join(raiz, 'package.json'), 'utf8'));
+    const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+    const { version } = JSON.parse(
+        readFileSync(join(raiz, 'package.json'), 'utf8'),
+    );
 
-  if (typeof version !== 'string' || version === '') {
-    console.error('gerar-versao: o package.json não tem o campo "version".');
-    process.exit(1);
-  }
+    if (typeof version !== 'string' || version === '') {
+        console.error(
+            'gerar-versao: o package.json não tem o campo "version".',
+        );
+        process.exit(1);
+    }
 
-  const conteudo = montarVersaoJson({
-    versao: version,
-    commit: identificarCommit(lerEstadoDoGit(raiz)),
-    agora: new Date(),
-  });
+    const conteudo = montarVersaoJson({
+        versao: version,
+        commit: identificarCommit(lerEstadoDoGit(raiz)),
+        agora: new Date(),
+    });
 
-  const destino = join(raiz, 'public', 'build', 'versao.json');
-  mkdirSync(dirname(destino), { recursive: true });
-  writeFileSync(destino, `${JSON.stringify(conteudo, null, 4)}\n`);
+    const destino = join(raiz, 'public', 'build', 'versao.json');
+    mkdirSync(dirname(destino), { recursive: true });
+    writeFileSync(destino, `${JSON.stringify(conteudo, null, 4)}\n`);
 
-  console.log(`gerar-versao: ${conteudo.versao} · ${conteudo.commit} → public/build/versao.json`);
+    console.log(
+        `gerar-versao: ${conteudo.versao} · ${conteudo.commit} → public/build/versao.json`,
+    );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  gerar();
+if (
+    process.argv[1] &&
+    resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+    gerar();
 }

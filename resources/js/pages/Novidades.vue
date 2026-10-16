@@ -64,7 +64,10 @@ const versaoAtual = computed(() => page.props.sistema?.versao ?? null);
                 </span>
             </header>
 
-            <p v-if="versao.resumo" class="mt-1.5 text-sm text-muted-foreground">
+            <p
+                v-if="versao.resumo"
+                class="mt-1.5 text-sm text-muted-foreground"
+            >
                 {{ versao.resumo }}
             </p>
 

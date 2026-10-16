@@ -43,7 +43,7 @@ MD;
 
     public function test_le_so_versoes_numeradas_da_mais_recente_para_a_mais_antiga()
     {
-        $versoes = (new ChangelogDoSistema)->analisar(self::CHANGELOG);
+        $versoes = (new ChangelogDoSistema('/x'))->analisar(self::CHANGELOG);
 
         $this->assertSame(['1.1.0', '1.0.0'], array_column($versoes, 'versao'));
         $this->assertSame('2026-10-20', $versoes[0]['data']);
@@ -53,7 +53,7 @@ MD;
 
     public function test_agrupa_itens_por_secao_e_junta_linhas_de_continuacao()
     {
-        $secoes = (new ChangelogDoSistema)->analisar(self::CHANGELOG)[0]['secoes'];
+        $secoes = (new ChangelogDoSistema('/x'))->analisar(self::CHANGELOG)[0]['secoes'];
 
         $this->assertSame(['Adicionado', 'Corrigido'], array_column($secoes, 'titulo'));
         $this->assertSame(['**Painel novo** com duas linhas.', 'Segundo item.'], $secoes[0]['itens']);
@@ -72,7 +72,7 @@ MD;
     public function test_o_changelog_real_do_repositorio_tem_a_secao_da_versao_do_package_json()
     {
         $versao = json_decode((string) file_get_contents(__DIR__.'/../../package.json'), true)['version'];
-        $versoes = (new ChangelogDoSistema)->versoes();
+        $versoes = (new ChangelogDoSistema(__DIR__.'/../../CHANGELOG.md'))->versoes();
 
         $this->assertContains($versao, array_column($versoes, 'versao'));
     }

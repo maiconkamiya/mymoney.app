@@ -10,12 +10,15 @@ test('texto sem negrito vira um trecho só', () => {
 });
 
 test('o par de ** vira trecho em negrito, com o texto antes e depois', () => {
-    assert.deepEqual(dividirNegrito('**Vendas:** pedido com crédito e **preço** mínimo.'), [
-        { texto: 'Vendas:', negrito: true },
-        { texto: ' pedido com crédito e ', negrito: false },
-        { texto: 'preço', negrito: true },
-        { texto: ' mínimo.', negrito: false },
-    ]);
+    assert.deepEqual(
+        dividirNegrito('**Vendas:** pedido com crédito e **preço** mínimo.'),
+        [
+            { texto: 'Vendas:', negrito: true },
+            { texto: ' pedido com crédito e ', negrito: false },
+            { texto: 'preço', negrito: true },
+            { texto: ' mínimo.', negrito: false },
+        ],
+    );
 });
 
 test('** sem par fica como texto literal', () => {
@@ -25,7 +28,9 @@ test('** sem par fica como texto literal', () => {
 });
 
 test('HTML no texto continua texto: nada é interpretado', () => {
-    const trechos = dividirNegrito('Veja <script>alert(1)</script> e **<b>negrito</b>**');
+    const trechos = dividirNegrito(
+        'Veja <script>alert(1)</script> e **<b>negrito</b>**',
+    );
 
     assert.deepEqual(trechos, [
         { texto: 'Veja <script>alert(1)</script> e ', negrito: false },

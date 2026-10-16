@@ -15,7 +15,7 @@ const sistema = computed(() => page.props.sistema);
         v-if="sistema"
         href="/novidades"
         data-testid="versao-do-sistema"
-        class="mt-1 block truncate rounded-md px-2 py-1 font-mono text-[11px] text-muted-foreground/80 transition-colors hover:text-foreground group-data-[collapsible=icon]:hidden"
+        class="mt-1 block truncate rounded-md px-2 py-1 font-mono text-[11px] text-muted-foreground/80 transition-colors group-data-[collapsible=icon]:hidden hover:text-foreground"
         title="Ver o que mudou nesta versão"
     >
         v{{ sistema.versao }} · {{ sistema.commit }}

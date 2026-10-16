@@ -1,7 +1,7 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
-    "private": true,
     "version": "0.1.0",
+    "private": true,
     "type": "module",
     "scripts": {
         "build": "vp build && node tools/versoes/gerar-versao.mjs",

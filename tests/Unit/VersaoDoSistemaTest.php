@@ -44,7 +44,7 @@ class VersaoDoSistemaTest extends TestCase
     {
         $esperada = json_decode((string) file_get_contents(__DIR__.'/../../package.json'), true)['version'];
 
-        $this->assertSame($esperada, (new VersaoDoSistema('/nao/existe/versao.json'))->versao());
+        $this->assertSame($esperada, (new VersaoDoSistema('/nao/existe/versao.json', __DIR__.'/../../package.json'))->versao());
     }
 
     public function test_versao_json_corrompido_ou_sem_versao_cai_no_package_json()
