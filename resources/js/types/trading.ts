@@ -95,6 +95,8 @@ export type AgentState =
     | 'approved'
     | 'rejected'
     | 'neutral'
+    | 'buy'
+    | 'sell'
     | 'veto';
 
 export type AgentActivityAgent = {
@@ -139,3 +141,24 @@ export type AgentActivity = {
     }[];
     generated_at: string;
 };
+
+/** What an agent really did, as announced the moment it happened. */
+export type AgentLiveEvent = { at: string; signal_id: number } & (
+    | {
+          type: 'cycle.started';
+          signal: { id: number; symbol: string; stage: string };
+      }
+    | { type: 'agent.started'; role: string; round: number }
+    | {
+          type: 'agent.voted';
+          role: string;
+          round: number;
+          action: 'buy' | 'sell' | 'hold';
+          confidence: number;
+          veto: boolean;
+          text: string | null;
+      }
+    | { type: 'consensus.decided'; snapshot: AgentActivity }
+    | { type: 'order.started'; role: string }
+    | { type: 'order.finished'; snapshot: AgentActivity }
+);

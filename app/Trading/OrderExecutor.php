@@ -2,6 +2,7 @@
 
 namespace App\Trading;
 
+use App\Agents\AgentActivityBroadcaster;
 use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
 use App\Enums\SignalStage;
@@ -28,9 +29,21 @@ class OrderExecutor
         private readonly RiskGuard $risk,
         private readonly PriceFeed $prices,
         private readonly PortfolioValuation $valuation,
+        private readonly AgentActivityBroadcaster $broadcaster,
     ) {}
 
     public function execute(Signal $signal, string $actor): ?Order
+    {
+        $this->broadcaster->orderStarted($signal);
+
+        try {
+            return $this->place($signal, $actor);
+        } finally {
+            $this->broadcaster->orderFinished($signal);
+        }
+    }
+
+    private function place(Signal $signal, string $actor): ?Order
     {
         $request = $this->buildRequest($signal);
 

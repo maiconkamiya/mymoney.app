@@ -4,6 +4,7 @@ namespace App\Agents;
 
 use App\Agents\Consensus\ConsensusEngine;
 use App\Agents\Consensus\ConsensusResult;
+use App\Agents\Data\Scenario;
 use App\Agents\Data\Vote;
 use App\Agents\Llm\LlmClient;
 use App\Enums\AgentRole;
@@ -25,6 +26,7 @@ class SignalPipeline
         private readonly ScenarioBuilder $scenarios,
         private readonly ConsensusEngine $consensus,
         private readonly OrderExecutor $executor,
+        private readonly AgentActivityBroadcaster $broadcaster,
     ) {}
 
     public function analyze(Signal $signal): ?ConsensusResult
@@ -33,10 +35,12 @@ class SignalPipeline
             return null;
         }
 
+        $this->broadcaster->cycleStarted($signal);
         $scenario = $this->scenarios->build($signal);
 
         if ($scenario === null) {
             $signal->moveTo(SignalStage::Rejected, 'Sem cotação para montar o cenário.');
+            $this->broadcaster->consensusDecided($signal);
 
             return null;
         }
@@ -44,17 +48,17 @@ class SignalPipeline
         $signal->update(['scenario' => $scenario->toArray(), 'entry_price' => $scenario->price]);
 
         $voters = array_values(array_filter(AgentRole::voters(), fn (AgentRole $role) => $role !== AgentRole::Skeptic));
-        $firstRound = array_map(fn (AgentRole $role) => $this->agent($role)->vote($scenario), $voters);
+        $firstRound = array_map(fn (AgentRole $role) => $this->cast($signal, $role, 1, $scenario), $voters);
         $this->store($signal, $firstRound, 1);
 
         $finalVotes = $firstRound;
 
         // The challenge round only matters when the first round points somewhere.
         if (array_filter($firstRound, fn (Vote $vote) => $vote->action->direction() !== 0) !== []) {
-            $skeptic = $this->agent(AgentRole::Skeptic)->vote($scenario, $firstRound);
+            $skeptic = $this->cast($signal, AgentRole::Skeptic, 2, $scenario, $firstRound);
             $objection = implode(' ', $skeptic->reasons);
 
-            $finalVotes = array_map(fn (AgentRole $role) => $this->agent($role)->vote($scenario, $firstRound, $objection), $voters);
+            $finalVotes = array_map(fn (AgentRole $role) => $this->cast($signal, $role, 2, $scenario, $firstRound, $objection), $voters);
             $finalVotes[] = $skeptic;
             $this->store($signal, $finalVotes, 2);
         }
@@ -71,11 +75,13 @@ class SignalPipeline
 
         if ($result->approved && $result->side === OrderSide::Sell && ! $signal->portfolio->openPositions()->where('asset_id', $signal->asset_id)->exists()) {
             $signal->moveTo(SignalStage::Rejected, 'Venda aprovada, mas não há posição aberta para vender.');
+            $this->broadcaster->consensusDecided($signal);
 
             return $result;
         }
 
         $signal->moveTo($result->approved ? SignalStage::Approved : SignalStage::Rejected, $result->reason);
+        $this->broadcaster->consensusDecided($signal);
 
         if ($result->approved && $signal->portfolio->auto_execute && ! $signal->portfolio->isLive()) {
             $signal->update(['decided_by' => 'auto']);
@@ -84,6 +90,20 @@ class SignalPipeline
         }
 
         return $result;
+    }
+
+    /**
+     * One agent consults its model and answers; the start and the answer are announced as they happen.
+     *
+     * @param  list<Vote>  $priorVotes
+     */
+    private function cast(Signal $signal, AgentRole $role, int $round, Scenario $scenario, array $priorVotes = [], ?string $objection = null): Vote
+    {
+        $this->broadcaster->agentStarted($signal, $role, $round);
+        $vote = $this->agent($role)->vote($scenario, $priorVotes, $objection);
+        $this->broadcaster->agentVoted($signal, $vote, $round);
+
+        return $vote;
     }
 
     private function agent(AgentRole $role): LlmAgent
