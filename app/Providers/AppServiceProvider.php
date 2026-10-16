@@ -6,6 +6,9 @@ use Anthropic\Client;
 use App\Agents\Llm\AnthropicLlmClient;
 use App\Agents\Llm\FakeLlmClient;
 use App\Agents\Llm\LlmClient;
+use App\News\Embeddings\Embedder;
+use App\News\Embeddings\FakeEmbedder;
+use App\News\Embeddings\HttpEmbedder;
 use App\Trading\CandlePriceFeed;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Gateways\OrderGateway;
@@ -33,6 +36,17 @@ class AppServiceProvider extends ServiceProvider
                 requestOptions: ['timeout' => (float) config('agents.timeout_seconds', 120)],
             )),
             default => new FakeLlmClient,
+        });
+
+        $this->app->singleton(Embedder::class, fn (): Embedder => match (config('news.embeddings.driver')) {
+            'http' => new HttpEmbedder(
+                url: (string) config('news.embeddings.url'),
+                key: (string) config('news.embeddings.key'),
+                model: (string) config('news.embeddings.model'),
+                dimensions: (int) config('news.embeddings.dimensions'),
+                timeoutSeconds: (int) config('news.embeddings.timeout_seconds'),
+            ),
+            default => new FakeEmbedder((int) config('news.embeddings.dimensions')),
         });
     }
 

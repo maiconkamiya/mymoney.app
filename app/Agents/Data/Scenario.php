@@ -14,6 +14,7 @@ final readonly class Scenario
      * @param  array<string, mixed>|null  $position
      * @param  array<string, mixed>|null  $forecast
      * @param  array<string, mixed>|null  $fundamentals
+     * @param  list<array<string, mixed>>  $similarNews  Past news similar to the current ones, with the price move that followed.
      */
     public function __construct(
         public string $symbol,
@@ -27,6 +28,7 @@ final readonly class Scenario
         public float $equity,
         public ?array $forecast = null,
         public ?array $fundamentals = null,
+        public array $similarNews = [],
     ) {}
 
     /**

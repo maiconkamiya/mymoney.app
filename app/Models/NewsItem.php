@@ -18,12 +18,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property CarbonImmutable|null $published_at
  * @property CarbonImmutable $fetched_at
  * @property list<float>|null $embedding
+ * @property int|null $duplicate_of_id
  * @property CarbonImmutable|null $triaged_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read Collection<int, Asset> $assets
  */
-#[Fillable(['source', 'url', 'url_hash', 'title', 'body', 'published_at', 'fetched_at', 'embedding', 'triaged_at'])]
+#[Fillable(['source', 'url', 'url_hash', 'title', 'body', 'published_at', 'fetched_at', 'embedding', 'duplicate_of_id', 'triaged_at'])]
 class NewsItem extends Model
 {
     /**
