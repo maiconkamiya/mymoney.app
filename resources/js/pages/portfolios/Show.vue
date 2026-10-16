@@ -54,33 +54,35 @@ const stageVariant = (stage: string) =>
 <template>
     <Head :title="portfolio.name" />
 
-    <div class="flex flex-1 flex-col gap-8 p-4">
+    <div
+        class="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-8 p-4 md:p-6 lg:p-8"
+    >
         <Heading
             :title="portfolio.name"
             :description="`${marketLabels[portfolio.market]} · ${portfolio.mode === 'paper' ? 'simulada' : 'real'} · ${portfolio.starts_at} a ${portfolio.ends_at} · ${portfolio.auto_execute ? 'execução automática' : 'aprovação manual'}`"
         />
 
         <div class="grid gap-4 sm:grid-cols-3">
-            <div class="rounded-xl border p-4">
+            <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">Patrimônio</p>
                 <p class="text-2xl font-semibold tabular-nums">
                     {{ money(portfolio.equity, portfolio.market) }}
                 </p>
             </div>
-            <div class="rounded-xl border p-4">
+            <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">Caixa</p>
                 <p class="text-2xl font-semibold tabular-nums">
                     {{ money(portfolio.cash, portfolio.market) }}
                 </p>
             </div>
-            <div class="rounded-xl border p-4">
+            <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">
                     Resultado sobre
                     {{ money(portfolio.initial_cash, portfolio.market) }}
                 </p>
                 <p
                     class="text-2xl font-semibold tabular-nums"
-                    :class="result < 0 ? 'text-destructive' : ''"
+                    :class="result < 0 ? 'text-down' : 'text-up'"
                 >
                     {{ percent(result) }}
                 </p>
@@ -103,7 +105,7 @@ const stageVariant = (stage: string) =>
             >
                 Nenhuma posição aberta.
             </p>
-            <div v-else class="mt-2 overflow-x-auto rounded-xl border">
+            <div v-else class="mt-2 overflow-x-auto rounded-2xl border bg-card">
                 <table class="w-full text-sm">
                     <thead class="bg-muted/50 text-left text-muted-foreground">
                         <tr>
@@ -166,7 +168,7 @@ const stageVariant = (stage: string) =>
                 <article
                     v-for="signal in signals"
                     :key="signal.id"
-                    class="rounded-xl border p-4"
+                    class="rounded-2xl border bg-card p-4"
                 >
                     <header class="flex flex-wrap items-center gap-2">
                         <span class="font-medium">{{ signal.symbol }}</span>
