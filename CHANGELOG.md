@@ -4,6 +4,13 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.8] - 2026-10-16
+
+### Adicionado
+
+- **Agentes reagem na hora a quedas e altas bruscas.** Antes, os agentes só olhavam o mercado a cada 15 minutos: se o Bitcoin caísse 1,6% entre uma rodada e outra, a carteira só percebia depois. Agora, a cada cotação nova gravada, o sistema compara com o preço de 5 minutos antes; se a variação passar de 1%, abre o sinal e chama os agentes imediatamente, para cima ou para baixo. As regras de segurança continuam valendo: só carteiras em execução, mercado aberto, cotação recente, uma análise por ativo por vez e a guarda de risco com a palavra final. O motivo ("Gatilho de preço: -1,61% em 5 min.") fica no histórico do sinal. Depois de um disparo o ativo descansa 15 minutos para não repetir a análise enquanto o preço segue caindo. Limiar, janela e descanso são configuráveis no `.env`.
+- **Intervalo da varredura configurável.** A varredura agendada continua a cada 15 minutos por padrão, mas agora pode ser mais curta pelo `.env`.
+
 ## [0.3.6] - 2026-10-16
 
 ### Alterado
