@@ -70,7 +70,11 @@ As fontes Geist e Geist Mono (licença SIL OFL 1.1) vêm dos pacotes npm `@fonts
 - Execução real: `BinanceBroker` e `Mt5Broker` existem, mas só enviam ordens de carteira `live`, com credencial verificada, aprovação manual e `TRADING_LIVE_ENABLED=true` (desligado por padrão).
 - Provedor definitivo de cotações da B3 (hoje brapi.dev, precisa de `BRAPI_TOKEN`) e escolha entre Binance e Mercado Bitcoin.
 - Ligar o serviço de previsão (`FORECAST_ENABLED=true`) depois de treinar com `php artisan forecast:train` e conferir o backtest; sem modelo validado, o agente quantitativo vota "aguardar".
-- WebSocket com Reverb para gráficos ao vivo; hoje o painel atualiza ao recarregar.
+- Painel consumir o canal `mercado` via Reverb/Echo (a base do Reverb vem em outro PR); o coletor e o evento `CotacaoAtualizada` já existem.
+
+## Coletor de cotações por WebSocket
+
+`php artisan market:stream-binance` fica ouvindo o WebSocket público da Binance, grava o candle de 1 minuto dos ativos cripto ativos (uma gravação por ativo por segundo) e dispara `CotacaoAtualizada` no canal público `mercado`. Reconecta sozinho com espera crescente. É um processo permanente: em produção precisa de um daemon (por exemplo, no Forge, com reinício automático), configurado pelo Maicon. O `market:sync-binance` por minuto continua como rede de segurança.
 
 ## Notícias: embeddings, deduplicação e pgvector
 
