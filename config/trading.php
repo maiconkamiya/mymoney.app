@@ -141,7 +141,11 @@ return [
     ],
 
     'binance' => [
+        // Signed requests (orders, account) for real-money execution.
         'base_url' => env('BINANCE_BASE_URL', 'https://api.binance.com'),
+        // Public candles only. data-api.binance.vision serves the same /api/v3
+        // market data and answers where api.binance.com returns 451.
+        'market_data_url' => env('BINANCE_MARKET_DATA_URL', 'https://data-api.binance.vision'),
         'recv_window' => (int) env('BINANCE_RECV_WINDOW', 5000),
     ],
 
