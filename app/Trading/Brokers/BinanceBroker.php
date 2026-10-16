@@ -5,14 +5,15 @@ namespace App\Trading\Brokers;
 use App\Enums\Market;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
+use App\Models\BrokerCredential;
 use App\Models\Portfolio;
 use App\Trading\Contracts\Broker;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
+use App\Trading\Live\BinanceAccountReader;
 use App\Trading\Live\BinanceClient;
 use App\Trading\Live\LiveLimits;
 use App\Trading\Live\LiveTradingException;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 
 /**
@@ -53,8 +54,8 @@ class BinanceBroker implements Broker
 
         try {
             $response = $client->signed('POST', '/api/v3/order', $params);
-        } catch (RequestException $e) {
-            return OrderResult::rejected('Binance: '.($e->response->json('msg') ?? $e->getMessage()));
+        } catch (LiveTradingException $e) {
+            return OrderResult::rejected($e->getMessage());
         }
 
         return $this->toResult($symbol, $response);
@@ -76,18 +77,7 @@ class BinanceBroker implements Broker
 
     public function getBalances(): array
     {
-        $account = $this->client()->signed('GET', '/api/v3/account');
-        $balances = [];
-
-        foreach ($account['balances'] ?? [] as $balance) {
-            $free = (float) $balance['free'];
-
-            if ($free > 0) {
-                $balances[$balance['asset']] = $free;
-            }
-        }
-
-        return $balances;
+        return (new BinanceAccountReader)->balances($this->readClient(), locked: false);
     }
 
     public function supports(Market $market): bool
@@ -99,11 +89,35 @@ class BinanceBroker implements Broker
     {
         $credential = $this->limits->assertCanSend($this->portfolio, $this->portfolio->brokerCredential);
 
+        return new BinanceClient($this->assertOwnCredential($credential));
+    }
+
+    /**
+     * Reading the account does not move money, so it does not need the live
+     * switch; it still needs a verified key that belongs to the portfolio's owner.
+     */
+    private function readClient(): BinanceClient
+    {
+        $credential = $this->portfolio->brokerCredential;
+
+        if ($credential === null || $credential->can_withdraw || $credential->verified_at === null) {
+            throw new LiveTradingException('Carteira sem chave da Binance verificada e sem permissão de saque.');
+        }
+
+        return new BinanceClient($this->assertOwnCredential($credential));
+    }
+
+    private function assertOwnCredential(BrokerCredential $credential): BrokerCredential
+    {
         if ($credential->broker !== 'binance') {
             throw new LiveTradingException('A credencial da carteira não é da Binance.');
         }
 
-        return new BinanceClient($credential);
+        if ($credential->user_id !== $this->portfolio->user_id) {
+            throw new LiveTradingException('A credencial não pertence ao dono da carteira.');
+        }
+
+        return $credential;
     }
 
     /**

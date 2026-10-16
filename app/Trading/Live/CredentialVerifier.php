@@ -30,6 +30,13 @@ class CredentialVerifier
 
     private function binanceCanWithdraw(BrokerCredential $credential): bool
     {
+        // O testnet não tem saques nem o endpoint de restrições: basta a conta responder.
+        if (config('trading.binance.testnet')) {
+            (new BinanceClient($credential))->signed('GET', '/api/v3/account');
+
+            return false;
+        }
+
         $restrictions = (new BinanceClient($credential))->signed('GET', '/sapi/v1/account/apiRestrictions');
 
         if (empty($restrictions['enableSpotAndMarginTrading'])) {

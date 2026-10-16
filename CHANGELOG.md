@@ -4,11 +4,22 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.10] - 2026-10-16
+## [0.3.12] - 2026-10-16
 
 ### Adicionado
 
 - **Gráficos dos ativos em tempo real na carteira.** A tela da carteira ganhou o quadro "Ativos em tempo real": um gráfico por ativo que ela opera, com o preço atual, a variação da janela e a linha de preço por minuto. Ativos com posição aberta aparecem primeiro, com o preço médio e o stop marcados por linhas tracejadas e o ganho ou perda da posição. Na cripto os preços se movem a cada negócio, direto da Binance no seu navegador. Na B3 a cotação atualiza a cada 30 segundos com o pregão aberto, e com o pregão fechado o quadro avisa e mostra a última cotação. Se a conexão em tempo real cair, a página continua funcionando: aparece um aviso discreto e os gráficos se atualizam a cada 15 segundos.
+
+## [0.3.11] - 2026-10-16
+
+### Adicionado
+
+- **Conta da Binance ligada à carteira.** Em Configurações > Binance você cadastra a sua chave da Binance (só leitura e negociação spot, sem saque). O sistema confere a chave na própria Binance antes de guardar, recusa chaves que permitem saque e cria a carteira **Conta Binance**, que passa a espelhar o seu saldo em USDT e os ativos que você tem na conta, atualizados a cada 5 minutos ou quando você clicar em "Sincronizar agora". Assim os agentes enxergam o que a conta realmente tem. A chave fica cifrada, é só sua e nunca volta para a tela: aparece apenas "configurada em" e a data, com opção de trocar ou remover. Enquanto a execução real estiver desligada, os agentes só leem a conta e nenhuma ordem é enviada; quando for ligada, cada ordem continua exigindo a sua aprovação e respeitando os limites.
+- **Aviso claro quando a Binance bloqueia o servidor.** Se a Binance responder "bloqueado por região" (erro 451), a mensagem explica o motivo e o que ajustar. Também dá para apontar a API para outro endereço ou para o ambiente de testes da Binance, sem dinheiro real.
+
+### Alterado
+
+- **Cada usuário enxerga só as próprias carteiras e chaves.** Reforçamos e passamos a testar que ninguém acessa carteira, relatório, sinal, atividade dos agentes ou chave de outro usuário.
 
 ## [0.3.9] - 2026-10-16
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\BinanceController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -22,6 +23,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('settings/password', [SecurityController::class, 'update'])
         ->middleware('throttle:6,1')
         ->name('user-password.update');
+
+    Route::get('settings/binance', [BinanceController::class, 'edit'])->name('binance.edit');
+    Route::put('settings/binance', [BinanceController::class, 'update'])->middleware('throttle:6,1')->name('binance.update');
+    Route::post('settings/binance/sincronizar', [BinanceController::class, 'sync'])->middleware('throttle:6,1')->name('binance.sync');
+    Route::delete('settings/binance', [BinanceController::class, 'destroy'])->name('binance.destroy');
 
     Route::inertia('settings/appearance', 'settings/Appearance')->name('appearance.edit');
 });

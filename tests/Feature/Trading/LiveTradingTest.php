@@ -59,10 +59,13 @@ class LiveTradingTest extends TestCase
 
     private function livePortfolio(?BrokerCredential $credential = null, array $attributes = []): Portfolio
     {
+        $credential ??= $this->credential();
+
         return Portfolio::factory()->create($attributes + [
+            'user_id' => $credential->user_id,
             'mode' => PortfolioMode::Live,
             'broker' => 'binance',
-            'broker_credential_id' => ($credential ?? $this->credential())->id,
+            'broker_credential_id' => $credential->id,
             'initial_cash' => 1_000,
             'cash' => 1_000,
         ]);
@@ -177,7 +180,7 @@ class LiveTradingTest extends TestCase
         $portfolio = $this->livePortfolio(attributes: ['auto_execute' => true]);
 
         $this->expectException(LiveTradingException::class);
-        app(BinanceBroker::class, ['portfolio' => $portfolio])->getBalances();
+        app(BinanceBroker::class, ['portfolio' => $portfolio])->placeOrder(new OrderRequest($this->asset, OrderSide::Buy, 0.1));
     }
 
     public function test_verification_accepts_keys_without_withdraw_permission()
