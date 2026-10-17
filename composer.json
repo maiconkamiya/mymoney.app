@@ -70,6 +70,10 @@
             "@test",
             "@versoes"
         ],
+        "deploy": [
+            "Composer\\Config::disableProcessTimeout",
+            "bash deploy/deploy.sh"
+        ],
         "versoes": [
             "npm run test:versoes",
             "npm run test:js",
