@@ -9,6 +9,7 @@ use App\Http\Requests\StorePortfolioRequest;
 use App\Http\Requests\UpdatePortfolioRequest;
 use App\Models\AgentScore;
 use App\Models\AgentVote;
+use App\Models\Asset;
 use App\Models\AuditLog;
 use App\Models\Portfolio;
 use App\Models\Position;
@@ -199,6 +200,13 @@ class PortfolioController extends Controller
             'tax_months' => $tax->months($portfolio),
             'agent_activity' => $activity->for($portfolio),
             'charts' => $charts->for($portfolio),
+            'available_assets' => Asset::query()
+                ->where('market', $portfolio->market)
+                ->where('active', true)
+                ->where('is_benchmark', false)
+                ->orderBy('symbol')
+                ->get(['id', 'symbol', 'name']),
+            'tracked_asset_ids' => $portfolio->assets()->pluck('assets.id')->values(),
         ]);
     }
 }
