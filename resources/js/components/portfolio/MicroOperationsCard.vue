@@ -176,6 +176,10 @@ const time = (iso: string) =>
                     placeholder="Sem limite"
                     :default-value="micro.daily_operations ?? ''"
                 />
+                <p class="text-xs text-muted-foreground">
+                    Conta só as compras. A venda no alvo é registrada junto com
+                    cada compra.
+                </p>
                 <InputError :message="errors.micro_daily_operations" />
             </div>
             <div class="grid gap-2">
@@ -412,6 +416,10 @@ const time = (iso: string) =>
                             <template v-if="cycle.exit_price">
                                 {{ cycle.exit_price }} ·
                                 {{ time(cycle.closed_at!) }}
+                            </template>
+                            <template v-else-if="cycle.resting_sell_price">
+                                venda registrada a
+                                {{ cycle.resting_sell_price }}
                             </template>
                             <template v-else>
                                 alvo {{ cycle.target_price.toFixed(4) }}

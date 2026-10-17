@@ -34,6 +34,15 @@ class PositionExits
 
         foreach ($portfolios as $portfolio) {
             foreach ($portfolio->openPositions()->with(['asset', 'signal'])->get() as $position) {
+                // A resting limit sell (micro operations target) may have executed since the last minute.
+                $this->executor->refreshResting($position, 'exits');
+
+                if ($position->refresh()->closed_at !== null) {
+                    $closed++;
+
+                    continue;
+                }
+
                 $reason = $this->exitReason($position);
 
                 if ($reason !== null && $this->executor->closePosition($position, $reason, 'exits')?->status === OrderStatus::Filled) {
@@ -103,7 +112,8 @@ class PositionExits
             return 'stop';
         }
 
-        if ($position->target_price !== null && $quote->price >= $position->target_price) {
+        // With a limit sell resting at the target, the exchange sells there; no market order on top.
+        if ($position->target_price !== null && $quote->price >= $position->target_price && $this->executor->restingSells($position)->isEmpty()) {
             return 'target';
         }
 

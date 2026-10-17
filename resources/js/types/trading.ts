@@ -256,6 +256,7 @@ export type MicroCycleRow = {
     target_price: number;
     stop_price: number;
     exit_price: number | null;
+    resting_sell_price: number | null;
     fees: number;
     net_pnl: number | null;
     exit_reason: string | null;

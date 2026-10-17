@@ -3,10 +3,14 @@
 namespace App\Trading\Live;
 
 use App\Enums\Market;
+use App\Enums\OrderSide;
+use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
 use App\Models\Asset;
 use App\Models\BrokerCredential;
+use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Models\RiskProfile;
@@ -139,7 +143,10 @@ class BinanceAccountSync
                 }
             }
 
-            $open->except(array_keys($held))->each(fn (Position $position) => $position->update([
+            // A position with a limit sell still resting is not closed by a balance read.
+            $resting = Order::query()->where('portfolio_id', $portfolio->id)->where('side', OrderSide::Sell)->where('type', OrderType::Limit)->where('status', OrderStatus::Pending)->pluck('asset_id')->all();
+
+            $open->except([...array_keys($held), ...$resting])->each(fn (Position $position) => $position->update([
                 'closed_at' => now(),
                 'exit_reason' => 'conta',
             ]));
