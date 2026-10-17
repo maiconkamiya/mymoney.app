@@ -1,0 +1,88 @@
+<script setup lang="ts">
+import { router } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
+import { update } from '@/actions/App/Http/Controllers/PortfolioAssetsController';
+import { Button } from '@/components/ui/button';
+import { index as assetsIndex } from '@/routes/assets';
+import type { AvailableAsset } from '@/types';
+import { Link } from '@inertiajs/vue3';
+
+const props = defineProps<{
+    portfolioId: number;
+    available: AvailableAsset[];
+    tracked: number[];
+}>();
+
+const selected = ref<number[]>([...props.tracked]);
+const saving = ref(false);
+
+const dirty = computed(
+    () =>
+        [...selected.value].sort().join() !== [...props.tracked].sort().join(),
+);
+
+function save() {
+    saving.value = true;
+
+    router.put(
+        update.url(props.portfolioId),
+        { asset_ids: selected.value },
+        { preserveScroll: true, onFinish: () => (saving.value = false) },
+    );
+}
+</script>
+
+<template>
+    <section class="space-y-3 rounded-2xl border bg-card p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h2 class="font-medium">Ativos acompanhados</h2>
+                <p class="text-sm text-muted-foreground">
+                    {{
+                        selected.length === 0
+                            ? 'Nenhum marcado: a carteira acompanha todos os ativos cadastrados do mercado.'
+                            : `${selected.length} marcado(s): só esses entram nos sinais desta carteira.`
+                    }}
+                    <Link
+                        :href="assetsIndex()"
+                        class="underline underline-offset-4"
+                    >
+                        Cadastrar mais ativos
+                    </Link>
+                </p>
+            </div>
+            <div class="flex gap-2">
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    :disabled="selected.length === 0"
+                    @click="selected = []"
+                >
+                    Limpar
+                </Button>
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    :disabled="!dirty || saving"
+                    @click="save"
+                >
+                    Salvar
+                </Button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <label
+                v-for="asset in available"
+                :key="asset.id"
+                class="flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-sm"
+                :class="selected.includes(asset.id) ? 'border-primary' : ''"
+            >
+                <input v-model="selected" type="checkbox" :value="asset.id" />
+                {{ asset.symbol }}
+            </label>
+        </div>
+    </section>
+</template>
