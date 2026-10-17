@@ -63,7 +63,7 @@ class PortfolioPagesTest extends TestCase
         $this->assertFalse($portfolio->fresh()->auto_execute);
     }
 
-    public function test_live_portfolio_refuses_auto_execute_but_can_turn_it_off()
+    public function test_live_portfolio_refuses_auto_execute_while_unconfirmed_but_can_turn_it_off()
     {
         $user = User::factory()->create();
         $portfolio = Portfolio::factory()->for($user)->create(['mode' => PortfolioMode::Live, 'auto_execute' => false]);
