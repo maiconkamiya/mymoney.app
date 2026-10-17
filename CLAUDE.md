@@ -42,6 +42,6 @@ O MyMoney.App tem versão SemVer, `CHANGELOG.md` e uma checagem local, no mesmo 
 
 - `AGENTS_DRIVER=fake` nos testes: nenhum teste chama a API da Anthropic nem corretoras de verdade.
 - A guarda de risco (`app/Trading/Risk/RiskGuard.php`) é determinística e tem a palavra final; agentes de IA nunca a contornam.
-- Carteira simulada só usa o `PaperBroker`. Dinheiro real exige carteira `live`, credencial sem permissão de saque e aprovação explícita do Maicon.
+- Carteira simulada só usa o `PaperBroker`. Dinheiro real exige carteira `live`, credencial sem permissão de saque, `TRADING_LIVE_ENABLED=true` e a aprovação do dono: por ordem, ou a execução automática que ele liga digitando `CONFIRMO` (README, "Execução automática com dinheiro real"). Ela nunca contorna os limites por ordem e por dia, a guarda de risco nem o "Parar tudo" (`trading:panic`); agentes não ligam isso por ele.
 - Simulações nunca podem ver dados do futuro: cotações e notícias são filtradas por `now()`.
 - Segredos (chaves de API, credenciais de corretora) nunca entram no repositório, em issues ou em PRs.

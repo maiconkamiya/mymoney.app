@@ -14,6 +14,7 @@ use App\Models\Signal;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
+use App\Trading\Live\LiveAlerts;
 use App\Trading\Live\LiveTradingException;
 use App\Trading\Risk\RiskGuard;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,7 @@ class OrderExecutor
         private readonly PriceFeed $prices,
         private readonly PortfolioValuation $valuation,
         private readonly AgentActivityBroadcaster $broadcaster,
+        private readonly LiveAlerts $alerts,
     ) {}
 
     public function execute(Signal $signal, string $actor): ?Order
@@ -53,17 +55,36 @@ class OrderExecutor
             return null;
         }
 
-        if ($signal->portfolio->isLive() && ! $this->approvedByPerson($signal)) {
-            $signal->moveTo(SignalStage::Rejected, 'Ordem real exige aprovação manual explícita.');
-            AuditLog::record($actor, 'order.blocked', $signal, ['reasons' => ['Sem aprovação manual.']]);
+        if ($signal->portfolio->isLive()) {
+            $signal->portfolio->refresh();
+        }
+
+        if ($signal->portfolio->isLive() && ! $this->approvedForLive($signal)) {
+            $signal->moveTo(SignalStage::Rejected, 'Ordem real exige aprovação manual ou execução automática confirmada pelo dono.');
+            AuditLog::record($actor, 'order.blocked', $signal, ['reasons' => ['Sem aprovação manual nem execução automática confirmada.']]);
 
             return null;
+        }
+
+        // One real order per signal: a repeated run (retry, double click) never sends a second one.
+        if ($signal->portfolio->isLive()) {
+            $existing = $signal->orders()->whereNotIn('status', [OrderStatus::Rejected, OrderStatus::Cancelled])->first();
+
+            if ($existing !== null) {
+                AuditLog::record($actor, 'order.duplicate_ignored', $signal, ['order_id' => $existing->id]);
+
+                return $existing;
+            }
         }
 
         $outcome = $this->submit($signal->portfolio, $request, $signal, $actor, null);
 
         if (is_string($outcome)) {
             $signal->moveTo(SignalStage::Rejected, $outcome);
+
+            if ($signal->portfolio->isLive()) {
+                $this->alerts->refused($signal->portfolio, $signal, $outcome);
+            }
 
             return null;
         }
@@ -121,6 +142,10 @@ class OrderExecutor
      */
     private function submit(Portfolio $portfolio, OrderRequest $request, ?Signal $signal, string $actor, ?string $reason): Order|string
     {
+        if ($portfolio->isLive()) {
+            $portfolio->refresh();
+        }
+
         $decision = $this->risk->check($portfolio, $request);
 
         if (! $decision->allowed) {
@@ -176,14 +201,38 @@ class OrderExecutor
             $this->book($portfolio, $request, $result, $signal, $reason);
         });
 
-        AuditLog::record($actor, 'order.'.$order->status->value, $order, ['decision' => $decision->reasons, 'reason' => $reason]);
+        AuditLog::record($actor, 'order.'.$order->status->value, $order, [
+            'decision' => $decision->reasons,
+            'reason' => $reason,
+            'signal' => $signal === null ? null : [
+                'id' => $signal->id,
+                'score' => $signal->score,
+                'decided_by' => $signal->decided_by,
+                'calculation' => $signal->calculation,
+            ],
+        ]);
 
-        return $order->refresh();
+        $order->refresh();
+
+        if ($portfolio->isLive()) {
+            $this->alerts->order($order);
+        }
+
+        return $order;
     }
 
-    private function approvedByPerson(Signal $signal): bool
+    /**
+     * A real order needs a person's click, or the automatic path the owner
+     * confirmed with CONFIRMO (and that "Parar tudo" has not blocked).
+     */
+    private function approvedForLive(Signal $signal): bool
     {
-        return $signal->stage === SignalStage::Confirmed && str_starts_with((string) $signal->decided_by, 'user:');
+        if ($signal->stage !== SignalStage::Confirmed) {
+            return false;
+        }
+
+        return str_starts_with((string) $signal->decided_by, 'user:')
+            || ($signal->decided_by === 'auto' && $signal->portfolio->autoExecutesLive());
     }
 
     private function buildRequest(Signal $signal): ?OrderRequest

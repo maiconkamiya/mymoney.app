@@ -84,7 +84,11 @@ class SignalPipeline
         $signal->moveTo($result->approved ? SignalStage::Approved : SignalStage::Rejected, $result->reason);
         $this->broadcaster->consensusDecided($signal);
 
-        if ($result->approved && $signal->portfolio->auto_execute && ! $signal->portfolio->isLive()) {
+        // The agents take a while: reread the portfolio so a "Parar tudo" pressed meanwhile counts.
+        $portfolio = $signal->portfolio->refresh();
+
+        // Real money runs on its own only when the owner confirmed it (CONFIRMO) and nothing blocks the portfolio.
+        if ($result->approved && $portfolio->auto_execute && (! $portfolio->isLive() || $portfolio->autoExecutesLive())) {
             $signal->update(['decided_by' => 'auto']);
             $signal->moveTo(SignalStage::Confirmed);
             $this->executor->execute($signal, 'auto');
