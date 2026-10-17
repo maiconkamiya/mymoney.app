@@ -6,6 +6,7 @@ use App\Http\Controllers\NovidadesController;
 use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioInitialCashController;
 use App\Http\Controllers\PortfolioReportController;
 use App\Http\Controllers\SignalDecisionController;
 use App\Http\Controllers\TradingHaltController;
@@ -19,7 +20,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('novidades', [NovidadesController::class, 'show'])->name('novidades');
     Route::post('novidades/vista', [NovidadesController::class, 'marcarComoVista'])->name('novidades.vista');
 
-    Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update']);
+    Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+    Route::patch('portfolios/{portfolio}/saldo-inicial', PortfolioInitialCashController::class)->name('portfolios.initial-cash');
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');
     Route::get('portfolios/{portfolio}/graficos', PortfolioChartsController::class)->name('portfolios.charts');
     Route::get('portfolios/{portfolio}/reports/tax.csv', [PortfolioReportController::class, 'tax'])->name('portfolios.reports.tax');
