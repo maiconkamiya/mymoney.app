@@ -1,0 +1,16 @@
+# Serviço de previsão (agente Quantitativo) como unidade systemd de usuário.
+# Instalada por deploy/forecast-install.sh em ~/.config/systemd/user/.
+# Assume o clone de produção em ~/projetos/mymoney.app (igual aos outros mymoney-*).
+[Unit]
+Description=MyMoney.App serviço de previsão (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projetos/mymoney.app/services/forecast
+ExecStart=%h/projetos/mymoney.app/deploy/forecast-serve.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

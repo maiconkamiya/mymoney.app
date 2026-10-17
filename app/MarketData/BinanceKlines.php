@@ -2,6 +2,7 @@
 
 namespace App\MarketData;
 
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 
@@ -18,9 +19,28 @@ class BinanceKlines
      */
     public function latest(string $symbol, int $limit = 5): array
     {
+        return $this->fetch(['symbol' => $symbol, 'interval' => '1m', 'limit' => $limit]);
+    }
+
+    /**
+     * Up to 1000 klines starting at $from, oldest first (the Binance page size).
+     *
+     * @return list<array{open_at: Carbon, open: float, high: float, low: float, close: float, volume: float}>
+     */
+    public function since(string $symbol, CarbonInterface $from, int $limit = 1000): array
+    {
+        return $this->fetch(['symbol' => $symbol, 'interval' => '1m', 'startTime' => $from->getTimestampMs(), 'limit' => $limit]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @return list<array{open_at: Carbon, open: float, high: float, low: float, close: float, volume: float}>
+     */
+    private function fetch(array $query): array
+    {
         $rows = Http::baseUrl(config('trading.binance.market_data_url'))
             ->timeout(10)
-            ->get('/api/v3/klines', ['symbol' => $symbol, 'interval' => '1m', 'limit' => $limit])
+            ->get('/api/v3/klines', $query)
             ->throw()
             ->json();
 
