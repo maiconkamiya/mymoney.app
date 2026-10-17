@@ -20,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $quote_currency
  * @property string $lot_size
  * @property string $tick_size
+ * @property string|null $min_qty
+ * @property string|null $min_notional
  * @property string|null $sector
  * @property bool $active
  * @property bool $is_benchmark
@@ -28,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, Candle> $candles
  * @property-read Collection<int, NewsItem> $news
  */
-#[Fillable(['symbol', 'market', 'name', 'quote_currency', 'lot_size', 'tick_size', 'sector', 'active', 'is_benchmark'])]
+#[Fillable(['symbol', 'market', 'name', 'quote_currency', 'lot_size', 'tick_size', 'min_qty', 'min_notional', 'sector', 'active', 'is_benchmark'])]
 class Asset extends Model
 {
     /** @use HasFactory<AssetFactory> */
@@ -43,6 +45,8 @@ class Asset extends Model
             'market' => Market::class,
             'lot_size' => 'decimal:8',
             'tick_size' => 'decimal:8',
+            'min_qty' => 'decimal:8',
+            'min_notional' => 'decimal:8',
             'active' => 'boolean',
             'is_benchmark' => 'boolean',
         ];
@@ -52,6 +56,12 @@ class Asset extends Model
     public function candles(): HasMany
     {
         return $this->hasMany(Candle::class);
+    }
+
+    /** @return BelongsToMany<Portfolio, $this> */
+    public function portfolios(): BelongsToMany
+    {
+        return $this->belongsToMany(Portfolio::class, 'portfolio_asset')->withTimestamps();
     }
 
     /** @return BelongsToMany<NewsItem, $this, NewsAsset> */

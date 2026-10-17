@@ -10,6 +10,7 @@ use App\Models\Asset;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -22,7 +23,7 @@ class StreamBinanceTrades extends Command
 
     public function handle(TradeStream $stream, CandleAggregator $aggregator): int
     {
-        $assets = Asset::query()->where('market', Market::Crypto)->where('active', true)->get()->keyBy('symbol');
+        $assets = $this->activeAssets();
 
         if ($assets->isEmpty()) {
             $this->warn('Nenhum ativo cripto ativo para acompanhar.');
@@ -30,10 +31,25 @@ class StreamBinanceTrades extends Command
             return self::SUCCESS;
         }
 
+        $reloadEvery = max(1, (int) config('trading.binance.stream_reload_seconds'));
+
         $deadline = (int) $this->option('max-seconds') > 0 ? time() + (int) $this->option('max-seconds') : null;
         $failures = 0;
 
         while ($deadline === null || time() < $deadline) {
+            $assets = $this->activeAssets();
+
+            if ($assets->isEmpty()) {
+                $this->warn('Nenhum ativo cripto ativo para acompanhar; conferindo de novo em instantes.');
+                sleep($reloadEvery);
+
+                continue;
+            }
+
+            $subscribed = $assets->keys()->sort()->values()->all();
+            $reload = false;
+            $nextCheck = time() + $reloadEvery;
+
             /** @var array<string, array{price: float, volume: float}> $pending */
             $pending = [];
 
@@ -50,7 +66,7 @@ class StreamBinanceTrades extends Command
             };
 
             // Uma gravação e uma transmissão por ativo por segundo, não por negócio.
-            $onTick = function () use (&$pending, $assets, $aggregator, $deadline, &$failures): bool {
+            $onTick = function () use (&$pending, $assets, $aggregator, $deadline, &$failures, &$reload, &$nextCheck, $reloadEvery, $subscribed): bool {
                 foreach ($pending as $symbol => $trade) {
                     $candle = $aggregator->ingestTrade($assets[$symbol], $trade['price'], $trade['volume'], Carbon::createFromTimestampMs($trade['at']));
                     $failures = 0;
@@ -67,6 +83,17 @@ class StreamBinanceTrades extends Command
 
                 $pending = [];
 
+                // Ativo cadastrado ou removido pela tela: reconecta com a lista nova, sem reiniciar o serviço.
+                if (time() >= $nextCheck) {
+                    $nextCheck = time() + $reloadEvery;
+
+                    if ($this->activeAssets()->keys()->sort()->values()->all() !== $subscribed) {
+                        $reload = true;
+
+                        return false;
+                    }
+                }
+
                 return $deadline === null || time() < $deadline;
             };
 
@@ -75,6 +102,13 @@ class StreamBinanceTrades extends Command
 
                 if ($deadline !== null && time() >= $deadline) {
                     break;
+                }
+
+                if ($reload) {
+                    $this->line('Lista de pares mudou: reconectando com os ativos novos.');
+                    $failures = 0;
+
+                    continue;
                 }
             } catch (Throwable $e) {
                 $this->error("Conexão com a Binance caiu: {$e->getMessage()}");
@@ -87,5 +121,13 @@ class StreamBinanceTrades extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return Collection<string, Asset>
+     */
+    private function activeAssets(): Collection
+    {
+        return Asset::query()->where('market', Market::Crypto)->where('active', true)->get()->keyBy('symbol');
     }
 }

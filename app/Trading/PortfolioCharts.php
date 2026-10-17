@@ -31,6 +31,7 @@ class PortfolioCharts
             ->where('market', $portfolio->market)
             ->where('active', true)
             ->where('is_benchmark', false)
+            ->when($portfolio->assets()->exists(), fn ($query) => $query->whereIn('id', $portfolio->assets()->select('assets.id')))
             ->orderBy('symbol')
             ->get()
             ->sortBy(fn (Asset $asset) => match (true) {

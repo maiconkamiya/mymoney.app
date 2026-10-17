@@ -4,12 +4,20 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.32] - 2026-10-17
+## [0.3.33] - 2026-10-17
 
 ### Adicionado
 
 - **Excluir carteira simulada.** Na lista de carteiras e na tela de cada carteira há o botão "Excluir carteira". Ele pede que você digite o nome da carteira para confirmar e apaga a carteira junto com sinais, votos dos agentes, ordens, posições e histórico, mesmo que ela ainda esteja em execução. Se houver sinal em andamento (aguardando análise, confirmação ou execução) ou ordem pendente, a exclusão é recusada com a explicação: confirme ou descarte os sinais primeiro. Carteira real, como a Conta Binance, não pode ser excluída por aqui. A exclusão fica registrada na auditoria e só o dono da carteira pode fazê-la.
 - **Alterar o saldo inicial da carteira simulada.** Na tela da carteira, o botão "Alterar saldo inicial" abre um diálogo para informar o novo valor (mínimo 100). O caixa muda pela diferença e o histórico de patrimônio acompanha, como se o capital sempre tivesse sido o novo; posições, ordens e sinais ficam como estão, e o retorno passa a ser calculado sobre o novo valor. Se o novo valor deixaria o caixa negativo, a alteração é recusada. Carteira real usa o saldo da corretora e não pode ser alterada. A mudança fica registrada na auditoria, com o valor antigo e o novo.
+
+## [0.3.32] - 2026-10-17
+
+### Adicionado
+
+- **Tela "Ativos" para cadastrar criptos da Binance e papéis da B3.** No menu, "Ativos" abre uma pesquisa: em Cripto aparecem os pares em USDT negociáveis na Binance; em B3, os tickers da brapi. O ativo só é salvo depois de confirmado na fonte, e a Binance informa o lote, a variação mínima de preço e a ordem mínima, que ficam guardados. Ativo novo recebe os últimos candles na hora; o coletor de cotações passa a acompanhá-lo em até 30 segundos e o scanner abre sinais para ele no próximo ciclo, sem reiniciar nada.
+- **Remover ativo.** Só sai quando não há posição aberta, sinal em andamento, ordem pendente nem carteira acompanhando; a tela mostra o motivo. Se o ativo já tem histórico, ele é desativado em vez de apagado, e pode ser cadastrado de novo depois.
+- **Escolha dos ativos de cada carteira.** Na tela da carteira, o card "Ativos acompanhados" deixa o dono marcar quais ativos cadastrados entram nos sinais e nos gráficos daquela carteira. Sem nenhum marcado, a carteira acompanha todos, como antes.
 
 ## [0.3.31] - 2026-10-17
 
