@@ -22,15 +22,18 @@ final class Levels
         $count = count($bars);
 
         for ($i = $wing; $i < $count - $wing; $i++) {
-            $window = array_slice($bars, $i - $wing, $wing * 2 + 1);
-            $highs = array_column($window, 'h');
-            $lows = array_column($window, 'l');
+            $isHigh = $isLow = true;
 
-            if ($bars[$i]['h'] >= max($highs)) {
+            for ($j = $i - $wing; $j <= $i + $wing; $j++) {
+                $isHigh = $isHigh && $bars[$i]['h'] >= $bars[$j]['h'];
+                $isLow = $isLow && $bars[$i]['l'] <= $bars[$j]['l'];
+            }
+
+            if ($isHigh) {
                 $pivots[] = ['price' => $bars[$i]['h'], 't' => $bars[$i]['t']];
             }
 
-            if ($bars[$i]['l'] <= min($lows)) {
+            if ($isLow) {
                 $pivots[] = ['price' => $bars[$i]['l'], 't' => $bars[$i]['t']];
             }
         }
@@ -38,25 +41,27 @@ final class Levels
         usort($pivots, fn (array $a, array $b) => $a['price'] <=> $b['price']);
 
         $clusters = [];
+        $prices = [];
+        $lastTouch = 0;
+        $previous = null;
 
         foreach ($pivots as $pivot) {
-            $last = count($clusters) - 1;
-
-            if ($last >= 0 && $pivot['price'] - end($clusters[$last]['prices']) <= $tolerance) {
-                $clusters[$last]['prices'][] = $pivot['price'];
-                $clusters[$last]['last_t'] = max($clusters[$last]['last_t'], $pivot['t']);
-
-                continue;
+            if ($previous !== null && $tolerance < $pivot['price'] - $previous) {
+                $clusters[] = ['price' => array_sum($prices) / count($prices), 'touches' => count($prices), 'last_t' => $lastTouch];
+                $prices = [];
+                $lastTouch = 0;
             }
 
-            $clusters[] = ['prices' => [$pivot['price']], 'last_t' => $pivot['t']];
+            $prices[] = $pivot['price'];
+            $lastTouch = max($lastTouch, $pivot['t']);
+            $previous = $pivot['price'];
         }
 
-        return array_map(fn (array $cluster) => [
-            'price' => array_sum($cluster['prices']) / count($cluster['prices']),
-            'touches' => count($cluster['prices']),
-            'last_t' => $cluster['last_t'],
-        ], $clusters);
+        if ($prices !== []) {
+            $clusters[] = ['price' => array_sum($prices) / count($prices), 'touches' => count($prices), 'last_t' => $lastTouch];
+        }
+
+        return $clusters;
     }
 
     /**
@@ -72,9 +77,13 @@ final class Levels
             return null;
         }
 
-        $recent = array_slice($bars, -$length);
-        $high = max(array_column($recent, 'h'));
-        $low = min(array_column($recent, 'l'));
+        $high = -INF;
+        $low = INF;
+
+        foreach (array_slice($bars, -$length) as $bar) {
+            $high = max($high, $bar['h']);
+            $low = min($low, $bar['l']);
+        }
 
         return $high - $low <= $maxAtr * $atr ? ['low' => $low, 'high' => $high, 'bars' => $length] : null;
     }

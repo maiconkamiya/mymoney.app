@@ -14,6 +14,14 @@ export type PortfolioSummary = {
     auto_execute: boolean;
 };
 
+export type ChartAnalysis = {
+    scenario: string | null;
+    supports: number[];
+    resistances: number[];
+    timeframes: string[];
+    omitted_timeframes: string[];
+};
+
 export type AgentVote = {
     agent: string;
     round: number;
@@ -22,6 +30,7 @@ export type AgentVote = {
     veto: boolean;
     abstained: boolean;
     reasons: string[];
+    analysis: ChartAnalysis | null;
 };
 
 export type SignalCalculation = {

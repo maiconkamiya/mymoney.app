@@ -8,12 +8,12 @@ use App\Enums\Market;
 use App\Forecast\ForecastClient;
 use App\MarketData\B3Fundamentals;
 use App\Models\Candle;
-use Carbon\CarbonImmutable;
 use App\Models\NewsAsset;
 use App\Models\Signal;
 use App\News\NewsHistory;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\PortfolioValuation;
+use Carbon\CarbonImmutable;
 
 class ScenarioBuilder
 {
@@ -48,23 +48,23 @@ class ScenarioBuilder
             ->reverse()
             ->values();
 
-        $bars = $rows->map(fn (object $row) => [
+        $bars = array_values($rows->map(fn (object $row) => [
             't' => CarbonImmutable::parse($row->open_at)->getTimestamp(),
             'o' => (float) $row->open,
             'h' => (float) $row->high,
             'l' => (float) $row->low,
             'c' => (float) $row->close,
             'v' => (float) $row->volume,
-        ])->all();
+        ])->all());
 
-        $candles = $rows->slice(-60)->map(fn (object $row) => [
+        $candles = array_values($rows->slice(-60)->map(fn (object $row) => [
             'id' => "candle:{$asset->symbol}:1m:".CarbonImmutable::parse($row->open_at)->toIso8601String(),
             'open' => (float) $row->open,
             'high' => (float) $row->high,
             'low' => (float) $row->low,
             'close' => (float) $row->close,
             'volume' => (float) $row->volume,
-        ])->values()->all();
+        ])->all());
 
         // Only news that already existed "now": simulations must never see the future.
         $links = NewsAsset::query()

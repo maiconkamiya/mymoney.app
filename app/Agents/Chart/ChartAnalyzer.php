@@ -59,7 +59,7 @@ class ChartAnalyzer
     private function timeframe(array $bars, int $minutes, int $now): array
     {
         $closes = array_column($bars, 'c');
-        $price = end($closes);
+        $price = $closes[count($closes) - 1];
         $atr = Indicators::atr($bars) ?? 0.0;
 
         $ema9 = Indicators::ema($closes, 9);
@@ -67,7 +67,7 @@ class ChartAnalyzer
         $ema50 = Indicators::ema($closes, 50);
 
         // The newest bar is usually still forming, so its volume says little.
-        $closed = end($bars)['t'] + $minutes * 60 <= $now ? $bars : array_slice($bars, 0, -1);
+        $closed = $bars[count($bars) - 1]['t'] + $minutes * 60 <= $now ? $bars : array_slice($bars, 0, -1);
 
         $tolerance = max($atr * 0.5, $price * 0.001);
         $history = array_slice($bars, 0, -self::BREAKOUT_WINDOW);
@@ -86,8 +86,8 @@ class ChartAnalyzer
             'atr' => $this->round($atr, $price),
             'atr_pct' => $price > 0 ? round($atr / $price * 100, 3) : null,
             'relative_volume' => $relativeVolume === null ? null : round($relativeVolume, 2),
-            'range_high' => $this->round(max(array_column($bars, 'h')), $price),
-            'range_low' => $this->round(min(array_column($bars, 'l')), $price),
+            'range_high' => $this->round($this->extreme($bars, 'h'), $price),
+            'range_low' => $this->round($this->extreme($bars, 'l'), $price),
             'supports' => $this->nearest($levels, $price, below: true),
             'resistances' => $this->nearest($levels, $price, below: false),
             'consolidation' => ($range = Levels::consolidation($bars, $atr)) === null ? null : [
@@ -147,7 +147,7 @@ class ChartAnalyzer
             return [];
         }
 
-        $price = end($bars)['c'];
+        $price = $bars[count($bars) - 1]['c'];
         $window = array_slice($bars, -self::BREAKOUT_WINDOW);
         $reference = $bars[count($bars) - self::BREAKOUT_WINDOW - 1]['c'];
         $buffer = $atr * 0.1;
@@ -164,7 +164,7 @@ class ChartAnalyzer
 
                 if ($crossed) {
                     $type = $price > $line ? 'rompimento_alta' : 'falso_rompimento_alta';
-                } elseif ($price <= $line && $line - max(array_column($window, 'h')) <= $atr * 0.5) {
+                } elseif ($price <= $line && $line - $this->extreme($window, 'h') <= $atr * 0.5) {
                     $type = 'teste_resistencia';
                 }
             } elseif ($reference > $line) {
@@ -172,7 +172,7 @@ class ChartAnalyzer
 
                 if ($crossed) {
                     $type = $price < $line ? 'rompimento_baixa' : 'falso_rompimento_baixa';
-                } elseif ($price >= $line && min(array_column($window, 'l')) - $line <= $atr * 0.5) {
+                } elseif ($price >= $line && $this->extreme($window, 'l') - $line <= $atr * 0.5) {
                     $type = 'teste_suporte';
                 }
             }
@@ -222,6 +222,22 @@ class ChartAnalyzer
         }
 
         return null;
+    }
+
+    /**
+     * Highest high ('h') or lowest low ('l') of the bars.
+     *
+     * @param  list<Bar>  $bars
+     */
+    private function extreme(array $bars, string $side): float
+    {
+        $value = $side === 'h' ? -INF : INF;
+
+        foreach ($bars as $bar) {
+            $value = $side === 'h' ? max($value, $bar['h']) : min($value, $bar['l']);
+        }
+
+        return $value;
     }
 
     private function round(?float $value, float $reference): ?float

@@ -118,6 +118,21 @@ class SignalPipelineTest extends TestCase
         $this->assertSame(0, $signal->orders()->count());
     }
 
+    public function test_technical_abstains_when_there_are_too_few_candles_to_read_the_chart()
+    {
+        $fake = $this->agentsVote('buy', 0.8);
+        $asset = Asset::factory()->create(['lot_size' => '0.001']);
+        $this->quote($asset, 100);
+        $this->provideAgentInputs($asset);
+        Portfolio::factory()->create(['market' => $asset->market]);
+
+        $signal = app(SignalScanner::class)->scan($asset)[0]->fresh();
+
+        $abstained = $signal->votes()->where('round', 1)->where('abstained', true)->pluck('agent')->map->value->all();
+        $this->assertContains('technical', $abstained);
+        $this->assertStringContainsString('Sem candles suficientes', $signal->votes()->where('agent', 'technical')->firstOrFail()->reasons[0]);
+    }
+
     public function test_scanner_does_not_open_a_second_signal_while_one_is_in_flight()
     {
         $this->agentsVote('buy', 0.8);
@@ -179,6 +194,7 @@ class SignalPipelineTest extends TestCase
     {
         $fake = $this->agentsVote('buy', 0.8);
         $asset = Asset::factory()->create(['lot_size' => '0.001']);
+        $this->history($asset, 100);
         $this->quote($asset, 100);
         Portfolio::factory()->create(['market' => $asset->market]);
 
