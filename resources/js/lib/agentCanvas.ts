@@ -76,6 +76,7 @@ const STATE_TEXT: Record<string, string> = {
     approved: 'aprova',
     rejected: 'rejeita',
     neutral: 'neutro',
+    abstained: 'absteve-se',
     veto: 'veta',
 };
 

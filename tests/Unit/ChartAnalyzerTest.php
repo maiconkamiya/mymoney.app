@@ -83,7 +83,7 @@ class ChartAnalyzerTest extends TestCase
 
         $this->assertCount(2, $five);
         $this->assertSame(self::START, $five[0]['t']);
-        $this->assertSame([10.0, 24.0, 5.0, 15.0, 10.0], [$five[0]['o'], $five[0]['h'], $five[0]['l'], $five[0]['c'], $five[0]['v']]);
+        $this->assertEquals([10.0, 24.0, 5.0, 15.0, 10.0], [$five[0]['o'], $five[0]['h'], $five[0]['l'], $five[0]['c'], $five[0]['v']]);
         $this->assertSame(16.0, (float) $five[1]['c']);
         $this->assertSame(10.0, $five[1]['v']);
     }

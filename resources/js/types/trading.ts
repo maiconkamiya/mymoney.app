@@ -20,7 +20,28 @@ export type AgentVote = {
     action: 'buy' | 'sell' | 'hold';
     confidence: number;
     veto: boolean;
+    abstained: boolean;
     reasons: string[];
+};
+
+export type SignalCalculation = {
+    votes: {
+        agent: string;
+        action: 'buy' | 'sell' | 'hold';
+        confidence: number;
+        abstained: boolean;
+        veto: boolean;
+        weight: number | null;
+        contribution: number | null;
+        reason: string | null;
+    }[];
+    valid_votes: number;
+    weight_sum: number;
+    score: number;
+    threshold: number;
+    min_voters: number;
+    agreeing: number;
+    quorum: number;
 };
 
 export type SignalRow = {
@@ -29,6 +50,7 @@ export type SignalRow = {
     stage: string;
     side: 'buy' | 'sell' | null;
     score: number | null;
+    calculation: SignalCalculation | null;
     entry_price: number | null;
     stop_price: number | null;
     target_price: number | null;
@@ -95,6 +117,7 @@ export type AgentState =
     | 'approved'
     | 'rejected'
     | 'neutral'
+    | 'abstained'
     | 'buy'
     | 'sell'
     | 'veto';
@@ -156,6 +179,7 @@ export type AgentLiveEvent = { at: string; signal_id: number } & (
           action: 'buy' | 'sell' | 'hold';
           confidence: number;
           veto: boolean;
+          abstained: boolean;
           text: string | null;
       }
     | { type: 'consensus.decided'; snapshot: AgentActivity }

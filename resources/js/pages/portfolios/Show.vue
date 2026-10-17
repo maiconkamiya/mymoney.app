@@ -5,6 +5,7 @@ import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecis
 import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
+import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -269,6 +270,12 @@ const stageVariant = (stage: string) =>
                         {{ money(signal.target_price, portfolio.market) }}
                     </p>
 
+                    <SignalCalculation
+                        v-if="signal.calculation"
+                        :calculation="signal.calculation"
+                        :reason="signal.reason"
+                    />
+
                     <ul
                         v-if="signal.votes.length"
                         class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
@@ -280,8 +287,13 @@ const stageVariant = (stage: string) =>
                         >
                             <p class="font-medium">
                                 {{ agentLabels[vote.agent] ?? vote.agent }}:
-                                {{ actionLabels[vote.action] }}
-                                {{ Math.round(vote.confidence * 100) }}%
+                                <template v-if="vote.abstained">
+                                    Absteve-se
+                                </template>
+                                <template v-else>
+                                    {{ actionLabels[vote.action] }}
+                                    {{ Math.round(vote.confidence * 100) }}%
+                                </template>
                                 <span v-if="vote.veto" class="text-destructive">
                                     · veto
                                 </span>
