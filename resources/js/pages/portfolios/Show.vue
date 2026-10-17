@@ -3,6 +3,7 @@ import { Form, Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
 import Heading from '@/components/Heading.vue';
+import EditInitialCash from '@/components/portfolio/EditInitialCash.vue';
 import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
@@ -88,6 +89,9 @@ const stageVariant = (stage: string) =>
                     Resultado sobre
                     {{ money(portfolio.initial_cash, portfolio.market) }}
                 </p>
+                <div class="mt-2">
+                    <EditInitialCash :portfolio="portfolio" />
+                </div>
                 <p
                     class="text-2xl font-semibold tabular-nums"
                     :class="result < 0 ? 'text-down' : 'text-up'"
