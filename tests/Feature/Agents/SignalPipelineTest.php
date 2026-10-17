@@ -10,6 +10,7 @@ use App\Enums\SignalStage;
 use App\Models\Asset;
 use App\Models\NewsItem;
 use App\Models\Portfolio;
+use App\Models\RiskProfile;
 use App\Models\Signal;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -269,5 +270,10 @@ class SignalPipelineTest extends TestCase
         $this->rescan($first);
 
         $this->assertSame(2, $this->newsCalls($fake));
+    }
+
+    public function test_new_risk_profiles_ask_for_two_agreeing_voters()
+    {
+        $this->assertSame(2, RiskProfile::firstOrCreate(['name' => 'Padrão'])->fresh()->min_agreeing_voters);
     }
 }
