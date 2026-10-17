@@ -5,6 +5,7 @@ import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecis
 import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
+import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
 import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import { index, update } from '@/routes/portfolios';
 import type {
     AgentActivity,
     AgentScoreRow,
+    AvailableAsset,
     Performance,
     PortfolioCharts,
     PortfolioSummary,
@@ -38,6 +40,8 @@ const props = defineProps<{
     tax_months: TaxMonth[];
     agent_activity: AgentActivity;
     charts: PortfolioCharts;
+    available_assets: AvailableAsset[];
+    tracked_asset_ids: number[];
 }>();
 
 defineOptions({
@@ -138,6 +142,12 @@ const stageVariant = (stage: string) =>
                 </Button>
             </Form>
         </section>
+
+        <TrackedAssetsCard
+            :portfolio-id="portfolio.id"
+            :available="available_assets"
+            :tracked="tracked_asset_ids"
+        />
 
         <AssetChartsCard
             :portfolio-id="portfolio.id"

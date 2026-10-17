@@ -8,10 +8,13 @@ use App\Enums\PortfolioStatus;
 use Carbon\CarbonImmutable;
 use Database\Factories\PortfolioFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -112,6 +115,25 @@ class Portfolio extends Model
     public function snapshots(): HasMany
     {
         return $this->hasMany(PortfolioSnapshot::class);
+    }
+
+    /** @return BelongsToMany<Asset, $this> */
+    public function assets(): BelongsToMany
+    {
+        return $this->belongsToMany(Asset::class, 'portfolio_asset')->withTimestamps();
+    }
+
+    /**
+     * Carteiras que acompanham o ativo: as que o escolheram e as que não escolheram nenhum (acompanham todos).
+     *
+     * @param  Builder<Portfolio>  $query
+     */
+    #[Scope]
+    protected function tracking(Builder $query, Asset $asset): void
+    {
+        $query->where(fn (Builder $q) => $q
+            ->whereDoesntHave('assets')
+            ->orWhereHas('assets', fn (Builder $a) => $a->whereKey($asset->id)));
     }
 
     public function isLive(): bool
