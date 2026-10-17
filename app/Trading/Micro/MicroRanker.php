@@ -37,10 +37,13 @@ class MicroRanker
                     return null;
                 }
 
-                $setup = $this->analysis->read(
-                    $candles->map(fn (Candle $c) => ['high' => (float) $c->high, 'low' => (float) $c->low, 'close' => (float) $c->close])->all(),
-                    $grossMarginPct,
-                );
+                $rows = [];
+
+                foreach ($candles as $candle) {
+                    $rows[] = ['high' => (float) $candle->high, 'low' => (float) $candle->low, 'close' => (float) $candle->close];
+                }
+
+                $setup = $this->analysis->read($rows, $grossMarginPct);
 
                 return $setup === null ? null : ['asset' => $asset, 'setup' => $setup];
             })

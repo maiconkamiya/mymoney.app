@@ -44,16 +44,18 @@ const time = (iso: string) =>
 
         <p class="text-sm text-muted-foreground">
             Muitas compras e vendas pequenas nos pares mais voláteis, com lucro
-            líquido pequeno por operação. Entra só com tendência de alta e
-            preço perto do suporte, com espaço até a resistência; sai no alvo,
-            no stop ou ao fim do tempo limite. Não consulta modelo de IA: sem
-            custo por operação. A guarda de risco, os limites reais e o "Parar
-            tudo" valem sempre.
+            líquido pequeno por operação. Entra só com tendência de alta e preço
+            perto do suporte, com espaço até a resistência; sai no alvo, no stop
+            ou ao fim do tempo limite. Não consulta modelo de IA: sem custo por
+            operação. A guarda de risco, os limites reais e o "Parar tudo" valem
+            sempre.
         </p>
 
         <div class="grid gap-3 sm:grid-cols-4">
             <div class="rounded-xl border p-3">
-                <p class="text-xs text-muted-foreground">Custo da ida e volta</p>
+                <p class="text-xs text-muted-foreground">
+                    Custo da ida e volta
+                </p>
                 <p class="text-lg font-semibold tabular-nums">
                     {{ micro.round_trip_cost_pct.toFixed(2) }}%
                 </p>
@@ -69,8 +71,8 @@ const time = (iso: string) =>
             <div class="rounded-xl border p-3">
                 <p class="text-xs text-muted-foreground">Hoje</p>
                 <p class="text-lg font-semibold tabular-nums">
-                    {{ micro.today.cycles }} ciclos ·
-                    {{ micro.today.wins }} no lucro
+                    {{ micro.today.cycles }} ciclos · {{ micro.today.wins }} no
+                    lucro
                 </p>
             </div>
             <div class="rounded-xl border p-3">
@@ -141,7 +143,9 @@ const time = (iso: string) =>
                 <InputError :message="errors.micro_daily_loss_limit" />
             </div>
 
-            <div class="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-4">
+            <div
+                class="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-4"
+            >
                 <input type="hidden" name="micro_enabled" value="0" />
                 <label class="flex items-center gap-2 text-sm">
                     <input
@@ -177,7 +181,7 @@ const time = (iso: string) =>
                     class="flex flex-wrap items-center justify-between gap-2"
                 >
                     <span class="font-medium">{{ row.symbol }}</span>
-                    <span class="tabular-nums text-muted-foreground">
+                    <span class="text-muted-foreground tabular-nums">
                         faixa média {{ row.atr_pct.toFixed(3) }}% por minuto
                     </span>
                     <span class="text-muted-foreground">
@@ -214,7 +218,8 @@ const time = (iso: string) =>
                             {{ cycle.symbol }}
                         </td>
                         <td class="py-1 pr-3">
-                            {{ cycle.entry_price }} · {{ time(cycle.opened_at) }}
+                            {{ cycle.entry_price }} ·
+                            {{ time(cycle.opened_at) }}
                         </td>
                         <td class="py-1 pr-3">
                             <template v-if="cycle.exit_price">

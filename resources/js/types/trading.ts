@@ -266,6 +266,11 @@ export type MicroOverview = {
     state: { code: string; label: string };
     last_block: string | null;
     today: { cycles: number; wins: number; net_pnl: number; fees: number };
-    focus: { symbol: string; atr_pct: number; entry: boolean; reason: string }[];
+    focus: {
+        symbol: string;
+        atr_pct: number;
+        entry: boolean;
+        reason: string;
+    }[];
     cycles: MicroCycleRow[];
 };

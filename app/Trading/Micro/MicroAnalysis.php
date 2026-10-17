@@ -38,8 +38,8 @@ class MicroAnalysis
         $slowBefore = $this->ema(array_slice($closes, 0, -5), 21);
         $uptrend = $fast > $slow && $price >= $slow && $slow > $slowBefore;
 
-        $support = min(array_column(array_slice($candles, -30), 'low'));
-        $resistance = max(array_column(array_slice($candles, -60), 'high'));
+        $support = array_reduce(array_column(array_slice($candles, -30), 'low'), fn (float $carry, float $low) => min($carry, $low), $price);
+        $resistance = array_reduce(array_column(array_slice($candles, -60), 'high'), fn (float $carry, float $high) => max($carry, $high), $price);
         $distance = ($price - $support) / $price * 100;
         $room = ($resistance - $price) / $price * 100;
         $zone = $grossMarginPct * (float) config('trading.micro.support_zone');

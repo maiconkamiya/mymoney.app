@@ -295,7 +295,7 @@ class OrderExecutor
                 'avg_price' => ($position->qty * $position->avg_price + $value) / $qty,
                 'qty' => $qty,
                 'stop_price' => $request->stopPrice ?? $position->stop_price,
-                'target_price' => $signal?->target_price ?? $position->target_price,
+                'target_price' => $signal->target_price ?? $position->target_price,
             ]);
 
             return;

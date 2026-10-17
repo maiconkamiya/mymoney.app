@@ -6,7 +6,6 @@ use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
 use App\Models\Asset;
 use App\Models\AuditLog;
-use App\Models\MicroCycle;
 use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
@@ -155,8 +154,8 @@ class MicroTrader
                 ->latest('filled_at')
                 ->first();
 
-            $exitPrice = $sell?->price ?? $position->avg_price;
-            $fees = $cycle->fees + ($sell?->fees ?? 0);
+            $exitPrice = $sell->price ?? $position->avg_price;
+            $fees = $cycle->fees + ($sell->fees ?? 0);
             $net = $cycle->qty * ($exitPrice - $cycle->entry_price) - $fees;
 
             $cycle->update([
