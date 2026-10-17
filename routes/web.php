@@ -19,7 +19,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('novidades', [NovidadesController::class, 'show'])->name('novidades');
     Route::post('novidades/vista', [NovidadesController::class, 'marcarComoVista'])->name('novidades.vista');
 
-    Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show']);
+    Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update']);
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');
     Route::get('portfolios/{portfolio}/graficos', PortfolioChartsController::class)->name('portfolios.charts');
     Route::get('portfolios/{portfolio}/reports/tax.csv', [PortfolioReportController::class, 'tax'])->name('portfolios.reports.tax');

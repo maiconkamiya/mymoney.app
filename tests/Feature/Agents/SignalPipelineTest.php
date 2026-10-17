@@ -75,6 +75,24 @@ class SignalPipelineTest extends TestCase
         $this->assertEqualsWithDelta(5, $portfolio->openPositions->first()->qty, 0.01);
     }
 
+    public function test_toggling_the_switch_changes_what_happens_to_the_next_approved_signal()
+    {
+        $this->agentsVote('buy', 0.8);
+        $asset = Asset::factory()->create(['lot_size' => '0.001']);
+        $this->quote($asset, 100);
+        $portfolio = Portfolio::factory()->create(['market' => $asset->market, 'auto_execute' => true]);
+
+        $portfolio->update(['auto_execute' => false]);
+        $pending = app(SignalScanner::class)->scan($asset)[0]->fresh();
+        $this->assertSame(SignalStage::Approved, $pending->stage);
+        $this->assertSame(0, $pending->orders()->count());
+        $pending->moveTo(SignalStage::Rejected, 'descartado no teste');
+
+        $portfolio->update(['auto_execute' => true]);
+        $executed = app(SignalScanner::class)->scan($asset)[0]->fresh();
+        $this->assertSame(SignalStage::Executed, $executed->stage, (string) $executed->decision_reason);
+    }
+
     public function test_all_hold_skips_the_challenge_round_and_rejects()
     {
         $fake = $this->agentsVote('hold', 0);

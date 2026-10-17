@@ -39,6 +39,44 @@ class PortfolioPagesTest extends TestCase
         $this->assertFalse($portfolio->auto_execute);
     }
 
+    public function test_owner_turns_auto_execute_on_and_off()
+    {
+        $user = User::factory()->create();
+        $portfolio = Portfolio::factory()->for($user)->create(['auto_execute' => false]);
+
+        $this->actingAs($user)->patch(route('portfolios.update', $portfolio), ['auto_execute' => '1'])->assertRedirect();
+        $this->assertTrue($portfolio->fresh()->auto_execute);
+        $this->assertDatabaseHas('audit_log', ['action' => 'portfolio.auto_execute', 'subject_id' => $portfolio->id]);
+
+        $this->actingAs($user)->patch(route('portfolios.update', $portfolio), ['auto_execute' => '0'])->assertRedirect();
+        $this->assertFalse($portfolio->fresh()->auto_execute);
+    }
+
+    public function test_other_users_cannot_change_auto_execute()
+    {
+        $portfolio = Portfolio::factory()->create(['auto_execute' => false]);
+
+        $this->actingAs(User::factory()->create())
+            ->patch(route('portfolios.update', $portfolio), ['auto_execute' => '1'])
+            ->assertForbidden();
+
+        $this->assertFalse($portfolio->fresh()->auto_execute);
+    }
+
+    public function test_live_portfolio_refuses_auto_execute_but_can_turn_it_off()
+    {
+        $user = User::factory()->create();
+        $portfolio = Portfolio::factory()->for($user)->create(['mode' => PortfolioMode::Live, 'auto_execute' => false]);
+
+        $this->actingAs($user)->patch(route('portfolios.update', $portfolio), ['auto_execute' => '1'])
+            ->assertSessionHasErrors('auto_execute');
+        $this->assertFalse($portfolio->fresh()->auto_execute);
+
+        $portfolio->forceFill(['auto_execute' => true])->save();
+        $this->actingAs($user)->patch(route('portfolios.update', $portfolio), ['auto_execute' => '0'])->assertSessionHasNoErrors();
+        $this->assertFalse($portfolio->fresh()->auto_execute);
+    }
+
     public function test_index_lists_only_the_users_portfolios()
     {
         $user = User::factory()->create();
