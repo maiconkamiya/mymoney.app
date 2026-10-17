@@ -4,13 +4,23 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.38] - 2026-10-17
+## [0.3.39] - 2026-10-17
 
 ### Adicionado
 
 - **Previsão própria no ar na produção.** O agente Quantitativo passa a poder usar o modelo de previsão do próprio sistema (sem IA externa) como um serviço permanente, que sobe sozinho e reinicia se cair. O modelo só pesa no voto depois de passar no teste com dados que ele não viu; enquanto não passar, o Quantitativo continua em "aguardar", como hoje.
 - **Treino automático toda semana.** Com a previsão ligada, o modelo é treinado de novo todo domingo de madrugada com os candles mais recentes e a API passa a usar a versão nova sem reiniciar.
 - **Histórico de cotações para treinar.** Novo comando `market:backfill-binance` baixa da Binance os últimos dias de candles de 1 minuto dos ativos cripto, para o modelo não precisar esperar semanas de coleta. Rodar de novo não duplica nada.
+
+## [0.3.38] - 2026-10-17
+
+### Adicionado
+
+- **Quantidade de operações por dia nas micro operações.** No card "Micro operações" há agora o campo "Operações por dia" (por exemplo, 20 operações de 1 dólar cada: valor por operação 1 e operações por dia 20). Ao completar a quantidade, o agente para até o dia seguinte, e a tela mostra "hoje N de M". Deixar vazio mantém sem limite.
+
+### Alterado
+
+- **Valor mínimo por operação conforme a carteira.** A carteira simulada aceita a partir de 1 por operação. A carteira real exige no mínimo 5 USDT (ordem mínima da Binance no spot) e, se o par pedir um mínimo maior, o agente pula esse par e mostra o motivo em "Último bloqueio". O mínimo aparece no nome do campo.
 
 ## [0.3.37] - 2026-10-17
 
