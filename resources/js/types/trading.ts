@@ -272,6 +272,13 @@ export type MicroOverview = {
     min_order_value: number;
     daily_target: number | null;
     daily_operations: number | null;
+    wallet_pct: number;
+    wallet_budget: {
+        pct: number;
+        limit: number;
+        used: number;
+        available: number;
+    };
     daily_loss_limit: number | null;
     state: { code: string; label: string };
     last_block: string | null;

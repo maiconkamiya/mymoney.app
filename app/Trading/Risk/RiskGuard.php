@@ -27,7 +27,12 @@ class RiskGuard
         private readonly LiveLimits $live,
     ) {}
 
-    public function check(Portfolio $portfolio, OrderRequest $order): RiskDecision
+    /**
+     * @param  bool  $ownerSized  the owner chose this order's value himself (micro operations): the profile's
+     *                            percentage of equity per order and per asset does not shrink it. Cash, the live
+     *                            caps, daily loss, drawdown, open positions, halts and every other rule still apply.
+     */
+    public function check(Portfolio $portfolio, OrderRequest $order, bool $ownerSized = false): RiskDecision
     {
         $profile = $portfolio->riskProfile;
         $asset = $order->asset;
@@ -95,11 +100,11 @@ class RiskGuard
 
         $price = $quote->price;
         $reasons = [];
-        $limits = [
+        $limits = $ownerSized ? [] : [
             'Limitada ao valor máximo por ordem.' => $profile->max_order_pct * $equity,
             'Limitada à exposição máxima no ativo.' => $profile->max_position_pct * $equity - ($position->qty ?? 0) * $price,
-            'Limitada ao caixa disponível.' => $portfolio->cash / (1 + config('trading.costs.'.$asset->market->value.'.fee_rate')),
         ];
+        $limits['Limitada ao caixa disponível.'] = $portfolio->cash / (1 + config('trading.costs.'.$asset->market->value.'.fee_rate'));
 
         if ($portfolio->isLive()) {
             $limits['Limitada ao valor máximo por ordem real.'] = $this->live->maxOrderValue();

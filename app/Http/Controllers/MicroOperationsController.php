@@ -24,6 +24,7 @@ class MicroOperationsController extends Controller
             'micro_daily_target' => $data['micro_daily_target'] ?? null,
             'micro_daily_loss_limit' => $data['micro_daily_loss_limit'] ?? null,
             'micro_daily_operations' => $data['micro_daily_operations'] ?? null,
+            'micro_wallet_pct' => $data['micro_wallet_pct'] ?? 100,
         ]);
 
         AuditLog::record('user:'.$request->user()->id, 'portfolio.micro_settings', $portfolio, [

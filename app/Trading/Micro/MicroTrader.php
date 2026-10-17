@@ -279,7 +279,13 @@ class MicroTrader
             return 'o mínimo do par é '.(float) $asset->min_notional.' USDT e o aporte é '.$portfolio->micro_order_value.'.';
         }
 
-        $decision = $this->risk->check($portfolio, $this->buyRequest($portfolio, $asset, $setup, $this->costs->grossMarginPct($portfolio->micro_net_margin_pct)));
+        $budget = $this->walletBudget($portfolio);
+
+        if ($portfolio->micro_order_value > $budget['available'] + 0.0001) {
+            return sprintf('o limite de %d%% do saldo da carteira para micro operações está em uso (%.2f de %.2f USDT); uma nova ordem de %.2f espera uma venda devolver saldo.', $budget['pct'], $budget['used'], $budget['limit'], $portfolio->micro_order_value);
+        }
+
+        $decision = $this->risk->check($portfolio, $this->buyRequest($portfolio, $asset, $setup, $this->costs->grossMarginPct($portfolio->micro_net_margin_pct)), ownerSized: true);
 
         if (! $decision->allowed) {
             return 'guarda de risco: '.$decision->summary();
@@ -295,10 +301,27 @@ class MicroTrader
         $value = ($decision->order->qty ?? 0) * $setup->price;
 
         if ($value < $minimum * 0.99) {
-            return sprintf('o aporte de %.2f USDT seria reduzido pela guarda de risco para %.2f USDT, abaixo do mínimo de %.2f USDT, e a ordem não é enviada. %s Aumente o saldo ou o limite por ordem do perfil de risco da carteira.', $portfolio->micro_order_value, $value, $minimum, $decision->summary());
+            return sprintf('a ordem de %.2f USDT seria reduzida para %.2f USDT, abaixo do mínimo de %.2f USDT, e não é enviada. %s Falta saldo disponível ou o teto real por ordem está baixo.', $portfolio->micro_order_value, $value, $minimum, $decision->summary());
         }
 
         return null;
+    }
+
+    /**
+     * How much of the wallet's USDT the mode may keep in open cycles: the chosen
+     * share of (free cash + what the open cycles hold). A sale gives the value
+     * back, so the next purchase can go out.
+     *
+     * @return array{pct: int, limit: float, used: float, available: float}
+     */
+    public function walletBudget(Portfolio $portfolio): array
+    {
+        $used = (float) $portfolio->microCycles()->where('status', 'open')->get()->sum(fn ($cycle) => $cycle->qty * $cycle->entry_price);
+        $pct = $portfolio->micro_wallet_pct ?? 100;
+        $cash = (float) Portfolio::query()->whereKey($portfolio->id)->value('cash');
+        $limit = ($cash + $used) * $pct / 100;
+
+        return ['pct' => $pct, 'limit' => $limit, 'used' => $used, 'available' => max($limit - $used, 0.0)];
     }
 
     /**

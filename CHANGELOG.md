@@ -4,11 +4,21 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.43] - 2026-10-17
+## [0.3.44] - 2026-10-17
 
 ### Corrigido
 
 - **A previsão própria agora chega de fato ao agente Quantitativo.** O sistema enviava ao serviço de previsão uma vela a menos do que ele precisa, então toda consulta era recusada e o cenário ficava sem previsão. Agora são enviadas as 61 velas mais recentes. Os demais agentes continuam vendo as mesmas 60 velas de antes.
+
+## [0.3.43] - 2026-10-17
+
+### Adicionado
+
+- **Aporte da carteira nas micro operações.** Novo campo no card "Micro operações", de 1 a 100%, com a parte do saldo em USDT que o modo pode manter em ciclos abertos. O card mostra quanto está em uso. Cada venda devolve o saldo e libera novas compras.
+
+### Alterado
+
+- **A ordem da micro operação tem o valor que você definiu.** Com 5 USDT por operação, cada compra sai de 5 USDT enquanto houver saldo e aporte da carteira, sem o corte de 5% por ordem do perfil de risco (que continua valendo para os sinais dos agentes). Seguem valendo o saldo disponível, o máximo por ordem e por dia da conta real, a perda do dia, o limite de posições abertas e o "Parar tudo".
 
 ## [0.3.42] - 2026-10-17
 
