@@ -99,7 +99,8 @@ const time = (iso: string) =>
         >
             <div class="grid gap-2">
                 <Label for="micro_order_value">
-                    Valor por operação (mínimo {{ micro.min_order_value }})
+                    Valor por operação em USDT (mínimo
+                    {{ micro.min_order_value }})
                 </Label>
                 <Input
                     id="micro_order_value"
@@ -137,7 +138,9 @@ const time = (iso: string) =>
                 <InputError :message="errors.micro_net_margin_pct" />
             </div>
             <div class="grid gap-2">
-                <Label for="micro_daily_target">Meta de lucro do dia</Label>
+                <Label for="micro_daily_target"
+                    >Meta de lucro do dia (USDT)</Label
+                >
                 <Input
                     id="micro_daily_target"
                     name="micro_daily_target"
@@ -150,7 +153,9 @@ const time = (iso: string) =>
                 <InputError :message="errors.micro_daily_target" />
             </div>
             <div class="grid gap-2">
-                <Label for="micro_daily_loss_limit">Perda máxima do dia</Label>
+                <Label for="micro_daily_loss_limit"
+                    >Perda máxima do dia (USDT)</Label
+                >
                 <Input
                     id="micro_daily_loss_limit"
                     name="micro_daily_loss_limit"
