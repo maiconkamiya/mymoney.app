@@ -121,6 +121,27 @@ const time = (iso: string) =>
                 <InputError :message="errors.micro_order_value" />
             </div>
             <div class="grid gap-2">
+                <Label for="micro_wallet_pct">
+                    Aporte da carteira (% do saldo em USDT)
+                </Label>
+                <Input
+                    id="micro_wallet_pct"
+                    name="micro_wallet_pct"
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="100"
+                    :default-value="micro.wallet_pct"
+                    data-test="micro-wallet-pct"
+                />
+                <p class="text-xs text-muted-foreground tabular-nums">
+                    Em uso {{ micro.wallet_budget.used.toFixed(2) }} de
+                    {{ micro.wallet_budget.limit.toFixed(2) }} USDT. Cada venda
+                    devolve o saldo e libera novas compras.
+                </p>
+                <InputError :message="errors.micro_wallet_pct" />
+            </div>
+            <div class="grid gap-2">
                 <Label for="micro_daily_operations">Operações por dia</Label>
                 <Input
                     id="micro_daily_operations"

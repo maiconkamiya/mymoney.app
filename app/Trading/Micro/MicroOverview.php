@@ -60,6 +60,8 @@ class MicroOverview
             'min_order_value' => MicroTrader::minOrderValue($portfolio),
             'daily_target' => $portfolio->micro_daily_target,
             'daily_operations' => $portfolio->micro_daily_operations,
+            'wallet_pct' => $portfolio->micro_wallet_pct,
+            'wallet_budget' => array_map(fn ($value) => is_float($value) ? round($value, 2) : $value, $this->trader->walletBudget($portfolio)),
             'daily_loss_limit' => $portfolio->micro_daily_loss_limit,
             'state' => $this->trader->state($portfolio),
             'last_block' => $this->trader->lastBlock($portfolio),

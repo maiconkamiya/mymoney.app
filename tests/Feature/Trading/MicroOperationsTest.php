@@ -13,11 +13,13 @@ use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Models\User;
+use App\Trading\Data\OrderRequest;
 use App\Trading\Micro\MicroCosts;
 use App\Trading\Micro\MicroOverview;
 use App\Trading\Micro\MicroTrader;
 use App\Trading\PortfolioValuation;
 use App\Trading\PositionExits;
+use App\Trading\Risk\RiskGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -253,17 +255,50 @@ class MicroOperationsTest extends TestCase
         $this->assertNull(app(MicroTrader::class)->lastBlock($portfolio));
     }
 
-    public function test_an_order_cut_by_the_risk_guard_below_the_minimum_is_not_sent_and_says_so()
+    public function test_the_order_has_the_value_of_the_stake_whatever_the_profile_percentage_per_order()
     {
         $this->candles($this->asset);
         $portfolio = $this->micro(['micro_order_value' => 20]);
         $equity = app(PortfolioValuation::class)->equity($portfolio);
-        // O perfil só deixa 0,5 USDT por ordem: o aporte de 20 seria cortado para abaixo do mínimo de 1.
+        // O perfil só deixaria 0,5 USDT por ordem; a micro operação usa o aporte inteiro.
         $portfolio->riskProfile->update(['max_order_pct' => 0.5 / $equity]);
 
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+        $this->assertEqualsWithDelta(20, MicroCycle::sole()->qty * MicroCycle::sole()->entry_price, 0.5);
+    }
+
+    public function test_the_profile_percentage_still_cuts_an_order_that_comes_from_an_agent_signal()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        $equity = app(PortfolioValuation::class)->equity($portfolio);
+        $portfolio->riskProfile->update(['max_order_pct' => 0.5 / $equity]);
+        $request = new OrderRequest($this->asset, OrderSide::Buy, 0.2, stopPrice: 90.0);
+
+        $decision = app(RiskGuard::class)->check($portfolio, $request);
+        $this->assertTrue($decision->allowed);
+        $this->assertLessThan(0.2, $decision->order->qty);
+
+        $owner = app(RiskGuard::class)->check($portfolio, $request, ownerSized: true);
+        $this->assertEqualsWithDelta(0.2, $owner->order->qty, 0.0001);
+    }
+
+    public function test_the_wallet_percentage_limits_the_open_cycles_and_a_sale_gives_the_room_back()
+    {
+        $other = Asset::factory()->create(['symbol' => 'ADAUSDT']);
+        $this->candles($this->asset);
+        $this->candles($other);
+        $portfolio = $this->micro(['micro_order_value' => 20, 'micro_wallet_pct' => 1]);
+        $portfolio->update(['cash' => 1000, 'initial_cash' => 1000]);
+
+        // 1% de 1000 é menos que um aporte de 20: nada abre.
         $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
-        $this->assertSame(0, Order::count());
-        $this->assertStringContainsString('seria reduzido pela guarda de risco', (string) app(MicroTrader::class)->lastBlock($portfolio));
+        $this->assertStringContainsString('limite de 1% do saldo', (string) app(MicroTrader::class)->lastBlock($portfolio));
+
+        $portfolio->update(['micro_wallet_pct' => 100]);
+        $this->assertSame(2, app(MicroTrader::class)->run($portfolio), (string) app(MicroTrader::class)->lastBlock($portfolio));
+        $budget = app(MicroTrader::class)->walletBudget($portfolio);
+        $this->assertEqualsWithDelta(40, $budget['used'], 1.0);
     }
 
     public function test_the_quantity_is_rounded_up_to_the_step_so_the_value_never_falls_under_the_order()
@@ -383,9 +418,10 @@ class MicroOperationsTest extends TestCase
             ->assertSessionHasErrors('micro_order_value');
 
         // A simulated portfolio accepts 1 dollar per operation; a real one needs the 5 USDT Binance minimum.
-        $this->actingAs($owner)->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '0', 'micro_order_value' => '1', 'micro_net_margin_pct' => '0.2', 'micro_daily_operations' => '20'])
+        $this->actingAs($owner)->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '0', 'micro_order_value' => '1', 'micro_net_margin_pct' => '0.2', 'micro_daily_operations' => '20', 'micro_wallet_pct' => '60'])
             ->assertSessionHasNoErrors();
         $this->assertSame(20, $portfolio->fresh()->micro_daily_operations);
+        $this->assertSame(60, $portfolio->fresh()->micro_wallet_pct);
 
         $real = Portfolio::factory()->create(['mode' => 'live', 'broker' => 'binance']);
         $this->actingAs($real->user)->put(route('portfolios.micro', $real), ['micro_enabled' => '0', 'micro_order_value' => '1', 'micro_net_margin_pct' => '0.2'])

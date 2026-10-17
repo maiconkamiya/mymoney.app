@@ -143,20 +143,20 @@ class OrderExecutor
      */
     public function placeDirect(Portfolio $portfolio, OrderRequest $request, string $actor, string $reason): Order|string
     {
-        return $this->submit($portfolio, $request, null, $actor, $reason);
+        return $this->submit($portfolio, $request, null, $actor, $reason, ownerSized: true);
     }
 
     /**
      * Risk-check, send and book one order. Returns the order (filled or
      * rejected by the broker) or the reason the risk guard blocked it.
      */
-    private function submit(Portfolio $portfolio, OrderRequest $request, ?Signal $signal, string $actor, ?string $reason): Order|string
+    private function submit(Portfolio $portfolio, OrderRequest $request, ?Signal $signal, string $actor, ?string $reason, bool $ownerSized = false): Order|string
     {
         if ($portfolio->isLive()) {
             $portfolio->refresh();
         }
 
-        $decision = $this->risk->check($portfolio, $request);
+        $decision = $this->risk->check($portfolio, $request, $ownerSized);
 
         if (! $decision->allowed) {
             AuditLog::record($actor, 'order.blocked', $signal, ['reasons' => $decision->reasons]);
