@@ -81,6 +81,20 @@ As fontes Geist e Geist Mono (licença SIL OFL 1.1) vêm dos pacotes npm `@fonts
 
 `php artisan market:stream-binance` fica ouvindo o WebSocket público da Binance (endereço em `BINANCE_STREAM_URL`, padrão `wss://data-stream.binance.vision`, que responde onde `stream.binance.com` devolve 451), grava o candle de 1 minuto dos ativos cripto ativos (uma gravação por ativo por segundo) e dispara `CotacaoAtualizada` no canal público `mercado`, que o painel mostra em "Cotações do coletor" quando o Reverb está configurado. Reconecta sozinho com espera crescente. É um processo permanente: em produção precisa de um daemon (por exemplo, no Forge, com reinício automático), configurado pelo Maicon. O `market:sync-binance` por minuto continua como rede de segurança.
 
+## Deploy em produção (Ubuntu no WSL)
+
+A produção é o clone `~/projetos/mymoney.app`, com os serviços systemd de usuário `mymoney-web`, `-queue`, `-schedule`, `-reverb`, `-binance` (e `-forecast`, quando existir). Para publicar a main já mesclada:
+
+```bash
+composer deploy                  # ou: deploy/deploy.sh
+composer deploy -- --dry-run     # só lista o que seria feito
+composer deploy -- v0.3.23       # publica uma tag ou branch em vez da main
+```
+
+O script (`deploy/deploy.sh`) roda só em Linux, aborta se houver mudanças locais não commitadas ou se faltar o `.env`, faz `git fetch` e `git pull --ff-only`, instala Composer (`--no-dev`) e npm só quando o `composer.lock` ou o `package-lock.json` mudaram, limpa os caches (`optimize:clear`) antes do `npm run build`, roda `migrate --force`, `optimize` e `queue:restart`, reinicia `mymoney-reverb`, `mymoney-binance` e `mymoney-forecast` quando a unidade está instalada e mostra no fim a versão e o estado dos serviços. A limpeza de caches antes do build é necessária: o Wayfinder gera as rotas TypeScript a partir das rotas do Laravel, e com o cache de rotas antigo o build falha com `"update" is not exported`.
+
+O script **não substitui o `composer ci`**: a CI roda na nuvem antes do PR, e o deploy só publica o que já foi mesclado. Variáveis `VITE_*` entram no bundle, então mudou o `.env`, rode o deploy de novo.
+
 ## Notícias: embeddings, deduplicação e pgvector
 
 Cada notícia coletada ganha um embedding (título mais o começo do corpo) antes da triagem pelo LLM. Se ela for semanticamente parecida com uma notícia das últimas `NEWS_DEDUP_WINDOW_HOURS` horas (similaridade de cosseno >= `NEWS_DEDUP_THRESHOLD`), é gravada com `duplicate_of_id` e não passa pela triagem. O agente de notícias também recebe em `similarNews` notícias parecidas do passado e quanto o preço andou nas 24 horas seguintes (nunca com dados posteriores a `now()`).
