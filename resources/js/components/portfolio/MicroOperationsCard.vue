@@ -102,7 +102,7 @@ const time = (iso: string) =>
         <Form
             v-bind="microRoute.form(portfolio.id)"
             v-slot="{ errors, processing }"
-            :options="{ preserveScroll: true }"
+            :options="{ preserveScroll: true, only: ['portfolio', 'micro'] }"
             class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"
         >
             <div class="grid gap-2">

@@ -57,7 +57,7 @@ class IsolamentoEntreUsuariosTest extends TestCase
     public function test_canal_privado_da_carteira_so_autoriza_o_dono()
     {
         $portfolio = Portfolio::factory()->create();
-        $canal = 'private-portfolios.'.$portfolio->id.'.agents';
+        $canais = ['private-portfolios.'.$portfolio->id.'.agents', 'private-portfolios.'.$portfolio->id];
 
         // O ambiente de teste transmite para "null", que autoriza tudo: usa o driver real.
         config([
@@ -69,7 +69,9 @@ class IsolamentoEntreUsuariosTest extends TestCase
         Broadcast::purge();
         require base_path('routes/channels.php');
 
-        $this->actingAs($portfolio->user)->post('/broadcasting/auth', ['socket_id' => '1.1', 'channel_name' => $canal])->assertOk();
-        $this->actingAs(User::factory()->create())->post('/broadcasting/auth', ['socket_id' => '1.1', 'channel_name' => $canal])->assertForbidden();
+        foreach ($canais as $canal) {
+            $this->actingAs($portfolio->user)->post('/broadcasting/auth', ['socket_id' => '1.1', 'channel_name' => $canal])->assertOk();
+            $this->actingAs(User::factory()->create())->post('/broadcasting/auth', ['socket_id' => '1.1', 'channel_name' => $canal])->assertForbidden();
+        }
     }
 }

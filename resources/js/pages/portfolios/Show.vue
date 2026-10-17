@@ -2,6 +2,7 @@
 import { echoIsConfigured, useEcho } from '@laravel/echo-vue';
 import { Form, Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount } from 'vue';
+import { usePortfolioRealtime } from '@/composables/usePortfolioRealtime';
 import BinanceController from '@/actions/App/Http/Controllers/Settings/BinanceController';
 import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
@@ -62,6 +63,8 @@ const result = computed(
 
 // Os cards de sinais acompanham o ciclo dos agentes (canal privado da carteira):
 // um sinal novo, o consenso decidido e a ordem concluída recarregam só a lista.
+usePortfolioRealtime(props.portfolio.id);
+
 const reloadingEvents = [
     'cycle.started',
     'consensus.decided',
@@ -115,16 +118,6 @@ if (echoIsConfigured()) {
                       ? toast.warning
                       : toast.error;
             show(event.message);
-            router.reload({
-                only: [
-                    'portfolio',
-                    'live',
-                    'positions',
-                    'signals',
-                    'signals_total',
-                    'micro',
-                ],
-            });
         },
     );
 }

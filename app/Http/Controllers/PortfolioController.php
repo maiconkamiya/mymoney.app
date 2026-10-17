@@ -148,7 +148,7 @@ class PortfolioController extends Controller
         $holdings = collect($portfolio->sync_report['holdings'] ?? [])->keyBy('coin');
 
         // Só o sinal mais recente de cada ativo; o histórico completo fica em portfolios.signals.
-        $signals = $portfolio->signals()
+        $latestSignals = fn () => $portfolio->signals()
             ->whereIn('id', Signal::query()->where('portfolio_id', $portfolio->id)->selectRaw('max(id)')->groupBy('asset_id'))
             ->with(['asset', 'votes'])
             ->orderByDesc('id')
@@ -157,7 +157,7 @@ class PortfolioController extends Controller
             ->map(fn (Signal $signal) => SignalPresenter::present($signal));
 
         return Inertia::render('portfolios/Show', [
-            'portfolio' => [
+            'portfolio' => fn () => [
                 'id' => $portfolio->id,
                 'name' => $portfolio->name,
                 'market' => $portfolio->market->value,
@@ -173,7 +173,7 @@ class PortfolioController extends Controller
                 'orders_blocked_reason' => $portfolio->orders_blocked_reason,
                 'notify_live_email' => $portfolio->notify_live_email,
             ],
-            'live' => $portfolio->isLive() ? [
+            'live' => fn () => $portfolio->isLive() ? [
                 'enabled' => $limits->enabled(),
                 'testnet' => (bool) config('trading.binance.testnet'),
                 'max_order_value' => $limits->maxOrderValue(),
@@ -181,7 +181,7 @@ class PortfolioController extends Controller
                 'remaining_today' => round($limits->remainingToday($portfolio), 2),
                 'halted' => $halt->isHalted(),
             ] : null,
-            'positions' => $portfolio->openPositions()->with('asset')->get()->map(fn (Position $position) => [
+            'positions' => fn () => $portfolio->openPositions()->with('asset')->get()->map(fn (Position $position) => [
                 'id' => $position->id,
                 'symbol' => $position->asset->symbol,
                 'qty' => $position->qty,
@@ -190,26 +190,26 @@ class PortfolioController extends Controller
                 'last_price' => $holdings->get(preg_replace('/USDT$/', '', $position->asset->symbol))['price'] ?? null,
                 'value' => $holdings->get(preg_replace('/USDT$/', '', $position->asset->symbol))['value'] ?? null,
             ]),
-            'account_sync' => $portfolio->broker === 'binance' && $portfolio->mode === PortfolioMode::Live ? [
+            'account_sync' => fn () => $portfolio->broker === 'binance' && $portfolio->mode === PortfolioMode::Live ? [
                 'synced_at' => $portfolio->synced_at?->toIso8601String(),
                 'dust' => $holdings->where('status', 'poeira')->values(),
                 'dust_total' => round($holdings->where('status', 'poeira')->sum('value'), 2),
                 'not_mirrored' => $holdings->whereIn('status', ['sem_cotacao', 'sem_par_usdt'])->values(),
             ] : null,
-            'signals' => $signals,
-            'signals_total' => $portfolio->signals()->count(),
-            'performance' => $performance->build($portfolio),
-            'agent_scores' => AgentScore::query()->where('market', $portfolio->market)->orderByDesc('hit_rate')->get()->map(fn (AgentScore $score) => [
+            'signals' => $latestSignals,
+            'signals_total' => fn () => $portfolio->signals()->count(),
+            'performance' => fn () => $performance->build($portfolio),
+            'agent_scores' => fn () => AgentScore::query()->where('market', $portfolio->market)->orderByDesc('hit_rate')->get()->map(fn (AgentScore $score) => [
                 'agent' => $score->agent->value,
                 'signals' => $score->signals,
                 'hits' => $score->hits,
                 'hit_rate' => $score->hit_rate,
                 'weight' => $score->weight,
             ]),
-            'tax_months' => $tax->months($portfolio),
-            'agent_activity' => $activity->for($portfolio),
-            'charts' => $charts->for($portfolio),
-            'micro' => $micro->for($portfolio),
+            'tax_months' => fn () => $tax->months($portfolio),
+            'agent_activity' => fn () => $activity->for($portfolio),
+            'charts' => fn () => $charts->for($portfolio),
+            'micro' => fn () => $micro->for($portfolio),
             'available_assets' => Asset::query()
                 ->where('market', $portfolio->market)
                 ->where('active', true)

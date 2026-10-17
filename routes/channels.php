@@ -9,3 +9,5 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 });
 
 Broadcast::channel('portfolios.{portfolio}.agents', fn (User $user, int $portfolio) => Portfolio::query()->whereKey($portfolio)->where('user_id', $user->id)->exists());
+
+Broadcast::channel('portfolios.{portfolio}', fn (User $user, int $portfolio) => Portfolio::query()->whereKey($portfolio)->where('user_id', $user->id)->exists());
