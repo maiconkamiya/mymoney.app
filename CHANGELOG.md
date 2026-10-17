@@ -14,6 +14,15 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 
 - **Tela "Histórico de sinais" da carteira.** Pelo link "Ver todos os sinais" você vê todos os sinais da carteira, do mais novo para o mais antigo, com os mesmos cards fechados. Mais sinais carregam sozinhos ao chegar ao fim da lista, e há filtros por ativo e por resultado. Só o dono da carteira acessa.
 
+### Corrigido
+
+- **A carteira real mostra todos os ativos da conta Binance.** Antes, só apareciam em "Posições abertas" as moedas já cadastradas no sistema (BTC, ETH e SOL) e o resto sumia sem aviso. Agora toda moeda com saldo (livre mais o que está em ordem aberta) vira posição, com quantidade e valor estimado em USDT. Moedas novas são cadastradas sozinhas, sem entrar no scanner de sinais. Quando a moeda não tem par em USDT, o valor é estimado por BTC, BNB ou BRL.
+- **Nada some: poeira e moedas sem cotação ficam listadas.** Saldos abaixo de 1 USDT aparecem agrupados como "Poeira", com o total. Moedas sem cotação ou sem par em USDT aparecem com o motivo.
+
+### Adicionado
+
+- **Hora da última sincronização e botão "Sincronizar agora"** direto na carteira real, com o aviso de que só a carteira Spot é lida: saldos em Earn, Funding, Margin ou Futuros da Binance não aparecem.
+
 ## [0.3.28] - 2026-10-17
 
 ### Adicionado
