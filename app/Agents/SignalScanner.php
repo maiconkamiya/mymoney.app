@@ -44,6 +44,7 @@ class SignalScanner
         $portfolios = Portfolio::query()
             ->where('status', PortfolioStatus::Running)
             ->where('market', $asset->market)
+            ->tracking($asset)
             ->where('starts_at', '<=', now())
             ->where('ends_at', '>', now())
             ->get();

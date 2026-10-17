@@ -94,6 +94,65 @@ class BrapiB3
     }
 
     /**
+     * Papéis da B3 cujo ticker ou nome contém o texto (lista de ações e fundos da brapi).
+     *
+     * @return list<array{symbol: string, name: ?string, sector: ?string}>
+     */
+    public function search(string $query, int $limit = 20): array
+    {
+        $rows = $this->http()
+            ->get('/api/quote/list', array_filter([
+                'search' => trim($query),
+                'limit' => $limit,
+                'token' => config('trading.b3_data.token'),
+            ]))
+            ->throw()
+            ->json('stocks', []);
+
+        $found = [];
+
+        foreach ($rows as $row) {
+            if (! isset($row['stock']) || ! in_array($row['type'] ?? 'stock', ['stock', 'fund'], true)) {
+                continue;
+            }
+
+            $found[] = [
+                'symbol' => strtoupper((string) $row['stock']),
+                'name' => isset($row['name']) ? (string) $row['name'] : null,
+                'sector' => isset($row['sector']) ? (string) $row['sector'] : null,
+            ];
+        }
+
+        return $found;
+    }
+
+    /**
+     * Confirma que o ticker existe e tem cotação; null se a brapi não o conhece.
+     *
+     * @return array{symbol: string, name: ?string, price: float}|null
+     */
+    public function find(string $symbol): ?array
+    {
+        $response = $this->http()->get('/api/quote/'.rawurlencode($symbol), array_filter(['token' => config('trading.b3_data.token')]));
+
+        if ($response->clientError()) {
+            return null;
+        }
+
+        $row = $response->throw()->json('results.0');
+
+        if (! is_array($row) || ! is_numeric($row['regularMarketPrice'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'symbol' => strtoupper((string) ($row['symbol'] ?? $symbol)),
+            'name' => isset($row['longName']) ? (string) $row['longName'] : (isset($row['shortName']) ? (string) $row['shortName'] : null),
+            'price' => (float) $row['regularMarketPrice'],
+        ];
+    }
+
+    /**
      * @param  array<string, string|null>  $query
      * @return array<string, mixed>
      */
