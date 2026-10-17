@@ -129,6 +129,7 @@ class SignalPipeline
                 'evidence_ids' => $vote->evidenceIds,
                 'stop_price' => $vote->stop,
                 'target_price' => $vote->target,
+                'analysis' => $vote->analysis,
                 'model' => $vote->model,
                 'input_tokens' => $vote->inputTokens,
                 'output_tokens' => $vote->outputTokens,

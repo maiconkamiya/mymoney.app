@@ -113,6 +113,7 @@ class PortfolioController extends Controller
                     'veto' => $vote->veto,
                     'abstained' => $vote->abstained,
                     'reasons' => $vote->reasons ?? [],
+                    'analysis' => $vote->analysis,
                 ]),
             ]);
 

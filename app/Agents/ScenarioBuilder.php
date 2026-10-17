@@ -2,6 +2,7 @@
 
 namespace App\Agents;
 
+use App\Agents\Chart\ChartAnalyzer;
 use App\Agents\Data\Scenario;
 use App\Enums\Market;
 use App\Forecast\ForecastClient;
@@ -12,6 +13,7 @@ use App\Models\Signal;
 use App\News\NewsHistory;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\PortfolioValuation;
+use Carbon\CarbonImmutable;
 
 class ScenarioBuilder
 {
@@ -21,6 +23,7 @@ class ScenarioBuilder
         private readonly B3Fundamentals $fundamentals,
         private readonly NewsHistory $history,
         private readonly ForecastClient $forecasts,
+        private readonly ChartAnalyzer $chart,
     ) {}
 
     public function build(Signal $signal): ?Scenario
@@ -33,23 +36,35 @@ class ScenarioBuilder
             return null;
         }
 
-        $candles = Candle::query()
+        // Never past "now": simulations must not see the future.
+        $rows = Candle::query()
+            ->toBase()
             ->where('asset_id', $asset->id)
             ->where('timeframe', '1m')
-            ->latest('open_at')
-            ->limit(60)
-            ->get()
+            ->where('open_at', '<=', now())
+            ->orderByDesc('open_at')
+            ->limit((int) config('agents.chart.max_candles'))
+            ->get(['open_at', 'open', 'high', 'low', 'close', 'volume'])
             ->reverse()
-            ->map(fn (Candle $c) => [
-                'id' => "candle:{$asset->symbol}:1m:{$c->open_at->toIso8601String()}",
-                'open' => (float) $c->open,
-                'high' => (float) $c->high,
-                'low' => (float) $c->low,
-                'close' => (float) $c->close,
-                'volume' => (float) $c->volume,
-            ])
-            ->values()
-            ->all();
+            ->values();
+
+        $bars = array_values($rows->map(fn (object $row) => [
+            't' => CarbonImmutable::parse($row->open_at)->getTimestamp(),
+            'o' => (float) $row->open,
+            'h' => (float) $row->high,
+            'l' => (float) $row->low,
+            'c' => (float) $row->close,
+            'v' => (float) $row->volume,
+        ])->all());
+
+        $candles = array_values($rows->slice(-60)->map(fn (object $row) => [
+            'id' => "candle:{$asset->symbol}:1m:".CarbonImmutable::parse($row->open_at)->toIso8601String(),
+            'open' => (float) $row->open,
+            'high' => (float) $row->high,
+            'low' => (float) $row->low,
+            'close' => (float) $row->close,
+            'volume' => (float) $row->volume,
+        ])->all());
 
         // Only news that already existed "now": simulations must never see the future.
         $links = NewsAsset::query()
@@ -77,7 +92,6 @@ class ScenarioBuilder
 
         $similarNews = $this->history->forAsset($asset, $links->map(fn (NewsAsset $link) => $link->newsItem));
 
-        $candles = array_values($candles);
         $news = array_values($news);
 
         $position = $portfolio->openPositions()->where('asset_id', $asset->id)->first();
@@ -95,6 +109,7 @@ class ScenarioBuilder
             equity: $this->valuation->equity($portfolio),
             fundamentals: $asset->market === Market::B3 ? $this->fundamentals->for($asset) : null,
             forecast: $this->forecasts->predict($asset->symbol, $asset->market->value, $candles, $news),
+            chart: $this->chart->analyze($bars, now()->getTimestamp()),
         );
     }
 }
