@@ -62,9 +62,21 @@ class RunMicroOperations extends Command
                 $this->warn('  Nenhum ativo de cripto ativo na carteira.');
             }
 
+            $open = $portfolio->microCycles()->where('status', 'open')->count();
+
             foreach ($evaluation['ready'] as $row) {
                 $setup = $row['setup'];
-                $this->line(sprintf('  %s  faixa %.3f%%/min  %s  %s', $row['asset']->symbol, $setup->atrPct, $setup->entry ? 'ENTRA' : 'não entra', implode(' ', $setup->reasons)));
+                $verdict = $setup->entry ? 'ENTRA' : 'não entra';
+                $this->line(sprintf('  %s  faixa %.3f%%/min  %s  %s', $row['asset']->symbol, $setup->atrPct, $verdict, implode(' ', $setup->reasons)));
+
+                if ($setup->entry) {
+                    $block = $trader->gate($portfolio, $row['asset'], $setup, $open);
+                    $this->line($block === null ? '      -> a ordem sairia no próximo minuto.' : "      -> BLOQUEADO: {$block}");
+                }
+            }
+
+            if ($state['code'] === 'active' && ($block = $trader->lastBlock($portfolio)) !== null) {
+                $this->line("  Último bloqueio gravado pela rodada real: {$block}");
             }
 
             foreach ($evaluation['skipped'] as $row) {

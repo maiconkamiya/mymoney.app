@@ -11,12 +11,16 @@ use App\Models\Candle;
 use App\Models\MicroCycle;
 use App\Models\Order;
 use App\Models\Portfolio;
+use App\Models\Position;
 use App\Models\User;
 use App\Trading\Micro\MicroCosts;
+use App\Trading\Micro\MicroOverview;
 use App\Trading\Micro\MicroTrader;
+use App\Trading\PortfolioValuation;
 use App\Trading\PositionExits;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -204,6 +208,75 @@ class MicroOperationsTest extends TestCase
         }
 
         $this->assertSame(0, Order::count());
+    }
+
+    public function test_a_pair_the_account_already_holds_is_blocked_and_the_reason_is_shown()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        Position::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'qty' => 1, 'avg_price' => 100, 'opened_at' => now()]);
+
+        $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
+        $this->assertStringContainsString('DOGEUSDT: a carteira já tem posição aberta neste par', (string) app(MicroTrader::class)->lastBlock($portfolio));
+
+        Artisan::call('micro:run', ['--explain' => true]);
+        $this->assertStringContainsString('BLOQUEADO: a carteira já tem posição aberta', Artisan::output());
+
+        $focus = app(MicroOverview::class)->for($portfolio)['focus'][0];
+        $this->assertStringContainsString('posição aberta', $focus['blocked']);
+    }
+
+    public function test_the_risk_guard_reason_is_shown_before_any_order_is_sent()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        $portfolio->riskProfile->update(['max_open_positions' => 0]);
+
+        $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
+        $this->assertStringContainsString('guarda de risco: Limite de posições abertas atingido.', (string) app(MicroTrader::class)->lastBlock($portfolio));
+        $this->assertSame(0, Order::count());
+
+        Artisan::call('micro:run', ['--explain' => true]);
+        $this->assertStringContainsString('BLOQUEADO: guarda de risco', Artisan::output());
+    }
+
+    public function test_an_opened_cycle_clears_the_old_block_and_explain_says_the_order_would_go()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        Cache::put('micro:last-block:'.$portfolio->id, 'velho', now()->addHour());
+
+        Artisan::call('micro:run', ['--explain' => true]);
+        $this->assertStringContainsString('a ordem sairia no próximo minuto', Artisan::output());
+
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+        $this->assertNull(app(MicroTrader::class)->lastBlock($portfolio));
+    }
+
+    public function test_an_order_cut_by_the_risk_guard_below_the_minimum_is_not_sent_and_says_so()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_order_value' => 20]);
+        $equity = app(PortfolioValuation::class)->equity($portfolio);
+        // O perfil só deixa 0,5 USDT por ordem: o aporte de 20 seria cortado para abaixo do mínimo de 1.
+        $portfolio->riskProfile->update(['max_order_pct' => 0.5 / $equity]);
+
+        $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
+        $this->assertSame(0, Order::count());
+        $this->assertStringContainsString('seria reduzido pela guarda de risco', (string) app(MicroTrader::class)->lastBlock($portfolio));
+    }
+
+    public function test_the_quantity_is_rounded_up_to_the_step_so_the_value_never_falls_under_the_order()
+    {
+        $this->asset->update(['lot_size' => '0.01']);
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_order_value' => 5]);
+
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+
+        $cycle = MicroCycle::sole();
+        $this->assertGreaterThanOrEqual(5, $cycle->qty * $cycle->entry_price);
+        $this->assertEqualsWithDelta(0.0, fmod(round($cycle->qty * 100, 6), 1.0), 0.00001);
     }
 
     public function test_the_overview_shows_the_last_run_and_flags_a_stopped_scheduler()

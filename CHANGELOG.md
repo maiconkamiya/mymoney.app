@@ -4,6 +4,15 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.42] - 2026-10-17
+
+### Corrigido
+
+- **Par com "Entrada liberada" que não comprava agora diz o motivo.** Depois que o gráfico liberava a entrada, o modo ainda podia ser barrado por: o par já estar na carteira (por exemplo, saldo da conta Binance), limite de ciclos abertos, pausa depois de um stop, valor mínimo do par, guarda de risco (limite de posições, valor máximo por ordem) ou recusa da corretora, e nada disso aparecia. Agora o card mostra "Entrada liberada, mas bloqueada: ..." em cada par, o "Último bloqueio" lista todos os pares da última rodada e some quando um ciclo abre.
+- **Ordem real que a guarda de risco encolhia e a Binance recusava.** Quando o limite por ordem do perfil de risco reduzia o aporte para abaixo do valor mínimo do par (por exemplo, 5 USDT virando cerca de 1 USDT numa carteira de 20 USDT), o modo enviava a ordem mesmo assim e a Binance recusava a cada minuto. Agora ele não envia, e o card diz quanto o aporte seria reduzido e o que ajustar (saldo ou limite por ordem do perfil).
+- **Quantidade arredondada para cima no passo do par.** O valor da ordem não cai mais abaixo do aporte ou do mínimo do par por causa do arredondamento, e os filtros de pares criados pela sincronização da conta são lidos da Binance antes de ordenar.
+- **`php artisan micro:run --explain` confere as mesmas barreiras.** Para cada par com ENTRA, mostra "a ordem sairia no próximo minuto" ou "BLOQUEADO: motivo", sem enviar ordem.
+
 ## [0.3.41] - 2026-10-17
 
 ### Adicionado
