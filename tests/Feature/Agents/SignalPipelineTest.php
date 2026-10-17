@@ -8,7 +8,9 @@ use App\Agents\SignalScanner;
 use App\Enums\Market;
 use App\Enums\SignalStage;
 use App\Models\Asset;
+use App\Models\NewsItem;
 use App\Models\Portfolio;
+use App\Models\RiskProfile;
 use App\Models\Signal;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,8 +62,9 @@ class SignalPipelineTest extends TestCase
         $this->assertSame(SignalStage::Approved, $signal->stage);
         $this->assertSame(95.0, $signal->stop_price);
         $this->assertSame(0, $signal->orders()->count());
-        // Fundamentals abstains on crypto without calling the model: 4 first-round votes, the skeptic, then 4 revisions.
-        $this->assertCount(9, $fake->calls);
+        // Fundamentals abstains on crypto without calling the model: 4 first-round votes, the skeptic, then
+        // 3 revisions (the News vote of round 1 is reused, not asked again).
+        $this->assertCount(8, $fake->calls);
         $this->assertSame(11, $signal->votes()->count());
     }
 
@@ -206,5 +209,71 @@ class SignalPipelineTest extends TestCase
         $this->assertEqualsWithDelta(0.8, $signal->score, 0.0001);
         $this->assertSame(SignalStage::Approved, $signal->stage);
         $this->assertCount(2 + 1 + 2, $fake->calls);
+    }
+
+    private function newsCalls(FakeLlmClient $fake): int
+    {
+        return count(array_filter($fake->calls, fn (array $call) => str_contains($call['system'], 'analista de notícias')));
+    }
+
+    private function rescan(Signal $previous): Signal
+    {
+        $previous->moveTo(SignalStage::Rejected, 'teste');
+
+        $signals = app(SignalScanner::class)->scan($previous->asset);
+        $this->assertCount(1, $signals);
+
+        return $signals[0]->fresh();
+    }
+
+    public function test_news_vote_is_reused_until_new_news_arrives()
+    {
+        $fake = $this->agentsVote('hold', 0.5);
+        $first = $this->scan();
+        $this->assertSame(1, $this->newsCalls($fake));
+
+        $second = $this->rescan($first);
+        $this->assertSame(1, $this->newsCalls($fake));
+        $reused = $second->votes()->where('agent', 'news')->first();
+        $this->assertFalse($reused->abstained);
+        $this->assertEquals(0, $reused->cost);
+
+        $item = NewsItem::create([
+            'source' => 'rss', 'url' => 'https://example.com/n2', 'url_hash' => NewsItem::hashUrl('https://example.com/n2'),
+            'title' => 'Outra notícia', 'fetched_at' => now(),
+        ]);
+        $item->assets()->attach($first->asset_id, ['sentiment' => 0.2, 'relevance' => 0.9, 'is_new_fact' => true]);
+
+        $this->rescan($second);
+        $this->assertSame(2, $this->newsCalls($fake));
+    }
+
+    public function test_news_vote_is_asked_again_after_the_interval()
+    {
+        $fake = $this->agentsVote('hold', 0.5);
+        $first = $this->scan();
+
+        $this->travel(361)->minutes();
+        $this->quote($first->asset, 100);
+        $this->history($first->asset, 100);
+        $this->rescan($first);
+
+        $this->assertSame(2, $this->newsCalls($fake));
+    }
+
+    public function test_zero_interval_asks_the_news_agent_every_time()
+    {
+        config(['agents.news.interval_minutes' => 0]);
+        $fake = $this->agentsVote('hold', 0.5);
+        $first = $this->scan();
+
+        $this->rescan($first);
+
+        $this->assertSame(2, $this->newsCalls($fake));
+    }
+
+    public function test_new_risk_profiles_ask_for_two_agreeing_voters()
+    {
+        $this->assertSame(2, RiskProfile::firstOrCreate(['name' => 'Padrão'])->fresh()->min_agreeing_voters);
     }
 }
