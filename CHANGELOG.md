@@ -4,7 +4,7 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.24] - 2026-10-17
+## [0.3.29] - 2026-10-17
 
 ### Alterado
 
@@ -13,6 +13,19 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 ### Adicionado
 
 - **Tela "Histórico de sinais" da carteira.** Pelo link "Ver todos os sinais" você vê todos os sinais da carteira, do mais novo para o mais antigo, com os mesmos cards fechados. Mais sinais carregam sozinhos ao chegar ao fim da lista, e há filtros por ativo e por resultado. Só o dono da carteira acessa.
+
+## [0.3.28] - 2026-10-17
+
+### Adicionado
+
+- **Execução automática na carteira real.** Na Conta Binance há agora o quadro "Execução automática com dinheiro real": ligado, cada sinal aprovado pelos agentes vira uma ordem real na Binance sem esperar a sua confirmação. Para ligar é preciso que a execução real esteja liberada no servidor, que a chave esteja verificada e sem permissão de saque, e que você digite **CONFIRMO** num aviso que explica o risco. Os limites valem em toda ordem automática: valor máximo por ordem, teto por dia, sem venda a descoberto, só ativos de cripto, saldo suficiente e cotação recente.
+- **Botão "Parar tudo".** Na carteira real, um clique desliga a execução automática, cancela as ordens abertas que o sistema enviou à Binance e bloqueia novas ordens (inclusive as aprovadas à mão e as saídas por stop) até você clicar em "Liberar ordens". As posições abertas ficam como estão. Também existe o comando `php artisan trading:panic`.
+- **Avisos de ordem real.** Quando uma ordem real sai, falha ou é recusada pela guarda de risco, aparece um aviso na hora na tela da carteira; se você marcar a opção, também chega por e-mail.
+- **Mensagens da Binance em português** (saldo insuficiente, valor abaixo do mínimo, chave recusada e outras), e cada ordem real passa a ser registrada com o sinal, o score e a memória de cálculo.
+
+### Alterado
+
+- A carteira real deixa de recusar a execução automática; ela continua desligada até você ligar. Cada sinal gera no máximo uma ordem real, e se a Binance não confirmar o envio a carteira é bloqueada até você conferir.
 
 ## [0.3.20] - 2026-10-17
 

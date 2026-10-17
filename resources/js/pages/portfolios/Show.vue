@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { echoIsConfigured, useEcho } from '@laravel/echo-vue';
-import { Form, Head, Link, router } from '@inertiajs/vue3';
+import { Form, Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount } from 'vue';
+import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
+import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
 import SignalCard from '@/components/portfolio/SignalCard.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
 import { Button } from '@/components/ui/button';
@@ -14,6 +16,7 @@ import { signals as portfolioSignals } from '@/routes/portfolios';
 import type {
     AgentActivity,
     AgentScoreRow,
+    LiveInfo,
     Performance,
     PortfolioCharts,
     PortfolioSummary,
@@ -32,6 +35,7 @@ const props = defineProps<{
     tax_months: TaxMonth[];
     agent_activity: AgentActivity;
     charts: PortfolioCharts;
+    live: LiveInfo | null;
 }>();
 
 defineOptions({
@@ -70,6 +74,44 @@ if (echoIsConfigured()) {
                     }),
                 600,
             );
+        },
+    );
+}
+
+type LiveOrderEvent = {
+    portfolio_id: number;
+    kind: 'sent' | 'failed' | 'refused' | 'panic';
+    message: string;
+};
+
+// Real-money notices arrive on the owner's private channel the moment they happen.
+if (echoIsConfigured()) {
+    const userId = usePage().props.auth.user.id;
+
+    useEcho<LiveOrderEvent>(
+        `App.Models.User.${userId}`,
+        '.live.order',
+        (event) => {
+            if (event.portfolio_id !== props.portfolio.id) {
+                return;
+            }
+
+            const show =
+                event.kind === 'sent'
+                    ? toast.success
+                    : event.kind === 'panic'
+                      ? toast.warning
+                      : toast.error;
+            show(event.message);
+            router.reload({
+                only: [
+                    'portfolio',
+                    'live',
+                    'positions',
+                    'signals',
+                    'signals_total',
+                ],
+            });
         },
     );
 }
@@ -115,7 +157,10 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
             </div>
         </div>
 
-        <section class="rounded-2xl border bg-card p-4">
+        <section
+            v-if="portfolio.mode !== 'live'"
+            class="rounded-2xl border bg-card p-4"
+        >
             <Form
                 v-bind="update.form(portfolio.id)"
                 v-slot="{ errors, processing }"
@@ -129,16 +174,13 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                         value="1"
                         class="mt-0.5"
                         :checked="portfolio.auto_execute"
-                        :disabled="portfolio.mode !== 'paper'"
                     />
                     <span>
                         Executar sinais aprovados sem confirmação manual
                         <span class="block text-muted-foreground">
-                            {{
-                                portfolio.mode === 'paper'
-                                    ? 'Desligado, cada sinal aprovado pelos agentes espera a sua confirmação. A guarda de risco vale nos dois casos.'
-                                    : 'Carteira real: cada ordem exige a sua aprovação e a execução automática não pode ser ligada.'
-                            }}
+                            Desligado, cada sinal aprovado pelos agentes espera
+                            a sua confirmação. A guarda de risco vale nos dois
+                            casos.
                         </span>
                         <span
                             v-if="errors.auto_execute"
@@ -148,15 +190,17 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                         </span>
                     </span>
                 </label>
-                <Button
-                    v-if="portfolio.mode === 'paper'"
-                    :disabled="processing"
-                    variant="outline"
-                >
+                <Button :disabled="processing" variant="outline">
                     Salvar
                 </Button>
             </Form>
         </section>
+
+        <LiveExecutionCard
+            v-if="portfolio.mode === 'live' && live"
+            :portfolio="portfolio"
+            :live="live"
+        />
 
         <AssetChartsCard
             :portfolio-id="portfolio.id"

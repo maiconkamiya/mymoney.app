@@ -6,6 +6,7 @@ use App\Http\Controllers\NovidadesController;
 use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioPanicController;
 use App\Http\Controllers\PortfolioReportController;
 use App\Http\Controllers\PortfolioSignalsController;
 use App\Http\Controllers\SignalDecisionController;
@@ -21,6 +22,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('novidades/vista', [NovidadesController::class, 'marcarComoVista'])->name('novidades.vista');
 
     Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update']);
+    Route::post('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'store'])->name('portfolios.panic');
+    Route::delete('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'destroy'])->name('portfolios.release');
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');
     Route::get('portfolios/{portfolio}/sinais', PortfolioSignalsController::class)->name('portfolios.signals');
     Route::get('portfolios/{portfolio}/graficos', PortfolioChartsController::class)->name('portfolios.charts');
