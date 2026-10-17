@@ -13,6 +13,7 @@ use App\Enums\SignalStage;
 use App\Models\AgentScore;
 use App\Models\Signal;
 use App\Trading\OrderExecutor;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * The coordinator: builds one scenario, runs the vote and the skeptic's
@@ -105,10 +106,73 @@ class SignalPipeline
     private function cast(Signal $signal, AgentRole $role, int $round, Scenario $scenario, array $priorVotes = [], ?string $objection = null): Vote
     {
         $this->broadcaster->agentStarted($signal, $role, $round);
-        $vote = $this->agent($role)->vote($scenario, $priorVotes, $objection);
+        $vote = $this->reusableNewsVote($signal, $role, $scenario)
+            ?? $this->agent($role)->vote($scenario, $priorVotes, $objection);
+        $this->rememberNewsVote($signal, $role, $scenario, $vote);
         $this->broadcaster->agentVoted($signal, $vote, $round);
 
         return $vote;
+    }
+
+    /**
+     * The News vote is recomputed only when new news reaches the asset or the
+     * interval runs out; in between the last vote is reused without a model call.
+     */
+    private function reusableNewsVote(Signal $signal, AgentRole $role, Scenario $scenario): ?Vote
+    {
+        $key = $this->newsVoteKey($signal, $role, $scenario);
+        $cached = $key !== null ? Cache::get($key) : null;
+
+        if (! is_string($cached)) {
+            return null;
+        }
+
+        $vote = unserialize($cached, ['allowed_classes' => true]);
+
+        if (! $vote instanceof Vote) {
+            return null;
+        }
+
+        // Reused: no tokens and no cost this time.
+        return new Vote(
+            agent: $vote->agent,
+            action: $vote->action,
+            confidence: $vote->confidence,
+            veto: $vote->veto,
+            reasons: $vote->reasons,
+            evidenceIds: $vote->evidenceIds,
+            stop: $vote->stop,
+            target: $vote->target,
+            model: $vote->model,
+        );
+    }
+
+    private function rememberNewsVote(Signal $signal, AgentRole $role, Scenario $scenario, Vote $vote): void
+    {
+        $key = $this->newsVoteKey($signal, $role, $scenario);
+
+        // An abstention (no news, model failure) is never kept: it costs nothing and must be retried.
+        if ($key === null || $vote->abstained) {
+            return;
+        }
+
+        Cache::put($key, serialize($vote), now()->addMinutes((int) config('agents.news.interval_minutes')));
+    }
+
+    /**
+     * Cache key for the News vote of this asset, tied to the news the agent would read.
+     * Null when it is not the News agent or the reuse is off (interval 0).
+     */
+    private function newsVoteKey(Signal $signal, AgentRole $role, Scenario $scenario): ?string
+    {
+        if ($role !== AgentRole::News || (int) config('agents.news.interval_minutes') <= 0) {
+            return null;
+        }
+
+        $ids = array_merge(array_column($scenario->news, 'id'), array_column($scenario->similarNews, 'id'));
+        sort($ids);
+
+        return 'agents:news-vote:'.$signal->asset_id.':'.md5(implode(',', $ids));
     }
 
     private function agent(AgentRole $role): LlmAgent

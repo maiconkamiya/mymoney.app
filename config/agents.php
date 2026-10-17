@@ -17,6 +17,17 @@ return [
     'models' => [
         'fast' => env('AGENTS_FAST_MODEL', 'claude-haiku-5-5'),
         'strong' => env('AGENTS_STRONG_MODEL', 'claude-opus-5-5'),
+        // The skeptic is the costliest vote; set AGENTS_SKEPTIC_MODEL (e.g. claude-sonnet-5-5) to run it cheaper.
+        'skeptic' => env('AGENTS_SKEPTIC_MODEL', env('AGENTS_STRONG_MODEL', 'claude-opus-5-5')),
+    ],
+
+    /*
+    | The News vote is reused per asset until new news arrives or this many
+    | minutes pass (0 asks the model on every signal).
+    */
+
+    'news' => [
+        'interval_minutes' => (int) env('AGENTS_NEWS_INTERVAL_MINUTES', 360),
     ],
 
     /*
@@ -82,7 +93,7 @@ PROMPT,
             'prompt' => 'Você representa o modelo quantitativo. Traduza a previsão do serviço de ML presente no cenário em um voto. Sem previsão disponível, vote hold com confiança zero.',
         ],
         AgentRole::Skeptic->value => [
-            'model' => 'strong',
+            'model' => 'skeptic',
             'prompt' => 'Você é o cético. Procure o argumento mais forte contra a operação proposta e os riscos que os outros ignoraram. Só vote a favor se não encontrar objeção relevante.',
         ],
         AgentRole::Risk->value => [
