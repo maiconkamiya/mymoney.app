@@ -17,6 +17,9 @@ use Carbon\CarbonImmutable;
 
 class ScenarioBuilder
 {
+    /** Mirrors MIN_CANDLES in services/forecast/forecast/features.py. */
+    private const FORECAST_CANDLES = 61;
+
     public function __construct(
         private readonly PriceFeed $prices,
         private readonly PortfolioValuation $valuation,
@@ -57,7 +60,8 @@ class ScenarioBuilder
             'v' => (float) $row->volume,
         ])->all());
 
-        $candles = array_values($rows->slice(-60)->map(fn (object $row) => [
+        // The forecast service needs one more candle than the agents see (its widest window is 60 returns).
+        $forecastCandles = array_values($rows->slice(-self::FORECAST_CANDLES)->map(fn (object $row) => [
             'id' => "candle:{$asset->symbol}:1m:".CarbonImmutable::parse($row->open_at)->toIso8601String(),
             'open' => (float) $row->open,
             'high' => (float) $row->high,
@@ -65,6 +69,8 @@ class ScenarioBuilder
             'close' => (float) $row->close,
             'volume' => (float) $row->volume,
         ])->all());
+
+        $candles = array_slice($forecastCandles, -60);
 
         // Only news that already existed "now": simulations must never see the future.
         $links = NewsAsset::query()
@@ -108,7 +114,7 @@ class ScenarioBuilder
             cash: $portfolio->cash,
             equity: $this->valuation->equity($portfolio),
             fundamentals: $asset->market === Market::B3 ? $this->fundamentals->for($asset) : null,
-            forecast: $this->forecasts->predict($asset->symbol, $asset->market->value, $candles, $news),
+            forecast: $this->forecasts->predict($asset->symbol, $asset->market->value, $forecastCandles, $news),
             chart: $this->chart->analyze($bars, now()->getTimestamp()),
         );
     }
