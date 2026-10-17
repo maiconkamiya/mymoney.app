@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.44] - 2026-10-17
+
+### Corrigido
+
+- **A previsão própria agora chega de fato ao agente Quantitativo.** O sistema enviava ao serviço de previsão uma vela a menos do que ele precisa, então toda consulta era recusada e o cenário ficava sem previsão. Agora são enviadas as 61 velas mais recentes. Os demais agentes continuam vendo as mesmas 60 velas de antes.
+
 ## [0.3.43] - 2026-10-17
 
 ### Adicionado
