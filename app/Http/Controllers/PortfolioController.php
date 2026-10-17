@@ -17,6 +17,7 @@ use App\Models\Signal;
 use App\Reports\PerformanceReport;
 use App\Reports\TaxReport;
 use App\Trading\Live\LiveLimits;
+use App\Trading\Micro\MicroOverview;
 use App\Trading\PortfolioCharts;
 use App\Trading\PortfolioValuation;
 use App\Trading\TradingHalt;
@@ -112,7 +113,7 @@ class PortfolioController extends Controller
         return back();
     }
 
-    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt): Response
+    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt, MicroOverview $micro): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
@@ -189,6 +190,7 @@ class PortfolioController extends Controller
             'tax_months' => $tax->months($portfolio),
             'agent_activity' => $activity->for($portfolio),
             'charts' => $charts->for($portfolio),
+            'micro' => $micro->for($portfolio),
         ]);
     }
 }

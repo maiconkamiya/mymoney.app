@@ -13,6 +13,7 @@ Schedule::command('market:sync-binance')->everyMinute()->withoutOverlapping();
 Schedule::command('market:sync-b3')->everyMinute()->weekdays()->withoutOverlapping();
 Schedule::command('market:sync-b3 --fundamentals')->dailyAt('07:00')->weekdays();
 Schedule::command('positions:check-exits')->everyMinute()->withoutOverlapping();
+Schedule::command('micro:run')->everyMinute()->withoutOverlapping();
 Schedule::command('signals:scan')->cron('*/'.config('trading.scan_interval_minutes').' * * * *')->withoutOverlapping();
 Schedule::command('binance:sync')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('trading:reconcile')->everyFiveMinutes()->withoutOverlapping();

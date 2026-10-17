@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BrokerCredentialController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MicroOperationsController;
 use App\Http\Controllers\NovidadesController;
 use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioChartsController;
@@ -21,6 +22,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('novidades/vista', [NovidadesController::class, 'marcarComoVista'])->name('novidades.vista');
 
     Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update']);
+    Route::put('portfolios/{portfolio}/micro-operacoes', [MicroOperationsController::class, 'update'])->name('portfolios.micro');
     Route::post('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'store'])->name('portfolios.panic');
     Route::delete('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'destroy'])->name('portfolios.release');
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');

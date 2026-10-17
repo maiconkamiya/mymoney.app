@@ -8,6 +8,7 @@ import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
 import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
+import MicroOperationsCard from '@/components/portfolio/MicroOperationsCard.vue';
 import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +26,7 @@ import type {
     AgentActivity,
     AgentScoreRow,
     LiveInfo,
+    MicroOverview,
     Performance,
     PortfolioCharts,
     PortfolioSummary,
@@ -43,6 +45,7 @@ const props = defineProps<{
     agent_activity: AgentActivity;
     charts: PortfolioCharts;
     live: LiveInfo | null;
+    micro: MicroOverview | null;
 }>();
 
 defineOptions({
@@ -81,7 +84,7 @@ if (echoIsConfigured()) {
                       : toast.error;
             show(event.message);
             router.reload({
-                only: ['portfolio', 'live', 'positions', 'signals'],
+                only: ['portfolio', 'live', 'positions', 'signals', 'micro'],
             });
         },
     );
@@ -176,6 +179,12 @@ const stageVariant = (stage: string) =>
             v-if="portfolio.mode === 'live' && live"
             :portfolio="portfolio"
             :live="live"
+        />
+
+        <MicroOperationsCard
+            v-if="micro"
+            :portfolio="portfolio"
+            :micro="micro"
         />
 
         <AssetChartsCard

@@ -36,6 +36,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable|null $orders_blocked_at
  * @property string|null $orders_blocked_reason
  * @property bool $notify_live_email
+ * @property bool $micro_enabled
+ * @property float $micro_order_value
+ * @property float $micro_net_margin_pct
+ * @property float|null $micro_daily_target
+ * @property float|null $micro_daily_loss_limit
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read User $user
@@ -46,8 +51,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, Order> $orders
  * @property-read Collection<int, Signal> $signals
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
+ * @property-read Collection<int, MicroCycle> $microCycles
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -70,6 +76,11 @@ class Portfolio extends Model
             'live_auto_confirmed_at' => 'datetime',
             'orders_blocked_at' => 'datetime',
             'notify_live_email' => 'boolean',
+            'micro_enabled' => 'boolean',
+            'micro_order_value' => 'float',
+            'micro_net_margin_pct' => 'float',
+            'micro_daily_target' => 'float',
+            'micro_daily_loss_limit' => 'float',
         ];
     }
 
@@ -119,6 +130,12 @@ class Portfolio extends Model
     public function snapshots(): HasMany
     {
         return $this->hasMany(PortfolioSnapshot::class);
+    }
+
+    /** @return HasMany<MicroCycle, $this> */
+    public function microCycles(): HasMany
+    {
+        return $this->hasMany(MicroCycle::class);
     }
 
     public function isLive(): bool
