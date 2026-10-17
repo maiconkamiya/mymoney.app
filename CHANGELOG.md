@@ -4,12 +4,20 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.32] - 2026-10-17
+## [0.3.33] - 2026-10-17
 
 ### Adicionado
 
 - **O agente Técnico agora lê o gráfico como um investidor experiente.** Antes de votar, o sistema calcula, em 5 minutos, 15 minutos, 1 hora, 4 horas e 1 dia, a tendência, as médias de 9, 21 e 50 períodos, o RSI, a volatilidade (ATR), o volume relativo, os suportes e resistências (com quantas vezes o preço tocou cada um), a faixa de consolidação e os rompimentos, falsos rompimentos e testes de nível. O agente raciocina em cima desses números, sem inventar nível, e devolve o cenário esperado (alta, queda, rompimento de alta, rompimento de baixa, teste de resistência ou lateral), os suportes e resistências que usou, e um stop e um alvo coerentes com a volatilidade. Tempo gráfico sem histórico suficiente fica de fora e o agente avisa; se nenhum tem histórico, ele se abstém.
 - **Cenário e níveis no sinal.** No cartão de cada sinal, o voto do Técnico mostra o cenário, os suportes, as resistências, os gráficos usados e os que ficaram sem histórico.
+
+## [0.3.32] - 2026-10-17
+
+### Adicionado
+
+- **Tela "Ativos" para cadastrar criptos da Binance e papéis da B3.** No menu, "Ativos" abre uma pesquisa: em Cripto aparecem os pares em USDT negociáveis na Binance; em B3, os tickers da brapi. O ativo só é salvo depois de confirmado na fonte, e a Binance informa o lote, a variação mínima de preço e a ordem mínima, que ficam guardados. Ativo novo recebe os últimos candles na hora; o coletor de cotações passa a acompanhá-lo em até 30 segundos e o scanner abre sinais para ele no próximo ciclo, sem reiniciar nada.
+- **Remover ativo.** Só sai quando não há posição aberta, sinal em andamento, ordem pendente nem carteira acompanhando; a tela mostra o motivo. Se o ativo já tem histórico, ele é desativado em vez de apagado, e pode ser cadastrado de novo depois.
+- **Escolha dos ativos de cada carteira.** Na tela da carteira, o card "Ativos acompanhados" deixa o dono marcar quais ativos cadastrados entram nos sinais e nos gráficos daquela carteira. Sem nenhum marcado, a carteira acompanha todos, como antes.
 
 ## [0.3.31] - 2026-10-17
 
