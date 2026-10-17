@@ -7,9 +7,13 @@ use App\Enums\VoteAction;
 
 final readonly class Vote
 {
+    /** Expected moves the Technical agent can name for the chart. */
+    public const CHART_SCENARIOS = ['alta', 'queda', 'rompimento_alta', 'rompimento_baixa', 'teste_resistencia', 'lateral'];
+
     /**
      * @param  list<string>  $reasons
      * @param  list<string>  $evidenceIds
+     * @param  array<string, mixed>|null  $analysis  Chart reading from the Technical agent: scenario, supports, resistances.
      */
     public function __construct(
         public AgentRole $agent,
@@ -24,6 +28,7 @@ final readonly class Vote
         public int $inputTokens = 0,
         public int $outputTokens = 0,
         public float $cost = 0,
+        public ?array $analysis = null,
     ) {}
 
     /**
@@ -47,8 +52,15 @@ final readonly class Vote
      *
      * @return array<string, mixed>
      */
-    public static function schema(): array
+    public static function schema(?AgentRole $role = null): array
     {
+        $chart = $role === AgentRole::Technical ? [
+            'chart_scenario' => ['type' => 'string', 'enum' => self::CHART_SCENARIOS],
+            'supports' => ['type' => 'array', 'items' => ['type' => 'number']],
+            'resistances' => ['type' => 'array', 'items' => ['type' => 'number']],
+            'timeframes' => ['type' => 'array', 'items' => ['type' => 'string']],
+        ] : [];
+
         return [
             'type' => 'object',
             'properties' => [
@@ -59,8 +71,9 @@ final readonly class Vote
                 'evidence_ids' => ['type' => 'array', 'items' => ['type' => 'string']],
                 'stop' => ['type' => ['number', 'null']],
                 'target' => ['type' => ['number', 'null']],
+                ...$chart,
             ],
-            'required' => ['action', 'confidence', 'veto', 'reasons', 'evidence_ids', 'stop', 'target'],
+            'required' => ['action', 'confidence', 'veto', 'reasons', 'evidence_ids', 'stop', 'target', ...array_keys($chart)],
             'additionalProperties' => false,
         ];
     }

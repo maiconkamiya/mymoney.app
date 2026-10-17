@@ -39,6 +39,7 @@ class SignalPipelineTest extends TestCase
     private function scan(bool $autoExecute = false): Signal
     {
         $asset = Asset::factory()->create(['lot_size' => '0.001']);
+        $this->history($asset, 100);
         $this->quote($asset, 100);
         Portfolio::factory()->create(['market' => $asset->market, 'auto_execute' => $autoExecute]);
 

@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property list<string>|null $evidence_ids
  * @property float|null $stop_price
  * @property float|null $target_price
+ * @property array<string, mixed>|null $analysis
  * @property string|null $model
  * @property int $input_tokens
  * @property int $output_tokens
@@ -29,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable|null $updated_at
  * @property-read Signal $signal
  */
-#[Fillable(['signal_id', 'agent', 'round', 'action', 'confidence', 'veto', 'reasons', 'evidence_ids', 'stop_price', 'target_price', 'model', 'input_tokens', 'output_tokens', 'cost'])]
+#[Fillable(['signal_id', 'agent', 'round', 'action', 'confidence', 'veto', 'reasons', 'evidence_ids', 'stop_price', 'target_price', 'analysis', 'model', 'input_tokens', 'output_tokens', 'cost'])]
 class AgentVote extends Model
 {
     /**
@@ -46,6 +47,7 @@ class AgentVote extends Model
             'evidence_ids' => 'array',
             'stop_price' => 'float',
             'target_price' => 'float',
+            'analysis' => 'array',
             'cost' => 'float',
         ];
     }
