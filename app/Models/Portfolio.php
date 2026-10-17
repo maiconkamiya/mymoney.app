@@ -32,6 +32,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable $starts_at
  * @property CarbonImmutable $ends_at
  * @property bool $auto_execute
+ * @property CarbonImmutable|null $synced_at
+ * @property array{holdings?: list<array{coin: string, qty: float, price: float|null, value: float|null, status: string, reason: string|null}>}|null $sync_report
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read User $user
@@ -43,7 +45,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, Signal> $signals
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'synced_at', 'sync_report'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -63,6 +65,8 @@ class Portfolio extends Model
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
             'auto_execute' => 'boolean',
+            'synced_at' => 'datetime',
+            'sync_report' => 'array',
         ];
     }
 
