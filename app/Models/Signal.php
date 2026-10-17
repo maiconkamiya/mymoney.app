@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $decided_by
  * @property string|null $decision_reason
  * @property array<string, mixed>|null $scenario
+ * @property array<string, mixed>|null $calculation
  * @property array<int, array{stage: string, at: string}>|null $stage_history
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
@@ -32,7 +33,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, AgentVote> $votes
  * @property-read Collection<int, Order> $orders
  */
-#[Fillable(['portfolio_id', 'asset_id', 'stage', 'side', 'score', 'entry_price', 'stop_price', 'target_price', 'decided_by', 'decision_reason', 'scenario', 'stage_history'])]
+#[Fillable(['portfolio_id', 'asset_id', 'stage', 'side', 'score', 'entry_price', 'stop_price', 'target_price', 'decided_by', 'decision_reason', 'scenario', 'calculation', 'stage_history'])]
 class Signal extends Model
 {
     /**
@@ -48,6 +49,7 @@ class Signal extends Model
             'stop_price' => 'float',
             'target_price' => 'float',
             'scenario' => 'array',
+            'calculation' => 'array',
             'stage_history' => 'array',
         ];
     }

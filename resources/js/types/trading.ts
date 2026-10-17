@@ -24,12 +24,33 @@ export type AgentVote = {
     reasons: string[];
 };
 
+export type SignalCalculation = {
+    votes: {
+        agent: string;
+        action: 'buy' | 'sell' | 'hold';
+        confidence: number;
+        abstained: boolean;
+        veto: boolean;
+        weight: number | null;
+        contribution: number | null;
+        reason: string | null;
+    }[];
+    valid_votes: number;
+    weight_sum: number;
+    score: number;
+    threshold: number;
+    min_voters: number;
+    agreeing: number;
+    quorum: number;
+};
+
 export type SignalRow = {
     id: number;
     symbol: string;
     stage: string;
     side: 'buy' | 'sell' | null;
     score: number | null;
+    calculation: SignalCalculation | null;
     entry_price: number | null;
     stop_price: number | null;
     target_price: number | null;

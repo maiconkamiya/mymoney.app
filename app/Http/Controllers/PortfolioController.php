@@ -98,6 +98,7 @@ class PortfolioController extends Controller
                 'stage' => $signal->stage->value,
                 'side' => $signal->side?->value,
                 'score' => $signal->score,
+                'calculation' => $signal->calculation,
                 'entry_price' => $signal->entry_price,
                 'stop_price' => $signal->stop_price,
                 'target_price' => $signal->target_price,

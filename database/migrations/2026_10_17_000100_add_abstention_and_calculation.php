@@ -11,12 +11,20 @@ return new class extends Migration
         Schema::table('agent_votes', function (Blueprint $table) {
             $table->boolean('abstained')->default(false)->after('veto');
         });
+
+        Schema::table('signals', function (Blueprint $table) {
+            $table->json('calculation')->nullable()->after('scenario');
+        });
     }
 
     public function down(): void
     {
         Schema::table('agent_votes', function (Blueprint $table) {
             $table->dropColumn('abstained');
+        });
+
+        Schema::table('signals', function (Blueprint $table) {
+            $table->dropColumn('calculation');
         });
     }
 };

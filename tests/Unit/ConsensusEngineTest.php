@@ -176,4 +176,23 @@ class ConsensusEngineTest extends TestCase
 
         $this->assertFalse($result->approved);
     }
+
+    public function test_result_carries_the_worksheet_behind_the_score()
+    {
+        $result = (new ConsensusEngine)->decide($this->withAbstentions(), $this->profile(), ['technical' => 2.0]);
+        $calc = $result->calculation;
+
+        $this->assertSame(3, $calc['valid_votes']);
+        $this->assertSame(4.0, $calc['weight_sum']);
+        $this->assertSame(0.35, $calc['threshold']);
+        $this->assertSame(3, $calc['quorum']);
+        $this->assertCount(6, $calc['votes']);
+
+        $byAgent = array_column($calc['votes'], null, 'agent');
+        $this->assertSame(2.0, $byAgent['technical']['weight']);
+        $this->assertEqualsWithDelta(0.4, $byAgent['technical']['contribution'], 0.0001);
+        $this->assertTrue($byAgent['quant']['abstained']);
+        $this->assertNull($byAgent['quant']['contribution']);
+        $this->assertEqualsWithDelta($result->score, array_sum(array_filter(array_column($calc['votes'], 'contribution'), fn ($c) => $c !== null)), 0.001);
+    }
 }

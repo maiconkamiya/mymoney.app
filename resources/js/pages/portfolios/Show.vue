@@ -5,6 +5,7 @@ import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecis
 import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
+import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -268,6 +269,12 @@ const stageVariant = (stage: string) =>
                         {{ money(signal.stop_price, portfolio.market) }} · alvo
                         {{ money(signal.target_price, portfolio.market) }}
                     </p>
+
+                    <SignalCalculation
+                        v-if="signal.calculation"
+                        :calculation="signal.calculation"
+                        :reason="signal.reason"
+                    />
 
                     <ul
                         v-if="signal.votes.length"

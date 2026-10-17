@@ -67,6 +67,7 @@ class SignalPipeline
 
         $signal->update([
             'score' => $result->score,
+            'calculation' => $result->calculation,
             'side' => $result->side,
             'stop_price' => $this->median($finalVotes, $result, 'stop'),
             'target_price' => $this->median($finalVotes, $result, 'target'),
