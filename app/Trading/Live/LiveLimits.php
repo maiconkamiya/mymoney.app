@@ -10,7 +10,8 @@ use App\Trading\TradingHalt;
 
 /**
  * Absolute guard rails for real money: the master switch, the kill switch,
- * credential hygiene and the per-order and per-day value caps.
+ * the per-portfolio stop ("Parar tudo"), credential hygiene and the per-order
+ * and per-day value caps.
  */
 class LiveLimits
 {
@@ -68,8 +69,12 @@ class LiveLimits
             throw new LiveTradingException('Só carteiras reais podem enviar ordens reais.');
         }
 
-        if ($portfolio->auto_execute) {
-            throw new LiveTradingException('Carteira real exige aprovação manual.');
+        if ($portfolio->isOrdersBlocked()) {
+            throw new LiveTradingException('Ordens bloqueadas nesta carteira ("Parar tudo"). Libere na tela da carteira.');
+        }
+
+        if ($portfolio->auto_execute && $portfolio->live_auto_confirmed_at === null) {
+            throw new LiveTradingException('Execução automática real sem a confirmação do dono (CONFIRMO).');
         }
 
         if ($credential === null) {
