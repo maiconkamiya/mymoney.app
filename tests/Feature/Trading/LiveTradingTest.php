@@ -176,7 +176,7 @@ class LiveTradingTest extends TestCase
         app(BinanceBroker::class, ['portfolio' => $unverified])->placeOrder($request);
     }
 
-    public function test_broker_refuses_auto_execute_portfolios()
+    public function test_broker_refuses_auto_execute_without_the_owners_confirmation()
     {
         config(['trading.live.enabled' => true]);
         $portfolio = $this->livePortfolio(attributes: ['auto_execute' => true]);
