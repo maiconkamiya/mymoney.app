@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Agents\AgentActivity;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
+use App\Http\Requests\DestroyPortfolioRequest;
 use App\Http\Requests\StorePortfolioRequest;
 use App\Http\Requests\UpdatePortfolioRequest;
 use App\Models\AgentScore;
@@ -21,6 +22,7 @@ use App\Trading\PortfolioValuation;
 use App\Trading\TradingHalt;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -81,6 +83,29 @@ class PortfolioController extends Controller
             : 'Execução automática desligada: sinais aprovados aguardam a sua confirmação.']);
 
         return back();
+    }
+
+    /**
+     * A carteira em execução é apagada junto: parar antes não muda o resultado, já que tudo some.
+     * As FKs em cascata levam sinais, votos, ordens, execuções, posições e snapshots.
+     */
+    public function destroy(DestroyPortfolioRequest $request, Portfolio $portfolio): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $portfolio): void {
+            AuditLog::record('user:'.$request->user()->id, 'portfolio.deleted', null, [
+                'portfolio_id' => $portfolio->id,
+                'name' => $portfolio->name,
+                'status' => $portfolio->status->value,
+                'signals' => $portfolio->signals()->count(),
+                'orders' => $portfolio->orders()->count(),
+            ]);
+
+            $portfolio->delete();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Carteira "'.$portfolio->name.'" excluída.']);
+
+        return to_route('portfolios.index');
     }
 
     public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts): Response
