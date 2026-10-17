@@ -9,7 +9,7 @@ use App\Models\Portfolio;
 use Illuminate\Support\Collection;
 
 /**
- * Orders the crypto assets by recent volatility (average 1-minute range) so
+ * Orders the crypto assets the portfolio tracks by recent volatility (average 1-minute range) so
  * the trader looks first at the pairs that move the most, and reads each one.
  */
 class MicroRanker
@@ -58,7 +58,11 @@ class MicroRanker
      */
     private function assets(Portfolio $portfolio): Collection
     {
+        $tracked = $portfolio->assets()->pluck('assets.id');
+
+        // Sem ativos marcados na carteira, ela acompanha todos.
         return Asset::query()
+            ->when($tracked->isNotEmpty(), fn ($query) => $query->whereIn('id', $tracked))
             ->where('market', Market::Crypto)
             ->where('active', true)
             ->where('is_benchmark', false)

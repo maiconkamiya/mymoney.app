@@ -8,6 +8,7 @@ import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecis
 import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
+import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
 import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
 import MicroOperationsCard from '@/components/portfolio/MicroOperationsCard.vue';
 import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
@@ -27,6 +28,7 @@ import type {
     AccountSync,
     AgentActivity,
     AgentScoreRow,
+    AvailableAsset,
     LiveInfo,
     MicroOverview,
     Performance,
@@ -47,6 +49,8 @@ const props = defineProps<{
     tax_months: TaxMonth[];
     agent_activity: AgentActivity;
     charts: PortfolioCharts;
+    available_assets: AvailableAsset[];
+    tracked_asset_ids: number[];
     live: LiveInfo | null;
     micro: MicroOverview | null;
 }>();
@@ -177,6 +181,12 @@ const stageVariant = (stage: string) =>
                 </Button>
             </Form>
         </section>
+
+        <TrackedAssetsCard
+            :portfolio-id="portfolio.id"
+            :available="available_assets"
+            :tracked="tracked_asset_ids"
+        />
 
         <LiveExecutionCard
             v-if="portfolio.mode === 'live' && live"

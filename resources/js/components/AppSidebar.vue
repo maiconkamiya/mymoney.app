@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, LayoutDashboard, Wallet } from '@lucide/vue';
+import {
+    BookOpen,
+    Coins,
+    FolderGit2,
+    LayoutDashboard,
+    Wallet,
+} from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -16,6 +22,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as assets } from '@/routes/assets';
 import { index as portfolios } from '@/routes/portfolios';
 import type { NavItem } from '@/types';
 
@@ -29,6 +36,11 @@ const mainNavItems: NavItem[] = [
         title: 'Carteiras',
         href: portfolios(),
         icon: Wallet,
+    },
+    {
+        title: 'Ativos',
+        href: assets(),
+        icon: Coins,
     },
 ];
 

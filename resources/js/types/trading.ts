@@ -274,3 +274,27 @@ export type MicroOverview = {
     }[];
     cycles: MicroCycleRow[];
 };
+
+export type AssetRow = {
+    id: number;
+    symbol: string;
+    market: Market;
+    name: string | null;
+    lot_size: string;
+    tick_size: string;
+    min_qty: string | null;
+    min_notional: string | null;
+    blockers: string[];
+};
+
+export type AssetSearchResult = {
+    symbol: string;
+    name: string | null;
+    registered: boolean;
+};
+
+export type AvailableAsset = {
+    id: number;
+    symbol: string;
+    name: string | null;
+};

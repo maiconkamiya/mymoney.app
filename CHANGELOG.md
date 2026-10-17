@@ -4,13 +4,27 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.31] - 2026-10-17
+## [0.3.33] - 2026-10-17
 
 ### Adicionado
 
 - **Micro operações em cripto.** Na tela de uma carteira simulada ou real de cripto há o quadro "Micro operações" (desligado por padrão). Você define o **aporte por operação**, a **margem de lucro líquida** por operação (já descontadas as taxas e o deslize; a tela mostra o custo da ida e volta, cerca de 0,30%, e a margem bruta do alvo), a **meta de lucro do dia** e a **perda máxima do dia**. Ligado, o sistema olha a cada minuto os pares cadastrados, ordena pelos mais voláteis e compra só quando há tendência de alta, preço perto do suporte e espaço até a resistência. A venda sai no alvo (margem mais custos), no stop ou, se o ciclo passar de 60 minutos, a mercado. Ao bater a meta ou a perda do dia, ele para até o dia seguinte. Não chama modelo de IA, então não há custo de IA por operação.
 - **Registro de cada ciclo** na carteira: par, preço e hora de entrada, saída, taxas, lucro líquido e motivo da saída (alvo, stop ou tempo limite), mais o resultado do dia e os pares em foco.
 - Na carteira real, as micro operações só ligam com a execução automática já confirmada (CONFIRMO) e respeitam sempre o teto por ordem, o teto por dia, a guarda de risco, o "Parar tudo" e o comando `trading:panic`. Como o teto por dia soma compra e venda, aportes grandes esgotam o teto rápido: o modo pausa quando não sobra o valor de um ciclo completo.
+
+## [0.3.32] - 2026-10-17
+
+### Adicionado
+
+- **Tela "Ativos" para cadastrar criptos da Binance e papéis da B3.** No menu, "Ativos" abre uma pesquisa: em Cripto aparecem os pares em USDT negociáveis na Binance; em B3, os tickers da brapi. O ativo só é salvo depois de confirmado na fonte, e a Binance informa o lote, a variação mínima de preço e a ordem mínima, que ficam guardados. Ativo novo recebe os últimos candles na hora; o coletor de cotações passa a acompanhá-lo em até 30 segundos e o scanner abre sinais para ele no próximo ciclo, sem reiniciar nada.
+- **Remover ativo.** Só sai quando não há posição aberta, sinal em andamento, ordem pendente nem carteira acompanhando; a tela mostra o motivo. Se o ativo já tem histórico, ele é desativado em vez de apagado, e pode ser cadastrado de novo depois.
+- **Escolha dos ativos de cada carteira.** Na tela da carteira, o card "Ativos acompanhados" deixa o dono marcar quais ativos cadastrados entram nos sinais e nos gráficos daquela carteira. Sem nenhum marcado, a carteira acompanha todos, como antes.
+
+## [0.3.31] - 2026-10-17
+
+### Corrigido
+
+- **Sincronização da Binance não falha mais quando o relógio da máquina está fora de hora.** Em computadores que suspendem (como o WSL no Windows), o relógio podia adiantar ou atrasar e a Binance recusava a chamada com "Timestamp for this request was 1000ms ahead of the server's time". Agora o sistema confere a hora da Binance, ajusta o próprio relógio nas chamadas e, se mesmo assim a Binance reclamar, refaz o ajuste e tenta de novo uma vez. Se ainda falhar, a mensagem explica em português que é preciso acertar o relógio da máquina (no WSL: `sudo hwclock -s`). A tolerância da Binance pode ser mudada com `BINANCE_RECV_WINDOW` no `.env` (padrão 5000 ms).
 
 ## [0.3.30] - 2026-10-17
 

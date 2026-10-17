@@ -27,6 +27,7 @@ class BinanceSettingsTest extends TestCase
     {
         Http::fake([
             '*/sapi/v1/account/apiRestrictions*' => Http::response(['enableSpotAndMarginTrading' => true, 'enableWithdrawals' => $withdrawals]),
+            '*/api/v3/time' => fn () => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
             '*/api/v3/account*' => Http::response(['balances' => [['asset' => 'USDT', 'free' => '100', 'locked' => '0']]]),
         ]);
     }

@@ -205,6 +205,8 @@ return [
         'market_data_url' => env('BINANCE_MARKET_DATA_URL', 'https://data-api.binance.vision'),
         // WebSocket de negócios em tempo real; o espelho público data-stream.binance.vision
         // responde onde stream.binance.com devolve 451.
+        // De quantos em quantos segundos o coletor confere se a lista de pares mudou (ativo novo ou removido) e reconecta.
+        'stream_reload_seconds' => (int) env('BINANCE_STREAM_RELOAD_SECONDS', 30),
         'stream_url' => env('BINANCE_STREAM_URL', 'wss://data-stream.binance.vision'),
         'recv_window' => (int) env('BINANCE_RECV_WINDOW', 5000),
     ],

@@ -171,6 +171,19 @@ class MicroOperationsTest extends TestCase
         $this->assertSame(0, Order::count());
     }
 
+    public function test_only_looks_at_the_assets_the_portfolio_tracks()
+    {
+        $other = Asset::factory()->create(['symbol' => 'ADAUSDT']);
+        $this->candles($this->asset);
+        $this->candles($other);
+        $portfolio = $this->micro();
+        $portfolio->assets()->attach($other);
+
+        app(MicroTrader::class)->run($portfolio);
+
+        $this->assertSame($other->id, MicroCycle::sole()->asset_id);
+    }
+
     public function test_real_portfolio_without_confirmed_auto_execution_sends_nothing()
     {
         config(['trading.live.enabled' => true]);
