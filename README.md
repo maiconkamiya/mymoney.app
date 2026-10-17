@@ -73,9 +73,28 @@ As fontes Geist e Geist Mono (licença SIL OFL 1.1) vêm dos pacotes npm `@fonts
 
 ## O que ainda falta
 
-- Execução real: `BinanceBroker` e `Mt5Broker` existem, mas só enviam ordens de carteira `live`, com credencial verificada, aprovação manual e `TRADING_LIVE_ENABLED=true` (desligado por padrão).
+- Execução real: `BinanceBroker` e `Mt5Broker` existem, mas só enviam ordens de carteira `live`, com credencial verificada sem saque e `TRADING_LIVE_ENABLED=true` (desligado por padrão). Cada ordem real passa pela sua aprovação ou, se você ligar a execução automática (veja abaixo), sai sozinha dentro dos limites.
 - Provedor definitivo de cotações da B3 (hoje brapi.dev, precisa de `BRAPI_TOKEN`) e escolha entre Binance e Mercado Bitcoin.
 - Ligar o serviço de previsão (`FORECAST_ENABLED=true`) depois de treinar com `php artisan forecast:train` e conferir o backtest; sem modelo validado, o agente quantitativo vota "aguardar".
+
+## Execução automática com dinheiro real
+
+A carteira real (Conta Binance) pode executar sozinha os sinais aprovados pelo consenso. É decisão do Maicon (17/10/2026) e vem com travas que não saem do código:
+
+- **Liga só com tudo em ordem:** `TRADING_LIVE_ENABLED=true`, chave verificada e sem permissão de saque, sem parada geral, e o dono digita `CONFIRMO` num diálogo. Sem isso o servidor recusa.
+- **Limites em cada ordem automática:** `TRADING_LIVE_MAX_ORDER_VALUE` por ordem, `TRADING_LIVE_MAX_DAILY_VALUE` por dia, sem venda a descoberto (vende no máximo a posição), só ativos do mercado da carteira, saldo suficiente, cotação recente (30 s em cripto) e a guarda de risco do perfil.
+- **Uma ordem por sinal:** o `newClientOrderId` é `signal-{id}`. Se a Binance não responder, o sistema consulta a ordem por esse identificador antes de qualquer reenvio; na dúvida, bloqueia a carteira.
+- **Auditoria:** cada ordem grava no `audit_log` o sinal, o score e a memória de cálculo.
+- **Avisos:** evento em tempo real (Reverb, canal privado do usuário) e e-mail opcional quando uma ordem real sai, falha ou é recusada pela guarda.
+- **"Parar tudo":** botão na carteira ou `php artisan trading:panic {id}` (ou `--all`). Desliga a execução automática, cancela as ordens abertas que o app enviou (`signal-*` e `position-*`) e bloqueia novas ordens, inclusive as manuais e as saídas por stop, até "Liberar ordens" (ou `trading:panic {id} --resume`). As posições abertas ficam como estão. O bloqueio vale mesmo com a Binance fora do ar.
+
+**Para ligar em produção (Ubuntu):**
+
+1. No `.env`: `TRADING_LIVE_ENABLED=true`, e os limites `TRADING_LIVE_MAX_ORDER_VALUE` e `TRADING_LIVE_MAX_DAILY_VALUE` que você aceita perder em um dia.
+2. `php artisan optimize && php artisan queue:restart` (e reinicie `mymoney.target` se mudou o Reverb).
+3. Na carteira real, "Ligar execução automática" e digite `CONFIRMO`.
+
+Para ensaiar sem dinheiro, aponte para a testnet antes: `BINANCE_TESTNET=true` e uma chave criada em testnet.binance.vision (a carteira real e a credencial têm de ser dessa chave). Trocar para a produção é remover a variável e cadastrar a chave real.
 
 ## Coletor de cotações por WebSocket
 
