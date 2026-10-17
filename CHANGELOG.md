@@ -4,11 +4,17 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.17] - 2026-10-17
+## [0.3.19] - 2026-10-17
 
 ### Corrigido
 
 - **Sincronização da Binance não falha mais quando o relógio da máquina está fora de hora.** Em computadores que suspendem (como o WSL no Windows), o relógio podia adiantar ou atrasar e a Binance recusava a chamada com "Timestamp for this request was 1000ms ahead of the server's time". Agora o sistema confere a hora da Binance, ajusta o próprio relógio nas chamadas e, se mesmo assim a Binance reclamar, refaz o ajuste e tenta de novo uma vez. Se ainda falhar, a mensagem explica em português que é preciso acertar o relógio da máquina (no WSL: `sudo hwclock -s`). A tolerância da Binance pode ser mudada com `BINANCE_RECV_WINDOW` no `.env` (padrão 5000 ms).
+
+## [0.3.18] - 2026-10-17
+
+### Adicionado
+
+- **Ligar ou desligar a execução automática depois de criar a carteira.** Na tela da carteira há agora um quadro com a opção "Executar sinais aprovados sem confirmação manual" e o botão Salvar. Com a opção ligada, o sinal aprovado pelo consenso dos agentes é executado na hora; desligada (o padrão), ele fica aguardando a sua confirmação. A guarda de risco vale nos dois casos. A mudança fica registrada e só o dono da carteira pode fazer. Carteiras reais, como a Conta Binance, continuam exigindo a sua aprovação em cada ordem: a opção aparece bloqueada e a execução real segue dependendo de estar liberada.
 
 ## [0.3.16] - 2026-10-17
 

@@ -6,8 +6,10 @@ use App\Agents\AgentActivity;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
 use App\Http\Requests\StorePortfolioRequest;
+use App\Http\Requests\UpdatePortfolioRequest;
 use App\Models\AgentScore;
 use App\Models\AgentVote;
+use App\Models\AuditLog;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Models\RiskProfile;
@@ -63,6 +65,22 @@ class PortfolioController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Carteira criada.']);
 
         return to_route('portfolios.show', $portfolio);
+    }
+
+    public function update(UpdatePortfolioRequest $request, Portfolio $portfolio): RedirectResponse
+    {
+        $autoExecute = $request->boolean('auto_execute');
+
+        if ($autoExecute !== $portfolio->auto_execute) {
+            $portfolio->update(['auto_execute' => $autoExecute]);
+            AuditLog::record('user:'.$request->user()->id, 'portfolio.auto_execute', $portfolio, ['auto_execute' => $autoExecute]);
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $autoExecute
+            ? 'Execução automática ligada: sinais aprovados serão executados sem confirmação.'
+            : 'Execução automática desligada: sinais aprovados aguardam a sua confirmação.']);
+
+        return back();
     }
 
     public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts): Response

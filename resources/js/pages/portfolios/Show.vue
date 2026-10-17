@@ -16,7 +16,7 @@ import {
     percent,
     stageLabels,
 } from '@/lib/trading';
-import { index } from '@/routes/portfolios';
+import { index, update } from '@/routes/portfolios';
 import type {
     AgentActivity,
     AgentScoreRow,
@@ -94,6 +94,49 @@ const stageVariant = (stage: string) =>
                 </p>
             </div>
         </div>
+
+        <section class="rounded-2xl border bg-card p-4">
+            <Form
+                v-bind="update.form(portfolio.id)"
+                v-slot="{ errors, processing }"
+                class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <label class="flex items-start gap-2 text-sm">
+                    <input type="hidden" name="auto_execute" value="0" />
+                    <input
+                        type="checkbox"
+                        name="auto_execute"
+                        value="1"
+                        class="mt-0.5"
+                        :checked="portfolio.auto_execute"
+                        :disabled="portfolio.mode !== 'paper'"
+                    />
+                    <span>
+                        Executar sinais aprovados sem confirmação manual
+                        <span class="block text-muted-foreground">
+                            {{
+                                portfolio.mode === 'paper'
+                                    ? 'Desligado, cada sinal aprovado pelos agentes espera a sua confirmação. A guarda de risco vale nos dois casos.'
+                                    : 'Carteira real: cada ordem exige a sua aprovação e a execução automática não pode ser ligada.'
+                            }}
+                        </span>
+                        <span
+                            v-if="errors.auto_execute"
+                            class="block text-destructive"
+                        >
+                            {{ errors.auto_execute }}
+                        </span>
+                    </span>
+                </label>
+                <Button
+                    v-if="portfolio.mode === 'paper'"
+                    :disabled="processing"
+                    variant="outline"
+                >
+                    Salvar
+                </Button>
+            </Form>
+        </section>
 
         <AssetChartsCard
             :portfolio-id="portfolio.id"
