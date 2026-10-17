@@ -103,4 +103,77 @@ class ConsensusEngineTest extends TestCase
 
         $this->assertEqualsWithDelta(0.5, $result->score, 0.0001);
     }
+
+    /**
+     * @return list<Vote>
+     */
+    private function withAbstentions(): array
+    {
+        return [
+            new Vote(AgentRole::Technical, VoteAction::Buy, 0.8, reasons: ['a']),
+            new Vote(AgentRole::Skeptic, VoteAction::Buy, 0.6, reasons: ['b']),
+            new Vote(AgentRole::Risk, VoteAction::Buy, 0.7, reasons: ['c']),
+            Vote::abstain(AgentRole::Quant, 'Previsão indisponível.'),
+            Vote::abstain(AgentRole::News, 'Nenhuma notícia relevante.'),
+            Vote::abstain(AgentRole::Fundamentals, 'Sem fundamentos.'),
+        ];
+    }
+
+    public function test_abstentions_do_not_change_the_average()
+    {
+        $result = (new ConsensusEngine)->decide($this->withAbstentions(), $this->profile());
+
+        $this->assertEqualsWithDelta(0.7, $result->score, 0.0001);
+        $this->assertTrue($result->approved);
+    }
+
+    public function test_real_hold_still_weighs_in_the_average()
+    {
+        $votes = $this->withAbstentions();
+        $votes[3] = new Vote(AgentRole::Quant, VoteAction::Hold, 0.6, reasons: ['sem tendência']);
+
+        $result = (new ConsensusEngine)->decide($votes, $this->profile());
+
+        $this->assertEqualsWithDelta(2.1 / 4, $result->score, 0.0001);
+    }
+
+    public function test_rejects_when_too_few_agents_voted()
+    {
+        $votes = [
+            new Vote(AgentRole::Technical, VoteAction::Buy, 0.9, reasons: ['a']),
+            new Vote(AgentRole::Risk, VoteAction::Buy, 0.9, reasons: ['b']),
+            Vote::abstain(AgentRole::Quant, 'x'),
+            Vote::abstain(AgentRole::News, 'y'),
+        ];
+
+        $result = (new ConsensusEngine)->decide($votes, $this->profile()->forceFill(['min_agreeing_voters' => 2]));
+
+        $this->assertFalse($result->approved);
+        $this->assertSame('Só 2 agentes votaram: mínimo de 3.', $result->reason);
+    }
+
+    public function test_all_abstentions_are_rejected_without_dividing_by_zero()
+    {
+        $result = (new ConsensusEngine)->decide([Vote::abstain(AgentRole::Quant, 'x')], $this->profile());
+
+        $this->assertFalse($result->approved);
+        $this->assertSame(0.0, $result->score);
+        $this->assertSame('Só 0 agentes votaram: mínimo de 3.', $result->reason);
+    }
+
+    public function test_agreement_quorum_follows_the_valid_votes_not_the_whole_panel()
+    {
+        // Profile asks for 4 agreeing voters, but only 3 agents have data: all 3 agreeing is enough.
+        $result = (new ConsensusEngine)->decide($this->withAbstentions(), $this->profile());
+
+        $this->assertTrue($result->approved);
+        $this->assertSame(3, $result->agreeing);
+
+        // With one of the 3 disagreeing the quorum of 3 is not met.
+        $votes = $this->withAbstentions();
+        $votes[1] = new Vote(AgentRole::Skeptic, VoteAction::Sell, 0.1, reasons: ['b']);
+        $result = (new ConsensusEngine)->decide($votes, $this->profile());
+
+        $this->assertFalse($result->approved);
+    }
 }

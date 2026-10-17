@@ -14,11 +14,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use Tests\Concerns\BuildsMarket;
+use Tests\Concerns\ProvidesAgentInputs;
 use Tests\TestCase;
 
 class AgentLiveEventsTest extends TestCase
 {
-    use BuildsMarket, RefreshDatabase;
+    use BuildsMarket, ProvidesAgentInputs, RefreshDatabase;
 
     private function runCycle(string $action, bool $autoExecute = false): Portfolio
     {
@@ -28,6 +29,7 @@ class AgentLiveEventsTest extends TestCase
         ]));
         $asset = Asset::factory()->create(['lot_size' => '0.001']);
         $this->quote($asset, 100);
+        $this->provideAgentInputs($asset);
         $portfolio = Portfolio::factory()->create(['market' => $asset->market, 'auto_execute' => $autoExecute]);
 
         app(SignalScanner::class)->scan($asset);

@@ -24,14 +24,17 @@ final readonly class Vote
         public int $inputTokens = 0,
         public int $outputTokens = 0,
         public float $cost = 0,
+        public bool $abstained = false,
     ) {}
 
     /**
-     * A vote that counts as "hold", used when an agent fails or times out.
+     * The agent has nothing to base an opinion on (no data, or the model failed).
+     * It is stored as a hold with zero confidence, but the consensus leaves it
+     * out of the average and of the total weight.
      */
     public static function abstain(AgentRole $agent, string $reason): self
     {
-        return new self($agent, VoteAction::Hold, 0, reasons: [$reason]);
+        return new self($agent, VoteAction::Hold, 0, reasons: [$reason], abstained: true);
     }
 
     /**
@@ -39,7 +42,7 @@ final readonly class Vote
      */
     public function value(): float
     {
-        return $this->action->direction() * $this->confidence;
+        return $this->abstained ? 0.0 : $this->action->direction() * $this->confidence;
     }
 
     /**

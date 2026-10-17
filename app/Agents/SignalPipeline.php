@@ -63,7 +63,7 @@ class SignalPipeline
             $this->store($signal, $finalVotes, 2);
         }
 
-        $result = $this->consensus->decide($finalVotes, $signal->portfolio->riskProfile, $this->weights($signal));
+        $result = $this->consensus->decide($finalVotes, $signal->portfolio->riskProfile, $this->weights($signal), (int) config('trading.consensus.min_voters'));
 
         $signal->update([
             'score' => $result->score,
@@ -123,6 +123,7 @@ class SignalPipeline
                 'action' => $vote->action,
                 'confidence' => $vote->confidence,
                 'veto' => $vote->veto,
+                'abstained' => $vote->abstained,
                 'reasons' => $vote->reasons,
                 'evidence_ids' => $vote->evidenceIds,
                 'stop_price' => $vote->stop,

@@ -17,6 +17,17 @@ function patchAgent(
     );
 }
 
+function voteState(event: {
+    veto: boolean;
+    abstained: boolean;
+    action: 'buy' | 'sell' | 'hold';
+}): AgentActivityAgent['state'] {
+    if (event.veto) return 'veto';
+    if (event.abstained) return 'abstained';
+
+    return event.action === 'hold' ? 'neutral' : event.action;
+}
+
 /**
  * Folds one real agent event into the activity the card shows. The server
  * sends the full picture when a cycle is decided; in between, the events
@@ -75,13 +86,11 @@ export function applyAgentEvent(
                     : event.round > 1
                       ? 'revision'
                       : 'vote',
-                state: event.veto
-                    ? 'veto'
-                    : event.action === 'hold'
-                      ? 'neutral'
-                      : event.action,
+                state: voteState(event),
                 round: event.round,
-                text: `${ACTION_TEXT[event.action]} com ${Math.round(event.confidence * 100)}% de confiança.`,
+                text: event.abstained
+                    ? `Absteve-se: ${event.text ?? 'sem dados para opinar.'}`
+                    : `${ACTION_TEXT[event.action]} com ${Math.round(event.confidence * 100)}% de confiança.`,
             };
             const messages = [...activity.messages];
 
@@ -102,12 +111,10 @@ export function applyAgentEvent(
                 ...activity,
                 messages,
                 agents: patchAgent(activity, event.role, {
-                    state: event.veto
-                        ? 'veto'
-                        : event.action === 'hold'
-                          ? 'neutral'
-                          : event.action,
-                    detail: `Votou ${ACTION_TEXT[event.action].toLowerCase()} com ${Math.round(event.confidence * 100)}% de confiança.${event.text ? ` ${event.text}` : ''}`,
+                    state: voteState(event),
+                    detail: event.abstained
+                        ? `Absteve-se, fora do score.${event.text ? ` ${event.text}` : ''}`
+                        : `Votou ${ACTION_TEXT[event.action].toLowerCase()} com ${Math.round(event.confidence * 100)}% de confiança.${event.text ? ` ${event.text}` : ''}`,
                     action: event.action,
                     confidence: event.confidence,
                     round: event.round,

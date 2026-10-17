@@ -75,6 +75,7 @@ const dot: Record<string, string> = {
     sell: 'bg-down',
     rejected: 'bg-down',
     neutral: 'bg-muted-foreground',
+    abstained: 'bg-muted-foreground/50',
     veto: 'bg-amber-400',
 };
 

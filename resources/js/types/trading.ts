@@ -20,6 +20,7 @@ export type AgentVote = {
     action: 'buy' | 'sell' | 'hold';
     confidence: number;
     veto: boolean;
+    abstained: boolean;
     reasons: string[];
 };
 
@@ -95,6 +96,7 @@ export type AgentState =
     | 'approved'
     | 'rejected'
     | 'neutral'
+    | 'abstained'
     | 'buy'
     | 'sell'
     | 'veto';
@@ -156,6 +158,7 @@ export type AgentLiveEvent = { at: string; signal_id: number } & (
           action: 'buy' | 'sell' | 'hold';
           confidence: number;
           veto: boolean;
+          abstained: boolean;
           text: string | null;
       }
     | { type: 'consensus.decided'; snapshot: AgentActivity }

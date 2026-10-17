@@ -280,8 +280,13 @@ const stageVariant = (stage: string) =>
                         >
                             <p class="font-medium">
                                 {{ agentLabels[vote.agent] ?? vote.agent }}:
-                                {{ actionLabels[vote.action] }}
-                                {{ Math.round(vote.confidence * 100) }}%
+                                <template v-if="vote.abstained">
+                                    Absteve-se
+                                </template>
+                                <template v-else>
+                                    {{ actionLabels[vote.action] }}
+                                    {{ Math.round(vote.confidence * 100) }}%
+                                </template>
                                 <span v-if="vote.veto" class="text-destructive">
                                     · veto
                                 </span>
