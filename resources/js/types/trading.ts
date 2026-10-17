@@ -87,6 +87,24 @@ export type PositionRow = {
     qty: number;
     avg_price: number;
     stop_price: number | null;
+    last_price: number | null;
+    value: number | null;
+};
+
+export type AccountHolding = {
+    coin: string;
+    qty: number;
+    price: number | null;
+    value: number | null;
+    status: string;
+    reason: string | null;
+};
+
+export type AccountSync = {
+    synced_at: string | null;
+    dust: AccountHolding[];
+    dust_total: number;
+    not_mirrored: AccountHolding[];
 };
 
 export type CurvePoint = {

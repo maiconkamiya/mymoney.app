@@ -4,12 +4,23 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.29] - 2026-10-17
+## [0.3.30] - 2026-10-17
 
 ### Adicionado
 
 - **O agente Técnico agora lê o gráfico como um investidor experiente.** Antes de votar, o sistema calcula, em 5 minutos, 15 minutos, 1 hora, 4 horas e 1 dia, a tendência, as médias de 9, 21 e 50 períodos, o RSI, a volatilidade (ATR), o volume relativo, os suportes e resistências (com quantas vezes o preço tocou cada um), a faixa de consolidação e os rompimentos, falsos rompimentos e testes de nível. O agente raciocina em cima desses números, sem inventar nível, e devolve o cenário esperado (alta, queda, rompimento de alta, rompimento de baixa, teste de resistência ou lateral), os suportes e resistências que usou, e um stop e um alvo coerentes com a volatilidade. Tempo gráfico sem histórico suficiente fica de fora e o agente avisa; se nenhum tem histórico, ele se abstém.
 - **Cenário e níveis no sinal.** No cartão de cada sinal, o voto do Técnico mostra o cenário, os suportes, as resistências, os gráficos usados e os que ficaram sem histórico.
+
+## [0.3.29] - 2026-10-17
+
+### Corrigido
+
+- **A carteira real mostra todos os ativos da conta Binance.** Antes, só apareciam em "Posições abertas" as moedas já cadastradas no sistema (BTC, ETH e SOL) e o resto sumia sem aviso. Agora toda moeda com saldo (livre mais o que está em ordem aberta) vira posição, com quantidade e valor estimado em USDT. Moedas novas são cadastradas sozinhas, sem entrar no scanner de sinais. Quando a moeda não tem par em USDT, o valor é estimado por BTC, BNB ou BRL.
+- **Nada some: poeira e moedas sem cotação ficam listadas.** Saldos abaixo de 1 USDT aparecem agrupados como "Poeira", com o total. Moedas sem cotação ou sem par em USDT aparecem com o motivo.
+
+### Adicionado
+
+- **Hora da última sincronização e botão "Sincronizar agora"** direto na carteira real, com o aviso de que só a carteira Spot é lida: saldos em Earn, Funding, Margin ou Futuros da Binance não aparecem.
 
 ## [0.3.28] - 2026-10-17
 
