@@ -4,6 +4,14 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.37] - 2026-10-17
+
+### Alterado
+
+- **O agente de Notícias deixa de ser consultado a cada sinal.** O voto dele passa a ser guardado por ativo e reaproveitado até chegar uma notícia nova para aquele ativo ou até passar o intervalo (6 horas por padrão, ajustável em `AGENTS_NEWS_INTERVAL_MINUTES`; `0` consulta o modelo em todo sinal). O voto reaproveitado não gasta nada de IA, inclusive na rodada de contestação do Cético.
+- **Bastam 2 agentes na mesma direção para aprovar um sinal (antes eram 4).** Com poucos agentes úteis em cripto (Técnico, Risco e Cético), exigir 4 fazia todo sinal depender de unanimidade. Os perfis de risco que ainda estavam no padrão antigo passam para 2 sozinhos.
+- **O Cético pode usar um modelo mais barato.** Em `AGENTS_SKEPTIC_MODEL` você escolhe o modelo só dele (por exemplo, o Sonnet, que custa metade do Opus). Sem essa opção, nada muda.
+
 ## [0.3.36] - 2026-10-17
 
 ### Adicionado
