@@ -48,6 +48,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $micro_daily_operations
  * @property int $micro_wallet_pct
  * @property float|null $micro_daily_loss_limit
+ * @property list<int>|null $micro_liquidate_asset_ids
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read User $user
@@ -60,7 +61,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  * @property-read Collection<int, MicroCycle> $microCycles
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit', 'micro_daily_operations', 'micro_wallet_pct'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit', 'micro_daily_operations', 'micro_wallet_pct', 'micro_liquidate_asset_ids'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -92,6 +93,7 @@ class Portfolio extends Model
             'micro_daily_operations' => 'integer',
             'micro_wallet_pct' => 'integer',
             'micro_daily_loss_limit' => 'float',
+            'micro_liquidate_asset_ids' => 'array',
         ];
     }
 
@@ -166,6 +168,14 @@ class Portfolio extends Model
         $query->where(fn (Builder $q) => $q
             ->whereDoesntHave('assets')
             ->orWhereHas('assets', fn (Builder $a) => $a->whereKey($asset->id)));
+    }
+
+    /**
+     * Whether the owner marked the asset to be sold with profit and no longer bought.
+     */
+    public function liquidates(int $assetId): bool
+    {
+        return in_array($assetId, $this->micro_liquidate_asset_ids ?? [], true);
     }
 
     public function isLive(): bool

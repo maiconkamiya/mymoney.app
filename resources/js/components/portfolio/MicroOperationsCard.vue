@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { Form } from '@inertiajs/vue3';
+import { Form, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import { liquidate as liquidateAction } from '@/actions/App/Http/Controllers/MicroOperationsController';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,10 +11,31 @@ import { money } from '@/lib/trading';
 import { micro as microRoute } from '@/routes/portfolios';
 import type { MicroOverview, PortfolioSummary } from '@/types';
 
-defineProps<{
+const props = defineProps<{
     portfolio: PortfolioSummary;
     micro: MicroOverview;
 }>();
+
+const toggling = ref<number | null>(null);
+
+function toggleLiquidation(assetId: number, liquidate: boolean) {
+    toggling.value = assetId;
+
+    router.put(
+        liquidateAction.url(props.portfolio.id),
+        { asset_id: assetId, liquidate },
+        {
+            preserveScroll: true,
+            only: ['portfolio', 'micro'],
+            onFinish: () => (toggling.value = null),
+        },
+    );
+}
+
+const price = (value: number | null) =>
+    value === null
+        ? 'sem cotação'
+        : value.toLocaleString('pt-BR', { maximumSignificantDigits: 6 });
 
 const exitLabels: Record<string, string> = {
     target: 'Alvo',
@@ -20,6 +43,7 @@ const exitLabels: Record<string, string> = {
     micro_time: 'Tempo limite',
     period_end: 'Fim do período',
     sold: 'Vendida',
+    micro_liquidate: 'Liquidado com lucro',
 };
 
 const time = (iso: string) =>
@@ -281,6 +305,78 @@ const time = (iso: string) =>
                 sem leitura: {{ row.reason }}
             </li>
         </ul>
+
+        <div
+            v-if="micro.liquidation.length"
+            class="flex flex-col gap-2"
+            data-test="micro-liquidation"
+        >
+            <h4 class="text-sm font-medium">Liquidar com lucro</h4>
+            <p class="text-sm text-muted-foreground">
+                Marque um ativo para vender a posição assim que o preço cobrir o
+                custo de compra e o custo da ida e volta, e para o modo não
+                comprar mais esse ativo. Vale mesmo com as micro operações
+                desligadas. Desmarque para voltar a comprar.
+            </p>
+            <p
+                v-if="micro.liquidation_blocked"
+                class="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm"
+            >
+                {{ micro.liquidation_blocked }}
+            </p>
+            <ul class="grid gap-2 text-sm">
+                <li
+                    v-for="row in micro.liquidation"
+                    :key="row.asset_id"
+                    class="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"
+                    :data-test="`micro-liquidation-${row.symbol}`"
+                >
+                    <div class="flex flex-col gap-0.5">
+                        <span class="flex items-center gap-2 font-medium">
+                            {{ row.symbol }}
+                            <Badge v-if="row.marked" variant="secondary">
+                                Liquidar com lucro
+                            </Badge>
+                        </span>
+                        <span
+                            v-if="row.qty > 0"
+                            class="text-muted-foreground tabular-nums"
+                        >
+                            {{ row.qty }} na carteira · custo
+                            {{ price(row.cost) }} · vende a partir de
+                            {{ price(row.sell_from) }} · agora
+                            <span
+                                :class="
+                                    row.price !== null &&
+                                    row.sell_from !== null &&
+                                    row.price >= row.sell_from
+                                        ? 'text-up'
+                                        : ''
+                                "
+                                >{{ price(row.price) }}</span
+                            >
+                        </span>
+                        <span v-else class="text-muted-foreground">
+                            Sem posição aberta. O modo não compra este ativo.
+                        </span>
+                    </div>
+                    <Button
+                        type="button"
+                        size="sm"
+                        :variant="row.marked ? 'outline' : 'secondary'"
+                        :disabled="toggling === row.asset_id"
+                        :data-test="`micro-liquidate-${row.symbol}`"
+                        @click="toggleLiquidation(row.asset_id, !row.marked)"
+                    >
+                        {{
+                            row.marked
+                                ? 'Voltar a comprar'
+                                : 'Liquidar com lucro'
+                        }}
+                    </Button>
+                </li>
+            </ul>
+        </div>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm" data-test="micro-cycles">

@@ -302,6 +302,18 @@ export type MicroOverview = {
         blocked: string | null;
     }[];
     cycles: MicroCycleRow[];
+    liquidation: MicroLiquidationRow[];
+    liquidation_blocked: string | null;
+};
+
+export type MicroLiquidationRow = {
+    asset_id: number;
+    symbol: string;
+    marked: boolean;
+    qty: number;
+    cost: number | null;
+    sell_from: number | null;
+    price: number | null;
 };
 
 export type AssetRow = {

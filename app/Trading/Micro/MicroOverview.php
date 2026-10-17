@@ -3,6 +3,7 @@
 namespace App\Trading\Micro;
 
 use App\Enums\Market;
+use App\Models\Asset;
 use App\Models\MicroCycle;
 use App\Models\Portfolio;
 use Illuminate\Support\Carbon;
@@ -76,6 +77,10 @@ class MicroOverview
                 'fees' => round($today->sum('fees'), 4),
             ],
             'skipped' => $evaluation['skipped'],
+            'liquidation' => $this->liquidation($portfolio),
+            'liquidation_blocked' => $portfolio->isLive() && ! $portfolio->autoExecutesLive()
+                ? 'Na carteira real a venda só sai com a execução automática confirmada (CONFIRMO) e sem "Parar tudo".'
+                : null,
             'focus' => $evaluation['ready']->take((int) config('trading.micro.ranking_size'))->map(fn (array $row) => [
                 'symbol' => $row['asset']->symbol,
                 'atr_pct' => round($row['setup']->atrPct, 4),
@@ -100,5 +105,36 @@ class MicroOverview
                 'closed_at' => $cycle->closed_at?->toIso8601String(),
             ])->all(),
         ];
+    }
+
+    /**
+     * The open positions, each with the "liquidar com lucro" switch, and the
+     * marked assets that hold nothing now (still not bought).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function liquidation(Portfolio $portfolio): array
+    {
+        $marked = $portfolio->micro_liquidate_asset_ids ?? [];
+        $rows = [];
+
+        foreach ($portfolio->openPositions()->with('asset')->orderBy('id')->get() as $position) {
+            $row = $this->trader->liquidation($portfolio, $position);
+            $rows[$position->asset_id] = [
+                'asset_id' => $position->asset_id,
+                'symbol' => $position->asset->symbol,
+                'marked' => in_array($position->asset_id, $marked, true),
+                'qty' => round($position->qty, 8),
+                'cost' => round($row['cost'], 8),
+                'sell_from' => round($row['sell_from'], 8),
+                'price' => $row['price'] === null ? null : round($row['price'], 8),
+            ];
+        }
+
+        foreach (Asset::query()->whereIn('id', array_diff($marked, array_keys($rows)))->orderBy('symbol')->get() as $asset) {
+            $rows[$asset->id] = ['asset_id' => $asset->id, 'symbol' => $asset->symbol, 'marked' => true, 'qty' => 0.0, 'cost' => null, 'sell_from' => null, 'price' => null];
+        }
+
+        return array_values($rows);
     }
 }

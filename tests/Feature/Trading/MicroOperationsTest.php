@@ -16,11 +16,13 @@ use App\Models\User;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Micro\MicroCosts;
 use App\Trading\Micro\MicroOverview;
+use App\Trading\Micro\MicroRanker;
 use App\Trading\Micro\MicroTrader;
 use App\Trading\PortfolioValuation;
 use App\Trading\PositionExits;
 use App\Trading\Risk\RiskGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -446,5 +448,130 @@ class MicroOperationsTest extends TestCase
         $this->actingAs(User::factory()->create())->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '1', 'micro_order_value' => '20', 'micro_net_margin_pct' => '0.2'])
             ->assertForbidden();
         $this->assertFalse($portfolio->fresh()->micro_enabled);
+    }
+
+    private function boughtPosition(Portfolio $portfolio, float $qty = 0.2, float $paid = 100.0): Position
+    {
+        Order::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'broker' => $portfolio->broker, 'side' => OrderSide::Buy, 'type' => 'market', 'qty' => $qty, 'price' => $paid, 'status' => OrderStatus::Filled, 'fees' => 0, 'filled_at' => now()->subHour()]);
+
+        // Recreated by the account sync: the average is the price of that moment, not what was paid.
+        return Position::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'qty' => $qty, 'avg_price' => 90, 'opened_at' => now()]);
+    }
+
+    public function test_a_pair_marked_to_liquidate_is_not_bought()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_liquidate_asset_ids' => [$this->asset->id]]);
+
+        $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
+        $this->assertSame(0, Order::count());
+        $this->assertStringContainsString('liquidar com lucro', (string) app(MicroTrader::class)->gate($portfolio, $this->asset, app(MicroRanker::class)->rank($portfolio, 0.5)->first()['setup'], 0));
+    }
+
+    public function test_a_marked_position_is_sold_only_with_net_profit_even_with_the_mode_off()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_enabled' => false, 'micro_liquidate_asset_ids' => [$this->asset->id]]);
+        $position = $this->boughtPosition($portfolio);
+
+        // Paid 100: 100.15 does not cover the 0.30% round trip (sells from 100.30).
+        $this->artisan('micro:run')->assertSuccessful();
+        $this->assertNull($position->fresh()->closed_at);
+        $this->assertSame(1, Order::count());
+
+        $this->advanceTo(100.5);
+        $this->artisan('micro:run')->assertSuccessful();
+
+        $position->refresh();
+        $this->assertNotNull($position->closed_at);
+        $this->assertSame('micro_liquidate', $position->exit_reason);
+        $sell = Order::where('side', OrderSide::Sell)->sole();
+        $this->assertSame(OrderStatus::Filled, $sell->status);
+        $this->assertDatabaseHas('audit_log', ['action' => 'micro.liquidated', 'subject_id' => $position->id]);
+        // Still marked: nothing is bought back.
+        $this->assertSame(0, MicroCycle::count());
+    }
+
+    public function test_an_open_cycle_of_a_marked_pair_closes_as_liquidated()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+        $portfolio->update(['micro_liquidate_asset_ids' => [$this->asset->id]]);
+
+        $cycle = MicroCycle::sole();
+        $this->advanceTo($cycle->entry_price * 1.004);
+        app(MicroTrader::class)->run($portfolio->fresh());
+
+        $cycle->refresh();
+        $this->assertSame('closed', $cycle->status);
+        $this->assertSame('micro_liquidate', $cycle->exit_reason);
+        $this->assertGreaterThan(0, $cycle->net_pnl);
+    }
+
+    public function test_a_real_sale_uses_the_free_balance_rounded_down_to_the_step()
+    {
+        config(['trading.live.enabled' => true]);
+        $this->asset->update(['lot_size' => '0.0001', 'min_qty' => '0.0001', 'min_notional' => '5']);
+        $this->candles($this->asset);
+        $this->advanceTo(100.5);
+        $user = User::factory()->create();
+        $credential = BrokerCredential::create(['user_id' => $user->id, 'broker' => 'binance', 'label' => 'x', 'api_key' => 'k', 'api_secret' => 's', 'can_withdraw' => false, 'verified_at' => now()]);
+        $portfolio = $this->micro(['user_id' => $user->id, 'mode' => 'live', 'broker' => 'binance', 'broker_credential_id' => $credential->id, 'auto_execute' => true, 'live_auto_confirmed_at' => now(), 'micro_enabled' => false, 'micro_liquidate_asset_ids' => [$this->asset->id], 'cash' => 50, 'initial_cash' => 50]);
+        // Bought 0.188, the exchange kept the fee in DOGE: 0.18781 on the account.
+        $position = $this->boughtPosition($portfolio, 0.188);
+
+        Http::fake(function (Request $request) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+
+            return match (true) {
+                $path === '/api/v3/time' => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+                $path === '/api/v3/account' => Http::response(['balances' => [['asset' => 'DOGE', 'free' => '0.18781', 'locked' => '0'], ['asset' => 'USDT', 'free' => '50', 'locked' => '0']]]),
+                default => Http::response(['orderId' => 9, 'status' => 'FILLED', 'executedQty' => '0.1878', 'cummulativeQuoteQty' => '18.8739', 'transactTime' => now()->getTimestampMs(), 'fills' => [['price' => '100.5', 'qty' => '0.1878', 'commission' => '0.0188', 'commissionAsset' => 'USDT']]]),
+            };
+        });
+
+        $this->assertSame(1, app(MicroTrader::class)->liquidate($portfolio));
+
+        Http::assertSent(fn ($request) => $request->method() === 'POST' && str_contains($request->url(), 'side=SELL') && str_contains($request->url(), 'quantity=0.1878&'));
+        // The 0.0002 left (0.02 USDT) cannot be sold: the position is over.
+        $this->assertNotNull($position->fresh()->closed_at);
+    }
+
+    public function test_a_real_portfolio_without_confirmo_does_not_liquidate()
+    {
+        $this->candles($this->asset);
+        $this->advanceTo(110);
+        $portfolio = $this->micro(['mode' => 'live', 'broker' => 'binance', 'micro_enabled' => false, 'micro_liquidate_asset_ids' => [$this->asset->id]]);
+        $this->boughtPosition($portfolio);
+
+        $this->assertSame(0, app(MicroTrader::class)->liquidate($portfolio));
+        Http::assertNothingSent();
+    }
+
+    public function test_owner_marks_an_asset_and_the_card_shows_it_and_other_users_get_403()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_enabled' => false]);
+        $this->boughtPosition($portfolio);
+
+        $this->actingAs(User::factory()->create())->put(route('portfolios.liquidate', $portfolio), ['asset_id' => $this->asset->id, 'liquidate' => '1'])
+            ->assertForbidden();
+        $this->assertNull($portfolio->fresh()->micro_liquidate_asset_ids);
+
+        $this->actingAs($portfolio->user)->put(route('portfolios.liquidate', $portfolio), ['asset_id' => $this->asset->id, 'liquidate' => '1'])
+            ->assertRedirect();
+        $this->assertSame([$this->asset->id], $portfolio->fresh()->micro_liquidate_asset_ids);
+        $this->assertDatabaseHas('audit_log', ['action' => 'portfolio.micro_liquidate', 'subject_id' => $portfolio->id]);
+
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
+            ->where('micro.liquidation.0.symbol', 'DOGEUSDT')
+            ->where('micro.liquidation.0.marked', true)
+            ->where('micro.liquidation.0.cost', 100)
+            ->where('micro.liquidation.0.sell_from', 100.3));
+
+        $this->actingAs($portfolio->user)->put(route('portfolios.liquidate', $portfolio), ['asset_id' => $this->asset->id, 'liquidate' => '0'])
+            ->assertRedirect();
+        $this->assertNull($portfolio->fresh()->micro_liquidate_asset_ids);
     }
 }

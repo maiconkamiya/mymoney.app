@@ -19,12 +19,12 @@ class RunMicroOperations extends Command
     public function handle(MicroTrader $trader, MicroRanker $ranker, MicroCosts $costs): int
     {
         $portfolios = Portfolio::query()
-            ->where('micro_enabled', true)
             ->where('market', Market::Crypto)
+            ->where(fn ($query) => $query->where('micro_enabled', true)->orWhereNotNull('micro_liquidate_asset_ids'))
             ->get();
 
         if ($this->option('explain')) {
-            return $this->explain($portfolios, $trader, $ranker, $costs);
+            return $this->explain($portfolios->where('micro_enabled', true), $trader, $ranker, $costs);
         }
 
         $opened = 0;
@@ -54,6 +54,11 @@ class RunMicroOperations extends Command
             $gross = $costs->grossMarginPct($portfolio->micro_net_margin_pct);
 
             $this->line("Carteira #{$portfolio->id} {$portfolio->name}: {$state['label']} ({$state['code']})");
+            foreach ($portfolio->openPositions()->whereIn('asset_id', $portfolio->micro_liquidate_asset_ids ?? [])->with('asset')->get() as $position) {
+                $row = $trader->liquidation($portfolio, $position);
+                $this->line(sprintf('  %s  liquidar com lucro: custo %s, vende a partir de %s, preço agora %s', $position->asset->symbol, round($row['cost'], 8), round($row['sell_from'], 8), $row['price'] ?? 'sem cotação'));
+            }
+
             $this->line("  aporte {$portfolio->micro_order_value}, margem líquida {$portfolio->micro_net_margin_pct}%, alvo bruto {$gross}%, última execução: ".($trader->lastRun($portfolio) ?? 'nunca'));
 
             $evaluation = $ranker->evaluate($portfolio, $gross);
