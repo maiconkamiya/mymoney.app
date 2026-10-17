@@ -116,6 +116,8 @@ class PortfolioController extends Controller
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
+        $holdings = collect($portfolio->sync_report['holdings'] ?? [])->keyBy('coin');
+
         $signals = $portfolio->signals()
             ->with(['asset', 'votes'])
             ->latest()
@@ -176,7 +178,15 @@ class PortfolioController extends Controller
                 'qty' => $position->qty,
                 'avg_price' => $position->avg_price,
                 'stop_price' => $position->stop_price,
+                'last_price' => $holdings->get(preg_replace('/USDT$/', '', $position->asset->symbol))['price'] ?? null,
+                'value' => $holdings->get(preg_replace('/USDT$/', '', $position->asset->symbol))['value'] ?? null,
             ]),
+            'account_sync' => $portfolio->broker === 'binance' && $portfolio->mode === PortfolioMode::Live ? [
+                'synced_at' => $portfolio->synced_at?->toIso8601String(),
+                'dust' => $holdings->where('status', 'poeira')->values(),
+                'dust_total' => round($holdings->where('status', 'poeira')->sum('value'), 2),
+                'not_mirrored' => $holdings->whereIn('status', ['sem_cotacao', 'sem_par_usdt'])->values(),
+            ] : null,
             'signals' => $signals,
             'performance' => $performance->build($portfolio),
             'agent_scores' => AgentScore::query()->where('market', $portfolio->market)->orderByDesc('hit_rate')->get()->map(fn (AgentScore $score) => [

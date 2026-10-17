@@ -80,6 +80,58 @@ class BinanceAccountTest extends TestCase
         Http::assertSent(fn ($request) => $request->hasHeader('X-MBX-APIKEY', 'key-'.$user->id) && str_contains($request->url(), 'signature='));
     }
 
+    public function test_sync_lists_every_balance_with_value_reason_and_hour()
+    {
+        $user = User::factory()->create();
+        $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential($user));
+        $this->fakeAccount([
+            ['asset' => 'USDT', 'free' => '10', 'locked' => '0'],
+            ['asset' => 'BTC', 'free' => '0.01', 'locked' => '0.005'],
+            ['asset' => 'XRP', 'free' => '100', 'locked' => '50'],
+            ['asset' => 'SHIB', 'free' => '1000', 'locked' => '0'],
+            ['asset' => 'ABC', 'free' => '5', 'locked' => '0'],
+            ['asset' => 'XYZ', 'free' => '3', 'locked' => '0'],
+        ]);
+        Http::fake([
+            '*/api/v3/account*' => Http::response(['balances' => $this->balances]),
+            '*/api/v3/ticker/price*' => Http::response([
+                ['symbol' => 'XRPUSDT', 'price' => '0.5'],
+                ['symbol' => 'SHIBUSDT', 'price' => '0.00001'],
+                ['symbol' => 'BTCUSDT', 'price' => '60000'],
+                ['symbol' => 'ABCBTC', 'price' => '0.00001'],
+            ]),
+        ]);
+
+        $result = app(BinanceAccountSync::class)->sync($portfolio);
+        $portfolio->refresh();
+        $report = collect($portfolio->sync_report['holdings'])->keyBy('coin');
+
+        $this->assertNotNull($portfolio->synced_at);
+        $this->assertSame(2, $result['positions']);
+        $this->assertSame('posicao', $report['XRP']['status']);
+        $this->assertEqualsWithDelta(75.0, $report['XRP']['value'], 1e-6);
+        $this->assertFalse(Asset::query()->where('symbol', 'XRPUSDT')->sole()->active);
+        $this->assertSame('poeira', $report['SHIB']['status']);
+        $this->assertSame('sem_par_usdt', $report['ABC']['status']);
+        $this->assertSame('sem_cotacao', $report['XYZ']['status']);
+        $this->assertEqualsCanonicalizing(['SHIB', 'ABC', 'XYZ'], $result['ignored']);
+
+        $this->actingAs($user)->get(route('portfolios.show', $portfolio))
+            ->assertInertia(fn ($page) => $page
+                ->has('positions', 2)
+                ->where('account_sync.dust.0.coin', 'SHIB')
+                ->has('account_sync.not_mirrored', 2));
+    }
+
+    public function test_other_user_cannot_see_the_synced_portfolio_or_trigger_its_sync()
+    {
+        $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential(User::factory()->create()));
+        $intruder = User::factory()->create();
+
+        $this->actingAs($intruder)->get(route('portfolios.show', $portfolio))->assertForbidden();
+        $this->actingAs($intruder)->post(route('binance.sync'))->assertNotFound();
+    }
+
     public function test_sync_closes_positions_that_left_the_account_and_keeps_cost_basis()
     {
         $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential(User::factory()->create()));
