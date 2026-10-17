@@ -171,6 +171,22 @@ class MicroOperationsTest extends TestCase
         $this->assertSame(0, Order::count());
     }
 
+    public function test_stops_for_the_day_after_the_chosen_number_of_operations()
+    {
+        $other = Asset::factory()->create(['symbol' => 'ADAUSDT']);
+        $this->candles($this->asset);
+        $this->candles($other);
+        $portfolio = $this->micro(['micro_order_value' => 1, 'micro_daily_operations' => 1]);
+
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+        $this->assertSame(1, MicroCycle::count());
+        $this->assertEqualsWithDelta(1, MicroCycle::sole()->qty * MicroCycle::sole()->entry_price, 0.05);
+
+        $this->assertSame('operations_done', app(MicroTrader::class)->state($portfolio)['code']);
+        $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
+        $this->assertSame(1, MicroCycle::count());
+    }
+
     public function test_only_looks_at_the_assets_the_portfolio_tracks()
     {
         $other = Asset::factory()->create(['symbol' => 'ADAUSDT']);
@@ -240,8 +256,19 @@ class MicroOperationsTest extends TestCase
         $portfolio = $this->micro(['micro_enabled' => false]);
         $owner = $portfolio->user;
 
-        $this->actingAs($owner)->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '1', 'micro_order_value' => '1', 'micro_net_margin_pct' => '0.2'])
+        $this->actingAs($owner)->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '1', 'micro_order_value' => '0.5', 'micro_net_margin_pct' => '0.2'])
             ->assertSessionHasErrors('micro_order_value');
+
+        // A simulated portfolio accepts 1 dollar per operation; a real one needs the 5 USDT Binance minimum.
+        $this->actingAs($owner)->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '0', 'micro_order_value' => '1', 'micro_net_margin_pct' => '0.2', 'micro_daily_operations' => '20'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(20, $portfolio->fresh()->micro_daily_operations);
+
+        $real = Portfolio::factory()->create(['mode' => 'live', 'broker' => 'binance']);
+        $this->actingAs($real->user)->put(route('portfolios.micro', $real), ['micro_enabled' => '0', 'micro_order_value' => '1', 'micro_net_margin_pct' => '0.2'])
+            ->assertSessionHasErrors('micro_order_value');
+        $this->actingAs($real->user)->put(route('portfolios.micro', $real), ['micro_enabled' => '0', 'micro_order_value' => '5', 'micro_net_margin_pct' => '0.2'])
+            ->assertSessionHasNoErrors();
 
         $b3 = Portfolio::factory()->create(['market' => Market::B3]);
         $this->actingAs($b3->user)->put(route('portfolios.micro', $b3), ['micro_enabled' => '1', 'micro_order_value' => '20', 'micro_net_margin_pct' => '0.2'])

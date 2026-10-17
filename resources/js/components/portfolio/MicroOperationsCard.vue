@@ -71,8 +71,13 @@ const time = (iso: string) =>
             <div class="rounded-xl border p-3">
                 <p class="text-xs text-muted-foreground">Hoje</p>
                 <p class="text-lg font-semibold tabular-nums">
-                    {{ micro.today.cycles }} ciclos · {{ micro.today.wins }} no
-                    lucro
+                    {{ micro.today.opened
+                    }}{{
+                        micro.daily_operations
+                            ? ` de ${micro.daily_operations}`
+                            : ''
+                    }}
+                    operações · {{ micro.today.wins }} no lucro
                 </p>
             </div>
             <div class="rounded-xl border p-3">
@@ -90,10 +95,12 @@ const time = (iso: string) =>
             v-bind="microRoute.form(portfolio.id)"
             v-slot="{ errors, processing }"
             :options="{ preserveScroll: true }"
-            class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+            class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"
         >
             <div class="grid gap-2">
-                <Label for="micro_order_value">Aporte por operação</Label>
+                <Label for="micro_order_value">
+                    Valor por operação (mínimo {{ micro.min_order_value }})
+                </Label>
                 <Input
                     id="micro_order_value"
                     name="micro_order_value"
@@ -103,6 +110,19 @@ const time = (iso: string) =>
                     :default-value="micro.order_value"
                 />
                 <InputError :message="errors.micro_order_value" />
+            </div>
+            <div class="grid gap-2">
+                <Label for="micro_daily_operations">Operações por dia</Label>
+                <Input
+                    id="micro_daily_operations"
+                    name="micro_daily_operations"
+                    type="number"
+                    step="1"
+                    min="1"
+                    placeholder="Sem limite"
+                    :default-value="micro.daily_operations ?? ''"
+                />
+                <InputError :message="errors.micro_daily_operations" />
             </div>
             <div class="grid gap-2">
                 <Label for="micro_net_margin_pct">Margem líquida (%)</Label>
@@ -144,7 +164,7 @@ const time = (iso: string) =>
             </div>
 
             <div
-                class="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-4"
+                class="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-5"
             >
                 <input type="hidden" name="micro_enabled" value="0" />
                 <label class="flex items-center gap-2 text-sm">
