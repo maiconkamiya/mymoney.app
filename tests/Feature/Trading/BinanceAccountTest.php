@@ -10,8 +10,10 @@ use App\Models\Portfolio;
 use App\Models\User;
 use App\Trading\Brokers\BinanceBroker;
 use App\Trading\Live\BinanceAccountSync;
+use App\Trading\Live\BinanceClient;
 use App\Trading\Live\LiveTradingException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\Concerns\BuildsMarket;
 use Tests\TestCase;
@@ -50,7 +52,9 @@ class BinanceAccountTest extends TestCase
     private function fakeAccount(array $balances): void
     {
         $this->balances = $balances;
-        Http::fake(['*/api/v3/account*' => fn () => Http::response(['balances' => $this->balances])]);
+        Http::fake([
+            '*/api/v3/time' => fn () => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+            '*/api/v3/account*' => fn () => Http::response(['balances' => $this->balances])]);
     }
 
     public function test_sync_mirrors_cash_and_tracked_assets_and_skips_dust()
@@ -155,5 +159,97 @@ class BinanceAccountTest extends TestCase
         Http::assertSent(fn ($request) => $request->hasHeader('X-MBX-APIKEY', 'key-'.$a->id));
         Http::assertSent(fn ($request) => $request->hasHeader('X-MBX-APIKEY', 'key-'.$b->id));
         $this->assertSame(2, Portfolio::query()->where('status', PortfolioStatus::Running)->count());
+    }
+
+    private function clientFor(User $user): BinanceClient
+    {
+        return new BinanceClient($this->credential($user));
+    }
+
+    /** @return list<array<string, string>> query strings of the signed /account calls, in order */
+    private function accountTimestamps(): array
+    {
+        return Http::recorded(fn ($request) => str_contains($request->url(), '/api/v3/account'))
+            ->values()->map(function ($pair) {
+                parse_str(parse_url($pair[0]->url(), PHP_URL_QUERY), $query);
+
+                return $query;
+            })->all();
+    }
+
+    public function test_clock_ahead_of_binance_is_compensated_with_a_negative_offset()
+    {
+        Cache::flush();
+        $serverTime = (int) (microtime(true) * 1000) - 5_000; // relógio local 5 s adiantado
+        Http::fake([
+            '*/api/v3/time' => Http::response(['serverTime' => $serverTime]),
+            '*/api/v3/account*' => Http::response(['balances' => []]),
+        ]);
+
+        $this->clientFor(User::factory()->create())->signed('GET', '/api/v3/account');
+
+        [$query] = $this->accountTimestamps();
+        $this->assertEqualsWithDelta($serverTime, (int) $query['timestamp'], 1_000);
+        $this->assertLessThan($serverTime + 1_000, (int) $query['timestamp']);
+        $this->assertSame('5000', $query['recvWindow']);
+        $this->assertArrayHasKey('signature', $query);
+    }
+
+    public function test_clock_behind_binance_is_compensated_with_a_positive_offset_and_cached()
+    {
+        Cache::flush();
+        $serverTime = (int) (microtime(true) * 1000) + 3_000; // relógio local 3 s atrasado
+        Http::fake([
+            '*/api/v3/time' => Http::response(['serverTime' => $serverTime]),
+            '*/api/v3/account*' => Http::response(['balances' => []]),
+        ]);
+
+        $client = $this->clientFor(User::factory()->create());
+        $client->signed('GET', '/api/v3/account');
+        $client->signed('GET', '/api/v3/account');
+
+        foreach ($this->accountTimestamps() as $query) {
+            $this->assertEqualsWithDelta($serverTime, (int) $query['timestamp'], 1_000);
+        }
+        Http::assertSentCount(3); // um /time e duas chamadas assinadas
+    }
+
+    public function test_timestamp_error_refreshes_the_offset_and_retries_once()
+    {
+        Cache::flush();
+        $skewed = (int) (microtime(true) * 1000) + 60_000;
+        Cache::put('binance.clock_offset.'.md5((string) config('trading.binance.base_url')), 0, now()->addMinutes(5));
+        Http::fake([
+            '*/api/v3/time' => Http::response(['serverTime' => $skewed]),
+            '*/api/v3/account*' => Http::sequence()
+                ->push(['code' => -1021, 'msg' => "Timestamp for this request was 1000ms ahead of the server's time."], 400)
+                ->push(['balances' => []]),
+        ]);
+
+        $json = $this->clientFor(User::factory()->create())->signed('GET', '/api/v3/account');
+
+        $this->assertSame(['balances' => []], $json);
+        $timestamps = array_map(fn ($q) => (int) $q['timestamp'], $this->accountTimestamps());
+        $this->assertCount(2, $timestamps);
+        $this->assertGreaterThan(50_000, $timestamps[1] - $timestamps[0]);
+    }
+
+    public function test_persistent_timestamp_error_gives_up_after_one_retry_with_a_clear_message()
+    {
+        Cache::flush();
+        Http::fake([
+            '*/api/v3/time' => fn () => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+            '*/api/v3/account*' => Http::response(['code' => -1021, 'msg' => 'Timestamp outside of recvWindow.'], 400),
+        ]);
+
+        try {
+            $this->clientFor(User::factory()->create())->signed('GET', '/api/v3/account');
+            $this->fail('Deveria falhar com -1021.');
+        } catch (LiveTradingException $e) {
+            $this->assertStringContainsString('relógio', $e->getMessage());
+            $this->assertStringContainsString('hwclock', $e->getMessage());
+        }
+
+        $this->assertCount(2, $this->accountTimestamps());
     }
 }
