@@ -101,6 +101,10 @@ class LiveAutoExecutionTest extends TestCase
         Http::fake(function (Request $request) use ($open, $order) {
             $path = parse_url($request->url(), PHP_URL_PATH);
 
+            if ($path === '/api/v3/time') {
+                return Http::response(['serverTime' => (int) (microtime(true) * 1000)]);
+            }
+
             if ($path === '/api/v3/openOrders') {
                 return Http::response($open);
             }

@@ -4,12 +4,18 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.31] - 2026-10-17
+## [0.3.32] - 2026-10-17
 
 ### Adicionado
 
 - **Excluir carteira simulada.** Na lista de carteiras e na tela de cada carteira há o botão "Excluir carteira". Ele pede que você digite o nome da carteira para confirmar e apaga a carteira junto com sinais, votos dos agentes, ordens, posições e histórico, mesmo que ela ainda esteja em execução. Se houver sinal em andamento (aguardando análise, confirmação ou execução) ou ordem pendente, a exclusão é recusada com a explicação: confirme ou descarte os sinais primeiro. Carteira real, como a Conta Binance, não pode ser excluída por aqui. A exclusão fica registrada na auditoria e só o dono da carteira pode fazê-la.
 - **Alterar o saldo inicial da carteira simulada.** Na tela da carteira, o botão "Alterar saldo inicial" abre um diálogo para informar o novo valor (mínimo 100). O caixa muda pela diferença e o histórico de patrimônio acompanha, como se o capital sempre tivesse sido o novo; posições, ordens e sinais ficam como estão, e o retorno passa a ser calculado sobre o novo valor. Se o novo valor deixaria o caixa negativo, a alteração é recusada. Carteira real usa o saldo da corretora e não pode ser alterada. A mudança fica registrada na auditoria, com o valor antigo e o novo.
+
+## [0.3.31] - 2026-10-17
+
+### Corrigido
+
+- **Sincronização da Binance não falha mais quando o relógio da máquina está fora de hora.** Em computadores que suspendem (como o WSL no Windows), o relógio podia adiantar ou atrasar e a Binance recusava a chamada com "Timestamp for this request was 1000ms ahead of the server's time". Agora o sistema confere a hora da Binance, ajusta o próprio relógio nas chamadas e, se mesmo assim a Binance reclamar, refaz o ajuste e tenta de novo uma vez. Se ainda falhar, a mensagem explica em português que é preciso acertar o relógio da máquina (no WSL: `sudo hwclock -s`). A tolerância da Binance pode ser mudada com `BINANCE_RECV_WINDOW` no `.env` (padrão 5000 ms).
 
 ## [0.3.30] - 2026-10-17
 
