@@ -37,6 +37,7 @@ class AgentActivityBroadcaster
             'action' => $vote->action->value,
             'confidence' => $vote->confidence,
             'veto' => $vote->veto,
+            'abstained' => $vote->abstained,
             'text' => $vote->reasons[0] ?? null,
         ]);
     }
