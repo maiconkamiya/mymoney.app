@@ -154,11 +154,14 @@ class AgentActivity
 
         $verbo = match ($state) {
             'veto' => 'Vetou',
+            'abstained' => 'Absteve-se',
             'neutral' => 'Ficou neutro',
             'approved' => 'Aprovou',
             default => 'Rejeitou',
         };
-        $detail = sprintf('%s: %s com %d%% de confiança.', $verbo, strtolower($this->actionLabel($vote->action)), round($vote->confidence * 100));
+        $detail = $vote->abstained
+            ? 'Absteve-se, fora do score.'
+            : sprintf('%s: %s com %d%% de confiança.', $verbo, strtolower($this->actionLabel($vote->action)), round($vote->confidence * 100));
 
         if (($vote->reasons[0] ?? null) !== null) {
             $detail .= ' '.$vote->reasons[0];
@@ -172,6 +175,7 @@ class AgentActivity
             'confidence' => $vote->confidence,
             'round' => $vote->round,
             'veto' => $vote->veto,
+            'abstained' => $vote->abstained,
         ];
     }
 
@@ -179,6 +183,7 @@ class AgentActivity
     {
         return match (true) {
             $vote->veto => 'veto',
+            $vote->abstained => 'abstained',
             $vote->action === VoteAction::Hold => 'neutral',
             $signal?->side === null || $vote->action->value === $signal->side->value => 'approved',
             default => 'rejected',
@@ -213,7 +218,9 @@ class AgentActivity
                 'kind' => $vote->veto ? 'veto' : ($vote->round > 1 ? 'revision' : 'vote'),
                 'state' => $this->stance($signal, $vote),
                 'round' => $vote->round,
-                'text' => sprintf('%s com %d%% de confiança.', $this->actionLabel($vote->action), round($vote->confidence * 100)),
+                'text' => $vote->abstained
+                    ? 'Absteve-se: '.($vote->reasons[0] ?? 'sem dados para opinar.')
+                    : sprintf('%s com %d%% de confiança.', $this->actionLabel($vote->action), round($vote->confidence * 100)),
             ];
         }
 

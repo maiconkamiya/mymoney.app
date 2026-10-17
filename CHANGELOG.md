@@ -4,11 +4,22 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.19] - 2026-10-17
+## [0.3.21] - 2026-10-17
 
 ### Corrigido
 
 - **Sincronização da Binance não falha mais quando o relógio da máquina está fora de hora.** Em computadores que suspendem (como o WSL no Windows), o relógio podia adiantar ou atrasar e a Binance recusava a chamada com "Timestamp for this request was 1000ms ahead of the server's time". Agora o sistema confere a hora da Binance, ajusta o próprio relógio nas chamadas e, se mesmo assim a Binance reclamar, refaz o ajuste e tenta de novo uma vez. Se ainda falhar, a mensagem explica em português que é preciso acertar o relógio da máquina (no WSL: `sudo hwclock -s`). A tolerância da Binance pode ser mudada com `BINANCE_RECV_WINDOW` no `.env` (padrão 5000 ms).
+
+## [0.3.20] - 2026-10-17
+
+### Adicionado
+
+- **Memória de cálculo do score em cada sinal.** Na tela da carteira, cada sinal tem agora o bloco "Como o score foi calculado": voto, confiança, peso e contribuição de cada agente, quem se absteve (fora da conta), soma dos pesos, score, limite de aprovação, concordância exigida e o resultado. O detalhamento é guardado na hora do consenso; sinais antigos não têm.
+
+### Corrigido
+
+- **O score do sinal não é mais puxado para zero por agente sem dados.** Quando um agente não tem em que se basear (previsão fora do ar, nenhuma notícia, sem dados fundamentalistas ou falha ao consultar o modelo), ele agora **se abstém**: fica fora da média e do peso do consenso, em vez de entrar como "aguardar" com 0% ou com uma confiança inventada. Um "aguardar" de verdade, com confiança, continua contando. Nas telas o agente aparece como "Absteve-se", com o motivo.
+- **Mínimo de agentes com voto válido.** Se menos de 3 agentes votarem (configurável em `TRADING_CONSENSUS_MIN_VOTERS`), o sinal é rejeitado com o motivo "Só N agentes votaram: mínimo de 3". Quando alguns agentes se abstêm, a exigência de concordância do perfil de risco passa a valer sobre os agentes que votaram (com 3 votantes, os 3 precisam concordar), em vez de ficar impossível de atingir. O limite de aprovação e a execução não mudam.
 
 ## [0.3.18] - 2026-10-17
 

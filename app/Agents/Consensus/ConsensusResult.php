@@ -13,5 +13,7 @@ final readonly class ConsensusResult
         public int $agreeing,
         public bool $vetoed,
         public string $reason,
+        /** @var array<string, mixed>|null */
+        public ?array $calculation = null,
     ) {}
 }

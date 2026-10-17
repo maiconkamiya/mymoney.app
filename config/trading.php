@@ -121,6 +121,11 @@ return [
     |
     */
 
+    'consensus' => [
+        // Agents that abstain (no data) do not count; below this many valid votes the signal is rejected.
+        'min_voters' => max(1, (int) env('TRADING_CONSENSUS_MIN_VOTERS', 3)),
+    ],
+
     'signal_ttl_minutes' => (int) env('TRADING_SIGNAL_TTL_MINUTES', 60),
 
     /*

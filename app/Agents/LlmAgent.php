@@ -27,6 +27,10 @@ class LlmAgent
      */
     public function vote(Scenario $scenario, array $priorVotes = [], ?string $objection = null): Vote
     {
+        if (($reason = $this->missingInput($scenario)) !== null) {
+            return Vote::abstain($this->role, $reason);
+        }
+
         $config = config('agents.roles.'.$this->role->value);
         $model = config('agents.models.'.$config['model']);
 
@@ -71,5 +75,20 @@ class LlmAgent
             outputTokens: $response->outputTokens,
             cost: $response->cost(),
         );
+    }
+
+    /**
+     * Why this agent has nothing to judge, or null when it has its input.
+     * Checked before calling the model, so an agent without data neither costs
+     * tokens nor drags the score toward zero.
+     */
+    private function missingInput(Scenario $scenario): ?string
+    {
+        return match ($this->role) {
+            AgentRole::Quant => $scenario->forecast === null ? 'Previsão indisponível.' : null,
+            AgentRole::News => $scenario->news === [] && $scenario->similarNews === [] ? 'Nenhuma notícia relevante no cenário.' : null,
+            AgentRole::Fundamentals => $scenario->fundamentals === null ? 'Sem dados fundamentalistas para este ativo.' : null,
+            default => null,
+        };
     }
 }
