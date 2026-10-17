@@ -129,7 +129,7 @@ const typed = computed(() => query.value.trim().toUpperCase());
 const canAddTyped = computed(
     () =>
         typed.value.length >= 2 &&
-        !results.value.some((r) => r.symbol === typed.value) &&
+        results.value.length === 0 &&
         !props.assets.some(
             (a) => a.market === market.value && a.symbol === typed.value,
         ),
