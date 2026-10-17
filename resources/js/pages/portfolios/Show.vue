@@ -2,6 +2,7 @@
 import { echoIsConfigured, useEcho } from '@laravel/echo-vue';
 import { Form, Head, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import BinanceController from '@/actions/App/Http/Controllers/Settings/BinanceController';
 import { toast } from 'vue-sonner';
 import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
 import Heading from '@/components/Heading.vue';
@@ -23,6 +24,7 @@ import {
 } from '@/lib/trading';
 import { index, update } from '@/routes/portfolios';
 import type {
+    AccountSync,
     AgentActivity,
     AgentScoreRow,
     AvailableAsset,
@@ -38,6 +40,7 @@ import type {
 const props = defineProps<{
     portfolio: PortfolioSummary;
     positions: PositionRow[];
+    account_sync: AccountSync | null;
     signals: SignalRow[];
     performance: Performance;
     agent_scores: AgentScoreRow[];
@@ -227,6 +230,9 @@ const stageVariant = (stage: string) =>
                                 Preço médio
                             </th>
                             <th class="px-4 py-2 text-right font-medium">
+                                Valor (USDT)
+                            </th>
+                            <th class="px-4 py-2 text-right font-medium">
                                 Stop
                             </th>
                         </tr>
@@ -250,12 +256,84 @@ const stageVariant = (stage: string) =>
                             </td>
                             <td class="px-4 py-2 text-right tabular-nums">
                                 {{
+                                    position.value === null
+                                        ? '-'
+                                        : money(
+                                              position.value,
+                                              portfolio.market,
+                                          )
+                                }}
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">
+                                {{
                                     money(position.stop_price, portfolio.market)
                                 }}
                             </td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <div
+                v-if="account_sync"
+                class="mt-3 space-y-2 text-sm text-muted-foreground"
+            >
+                <div class="flex flex-wrap items-center gap-3">
+                    <span>
+                        Última sincronização com a Binance:
+                        {{
+                            account_sync.synced_at
+                                ? new Date(
+                                      account_sync.synced_at,
+                                  ).toLocaleString('pt-BR')
+                                : 'ainda não sincronizou'
+                        }}
+                    </span>
+                    <Form
+                        v-bind="BinanceController.sync.form()"
+                        v-slot="{ processing }"
+                        class="inline"
+                    >
+                        <Button
+                            type="submit"
+                            size="sm"
+                            variant="outline"
+                            :disabled="processing"
+                        >
+                            Sincronizar agora
+                        </Button>
+                    </Form>
+                </div>
+                <p v-if="account_sync.dust.length > 0">
+                    Poeira (abaixo de 1 USDT),
+                    {{ account_sync.dust.length }} ativo(s), total
+                    {{ account_sync.dust_total.toFixed(2) }} USDT:
+                    {{
+                        account_sync.dust
+                            .map((item) => `${item.coin} ${item.qty}`)
+                            .join(', ')
+                    }}.
+                </p>
+                <ul
+                    v-if="account_sync.not_mirrored.length > 0"
+                    class="list-disc pl-5"
+                >
+                    <li
+                        v-for="item in account_sync.not_mirrored"
+                        :key="item.coin"
+                    >
+                        {{ item.coin }} ({{ item.qty }}):
+                        {{ item.status === 'sem_cotacao' ? 'sem cotação. ' : ''
+                        }}{{ item.reason }}
+                        <template v-if="item.value !== null">
+                            Valor estimado {{ item.value.toFixed(2) }} USDT.
+                        </template>
+                    </li>
+                </ul>
+                <p class="text-xs">
+                    Só a carteira Spot é lida. Saldos em Earn, Funding, Margin
+                    ou Futuros da Binance não aparecem aqui.
+                </p>
             </div>
         </section>
 
