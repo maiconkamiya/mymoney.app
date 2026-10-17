@@ -32,6 +32,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable $starts_at
  * @property CarbonImmutable $ends_at
  * @property bool $auto_execute
+ * @property CarbonImmutable|null $synced_at
+ * @property array{holdings?: list<array{coin: string, qty: float, price: float|null, value: float|null, status: string, reason: string|null}>}|null $sync_report
  * @property CarbonImmutable|null $live_auto_confirmed_at
  * @property CarbonImmutable|null $orders_blocked_at
  * @property string|null $orders_blocked_reason
@@ -53,7 +55,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  * @property-read Collection<int, MicroCycle> $microCycles
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -73,6 +75,8 @@ class Portfolio extends Model
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
             'auto_execute' => 'boolean',
+            'synced_at' => 'datetime',
+            'sync_report' => 'array',
             'live_auto_confirmed_at' => 'datetime',
             'orders_blocked_at' => 'datetime',
             'notify_live_email' => 'boolean',
