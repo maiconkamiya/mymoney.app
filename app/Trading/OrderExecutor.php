@@ -14,6 +14,7 @@ use App\Models\Signal;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
+use App\Trading\Live\BinanceAccountSync;
 use App\Trading\Live\LiveAlerts;
 use App\Trading\Live\LiveTradingException;
 use App\Trading\Risk\RiskGuard;
@@ -109,7 +110,7 @@ class OrderExecutor
         $request = new OrderRequest(
             asset: $position->asset,
             side: OrderSide::Sell,
-            qty: $position->qty,
+            qty: $this->sellableQty($position),
             clientId: 'position-'.$position->id.'-'.$reason,
         );
 
@@ -134,6 +135,36 @@ class OrderExecutor
         }
 
         return $outcome;
+    }
+
+    /**
+     * What can really be sold. On a real portfolio Binance takes the buy fee in
+     * the bought coin (18.8 bought, 18.78 on the account), so the sale uses the
+     * smaller of the position and the free balance; and the exchange refuses a
+     * quantity off the pair's step, so it is rounded down to it.
+     */
+    public function sellableQty(Position $position): float
+    {
+        $qty = $position->qty;
+        $asset = $position->asset;
+
+        if ($position->portfolio->isLive()) {
+            $coin = substr($asset->symbol, 0, -strlen($asset->quote_currency));
+
+            try {
+                $free = $this->brokers->for($position->portfolio)->getBalances()[$coin] ?? null;
+            } catch (\Throwable) {
+                $free = null;
+            }
+
+            if ($free !== null && $free > 0) {
+                $qty = min($qty, $free);
+            }
+        }
+
+        $step = (float) $asset->lot_size;
+
+        return $step > 0 ? floor(round($qty / $step, 8)) * $step : $qty;
     }
 
     /**
@@ -303,6 +334,11 @@ class OrderExecutor
 
         $portfolio->increment('cash', $value - $result->fees);
         $remaining = round($position->qty - $result->filledQty, 8);
+
+        // What the step or the buy fee left behind (under 1 USDT) cannot be sold: the position is over.
+        if ($remaining > 0 && $portfolio->isLive() && $remaining * $result->avgPrice < BinanceAccountSync::DUST) {
+            $remaining = 0.0;
+        }
 
         $position->update([
             'qty' => $remaining,

@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
+use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Live\LiveLimits;
 use App\Trading\OrderExecutor;
@@ -38,6 +39,7 @@ class MicroTrader
         private readonly TradingHalt $halt,
         private readonly RiskGuard $risk,
         private readonly BinanceSymbols $symbols,
+        private readonly PriceFeed $prices,
     ) {}
 
     /**
@@ -45,6 +47,9 @@ class MicroTrader
      */
     public function run(Portfolio $portfolio): int
     {
+        // The owner's "liquidar com lucro" works even with the mode off: it only sells.
+        $this->liquidate($portfolio);
+
         if (! $portfolio->micro_enabled) {
             return 0;
         }
@@ -224,6 +229,108 @@ class MicroTrader
     }
 
     /**
+     * Sell, at a net profit, the positions of the assets the owner marked to
+     * liquidate. A real portfolio needs the automatic execution confirmed with
+     * CONFIRMO, as for any order the mode sends on its own.
+     *
+     * @return int positions sold
+     */
+    public function liquidate(Portfolio $portfolio): int
+    {
+        if (($portfolio->micro_liquidate_asset_ids ?? []) === [] || ! $portfolio->isRunning()) {
+            return 0;
+        }
+
+        if ($portfolio->isLive() && ! $portfolio->autoExecutesLive()) {
+            return 0;
+        }
+
+        $sold = 0;
+        $positions = $portfolio->openPositions()->whereIn('asset_id', $portfolio->micro_liquidate_asset_ids)->with(['asset', 'portfolio'])->get();
+
+        foreach ($positions as $position) {
+            $row = $this->liquidation($portfolio, $position);
+
+            if ($row['price'] === null || $row['price'] < $row['sell_from']) {
+                continue;
+            }
+
+            if ($portfolio->isLive()) {
+                $this->refreshFilters($position->asset);
+                $position->asset->refresh();
+            }
+
+            if ($this->executor->closePosition($position, 'micro_liquidate', self::ACTOR)?->status === OrderStatus::Filled) {
+                $sold++;
+                AuditLog::record(self::ACTOR, 'micro.liquidated', $position, ['portfolio_id' => $portfolio->id, 'symbol' => $position->asset->symbol, 'cost' => $row['cost'], 'price' => $row['price']]);
+            }
+        }
+
+        $this->settle($portfolio);
+
+        return $sold;
+    }
+
+    /**
+     * Where a marked position stands: its cost, the price that pays the cost
+     * plus the round trip (the sale only goes from there) and the last price.
+     *
+     * @return array{cost: float, sell_from: float, price: float|null}
+     */
+    public function liquidation(Portfolio $portfolio, Position $position): array
+    {
+        $cost = $this->costBasis($portfolio, $position);
+
+        return [
+            'cost' => $cost,
+            'sell_from' => $cost * (1 + $this->costs->roundTripPct() / 100),
+            'price' => $this->prices->quote($position->asset)?->price,
+        ];
+    }
+
+    /**
+     * What the coins cost. A position the account sync recreated carries the
+     * price of the moment it was read, not what was paid, so the open cycle's
+     * entry or the latest purchases that add up to the quantity come first.
+     */
+    private function costBasis(Portfolio $portfolio, Position $position): float
+    {
+        $entry = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->value('entry_price');
+
+        if ($entry !== null) {
+            return (float) $entry;
+        }
+
+        $buys = Order::query()
+            ->where('portfolio_id', $portfolio->id)
+            ->where('asset_id', $position->asset_id)
+            ->where('side', OrderSide::Buy)
+            ->where('status', OrderStatus::Filled)
+            ->latest('filled_at')
+            ->limit(20)
+            ->get();
+
+        $qty = 0.0;
+        $paid = 0.0;
+
+        foreach ($buys as $buy) {
+            if ($buy->price === null) {
+                continue;
+            }
+
+            $take = min((float) $buy->qty, $position->qty - $qty);
+            $qty += $take;
+            $paid += $take * (float) $buy->price;
+
+            if ($qty >= $position->qty - 1e-9) {
+                break;
+            }
+        }
+
+        return $qty > 0 ? $paid / $qty : (float) $position->avg_price;
+    }
+
+    /**
      * Sell what stayed open longer than the limit: a cycle is meant to be quick.
      */
     private function expire(Portfolio $portfolio): void
@@ -250,6 +357,10 @@ class MicroTrader
      */
     public function gate(Portfolio $portfolio, Asset $asset, MicroSetup $setup, int $openCycles): ?string
     {
+        if ($portfolio->liquidates($asset->id)) {
+            return 'marcado para liquidar com lucro: o modo não compra mais este par.';
+        }
+
         if ($openCycles >= (int) config('trading.micro.max_open_cycles')) {
             return 'já há '.$openCycles.' ciclos abertos (máximo '.(int) config('trading.micro.max_open_cycles').').';
         }

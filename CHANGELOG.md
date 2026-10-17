@@ -4,6 +4,16 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.45] - 2026-10-17
+
+### Adicionado
+
+- **Liquidar com lucro nas micro operações.** O card "Micro operações" lista as posições da carteira com o botão "Liquidar com lucro". Marcado, o ativo é vendido assim que o preço cobrir o custo de compra e o custo da ida e volta, e o modo não compra mais esse ativo até você clicar em "Voltar a comprar". O card mostra o custo, o preço a partir do qual vende e o preço de agora. Vale mesmo com as micro operações desligadas; na carteira real exige a execução automática confirmada (CONFIRMO).
+
+### Corrigido
+
+- **Vendas na carteira real que a Binance recusava.** A venda agora usa o saldo livre da moeda na conta (a Binance cobra a taxa da compra na própria moeda, então sobra um pouco menos do que foi comprado) e arredonda a quantidade para baixo no passo do par. A sobra de menos de 1 USDT que não dá para vender encerra a posição. Vale para alvo, stop, tempo limite e liquidação.
+
 ## [0.3.44] - 2026-10-17
 
 ### Corrigido
