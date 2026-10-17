@@ -35,6 +35,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable $starts_at
  * @property CarbonImmutable $ends_at
  * @property bool $auto_execute
+ * @property CarbonImmutable|null $live_auto_confirmed_at
+ * @property CarbonImmutable|null $orders_blocked_at
+ * @property string|null $orders_blocked_reason
+ * @property bool $notify_live_email
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read User $user
@@ -46,7 +50,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, Signal> $signals
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -66,6 +70,9 @@ class Portfolio extends Model
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
             'auto_execute' => 'boolean',
+            'live_auto_confirmed_at' => 'datetime',
+            'orders_blocked_at' => 'datetime',
+            'notify_live_email' => 'boolean',
         ];
     }
 
@@ -139,6 +146,20 @@ class Portfolio extends Model
     public function isLive(): bool
     {
         return $this->mode === PortfolioMode::Live;
+    }
+
+    /**
+     * Real money moves without a person's approval only after the owner typed
+     * the confirmation, and never while "Parar tudo" is in force.
+     */
+    public function autoExecutesLive(): bool
+    {
+        return $this->isLive() && $this->auto_execute && $this->live_auto_confirmed_at !== null && ! $this->isOrdersBlocked();
+    }
+
+    public function isOrdersBlocked(): bool
+    {
+        return $this->orders_blocked_at !== null;
     }
 
     public function isRunning(): bool

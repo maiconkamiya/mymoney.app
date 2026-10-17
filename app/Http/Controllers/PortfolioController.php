@@ -17,6 +17,7 @@ use App\Models\RiskProfile;
 use App\Models\Signal;
 use App\Reports\PerformanceReport;
 use App\Reports\TaxReport;
+use App\Trading\Live\LiveLimits;
 use App\Trading\PortfolioCharts;
 use App\Trading\PortfolioValuation;
 use App\Trading\TradingHalt;
@@ -68,23 +69,51 @@ class PortfolioController extends Controller
         return to_route('portfolios.show', $portfolio);
     }
 
-    public function update(UpdatePortfolioRequest $request, Portfolio $portfolio): RedirectResponse
+    public function update(UpdatePortfolioRequest $request, Portfolio $portfolio, LiveLimits $limits): RedirectResponse
     {
         $autoExecute = $request->boolean('auto_execute');
+        $actor = 'user:'.$request->user()->id;
+        $live = $portfolio->isLive();
+        $changed = $autoExecute !== $portfolio->auto_execute || ($live && $autoExecute && ! $portfolio->autoExecutesLive());
 
-        if ($autoExecute !== $portfolio->auto_execute) {
-            $portfolio->update(['auto_execute' => $autoExecute]);
-            AuditLog::record('user:'.$request->user()->id, 'portfolio.auto_execute', $portfolio, ['auto_execute' => $autoExecute]);
+        if ($changed) {
+            $portfolio->forceFill(['auto_execute' => $autoExecute]);
+
+            if ($live) {
+                // CONFIRMO was validated; turning it on also lifts a previous "Parar tudo".
+                $portfolio->forceFill([
+                    'live_auto_confirmed_at' => $autoExecute ? now() : null,
+                    'orders_blocked_at' => $autoExecute ? null : $portfolio->orders_blocked_at,
+                    'orders_blocked_reason' => $autoExecute ? null : $portfolio->orders_blocked_reason,
+                ]);
+            }
+
+            $portfolio->save();
+
+            AuditLog::record($actor, 'portfolio.auto_execute', $portfolio, [
+                'auto_execute' => $autoExecute,
+                'live' => $live,
+                'max_order_value' => $live ? $limits->maxOrderValue() : null,
+                'max_daily_value' => $live ? $limits->maxDailyValue() : null,
+                'testnet' => $live ? (bool) config('trading.binance.testnet') : null,
+            ]);
         }
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => $autoExecute
-            ? 'Execução automática ligada: sinais aprovados serão executados sem confirmação.'
-            : 'Execução automática desligada: sinais aprovados aguardam a sua confirmação.']);
+        if ($live && $request->has('notify_live_email') && $request->boolean('notify_live_email') !== $portfolio->notify_live_email) {
+            $portfolio->update(['notify_live_email' => $request->boolean('notify_live_email')]);
+            AuditLog::record($actor, 'portfolio.notify_live_email', $portfolio, ['notify_live_email' => $portfolio->notify_live_email]);
+        }
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => match (true) {
+            $autoExecute && $live => 'Execução automática REAL ligada: sinais aprovados serão enviados à Binance sem confirmação, dentro dos limites.',
+            $autoExecute => 'Execução automática ligada: sinais aprovados serão executados sem confirmação.',
+            default => 'Execução automática desligada: sinais aprovados aguardam a sua confirmação.',
+        }]);
 
         return back();
     }
 
-    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts): Response
+    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
@@ -130,7 +159,18 @@ class PortfolioController extends Controller
                 'starts_at' => $portfolio->starts_at->toDateString(),
                 'ends_at' => $portfolio->ends_at->toDateString(),
                 'auto_execute' => $portfolio->auto_execute,
+                'orders_blocked' => $portfolio->isOrdersBlocked(),
+                'orders_blocked_reason' => $portfolio->orders_blocked_reason,
+                'notify_live_email' => $portfolio->notify_live_email,
             ],
+            'live' => $portfolio->isLive() ? [
+                'enabled' => $limits->enabled(),
+                'testnet' => (bool) config('trading.binance.testnet'),
+                'max_order_value' => $limits->maxOrderValue(),
+                'max_daily_value' => $limits->maxDailyValue(),
+                'remaining_today' => round($limits->remainingToday($portfolio), 2),
+                'halted' => $halt->isHalted(),
+            ] : null,
             'positions' => $portfolio->openPositions()->with('asset')->get()->map(fn (Position $position) => [
                 'id' => $position->id,
                 'symbol' => $position->asset->symbol,

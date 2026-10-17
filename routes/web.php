@@ -8,6 +8,7 @@ use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioAssetsController;
 use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioPanicController;
 use App\Http\Controllers\PortfolioReportController;
 use App\Http\Controllers\SignalDecisionController;
 use App\Http\Controllers\TradingHaltController;
@@ -27,6 +28,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('ativos/busca', [AssetController::class, 'search'])->middleware('throttle:30,1')->name('assets.search');
     Route::post('ativos', [AssetController::class, 'store'])->middleware('throttle:20,1')->name('assets.store');
     Route::delete('ativos/{asset}', [AssetController::class, 'destroy'])->name('assets.destroy');
+    Route::post('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'store'])->name('portfolios.panic');
+    Route::delete('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'destroy'])->name('portfolios.release');
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');
     Route::get('portfolios/{portfolio}/graficos', PortfolioChartsController::class)->name('portfolios.charts');
     Route::get('portfolios/{portfolio}/reports/tax.csv', [PortfolioReportController::class, 'tax'])->name('portfolios.reports.tax');
