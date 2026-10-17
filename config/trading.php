@@ -193,6 +193,9 @@ return [
         'max_hold_minutes' => (int) env('TRADING_MICRO_MAX_HOLD_MINUTES', 60),
         'cooldown_minutes' => (int) env('TRADING_MICRO_COOLDOWN_MINUTES', 10),
         'support_zone' => 0.6,
+        // O alvo bruto só vale se couber em `reach_factor` vezes o movimento típico do par no tempo limite
+        // (faixa média por minuto vezes a raiz do tempo limite em minutos).
+        'reach_factor' => 2.0,
         'stop_ratio' => 1.0,
         'max_candle_age_seconds' => 150,
     ],

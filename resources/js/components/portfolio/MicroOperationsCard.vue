@@ -91,6 +91,14 @@ const time = (iso: string) =>
             </div>
         </div>
 
+        <p
+            v-if="micro.margin_warning"
+            class="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm"
+            data-test="micro-margin-warning"
+        >
+            {{ micro.margin_warning }}
+        </p>
+
         <Form
             v-bind="microRoute.form(portfolio.id)"
             v-slot="{ errors, processing }"
@@ -193,6 +201,23 @@ const time = (iso: string) =>
             </div>
         </Form>
 
+        <p
+            v-if="micro.scheduler_stale"
+            class="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm"
+            data-test="micro-scheduler-stale"
+        >
+            O motor não rodou nos últimos 3 minutos. Confira se o serviço
+            <code>mymoney-schedule</code> está de pé (<code
+                >systemctl --user status mymoney-schedule</code
+            >).
+        </p>
+        <p
+            v-else-if="micro.enabled && micro.last_run"
+            class="text-sm text-muted-foreground"
+        >
+            Última execução do motor às {{ time(micro.last_run) }}.
+        </p>
+
         <p v-if="micro.last_block" class="text-sm text-muted-foreground">
             Último bloqueio: {{ micro.last_block }}
         </p>
@@ -207,7 +232,8 @@ const time = (iso: string) =>
                 >
                     <span class="font-medium">{{ row.symbol }}</span>
                     <span class="text-muted-foreground tabular-nums">
-                        faixa média {{ row.atr_pct.toFixed(3) }}% por minuto
+                        faixa média {{ row.atr_pct.toFixed(3) }}% por minuto ·
+                        alcance {{ row.reach_pct.toFixed(2) }}% em 60 min
                     </span>
                     <span class="text-muted-foreground">
                         {{ row.entry ? 'Entrada liberada' : row.reason }}
@@ -215,6 +241,18 @@ const time = (iso: string) =>
                 </li>
             </ul>
         </div>
+
+        <ul
+            v-if="micro.skipped.length"
+            class="grid gap-1 text-sm text-muted-foreground"
+        >
+            <li v-for="row in micro.skipped" :key="row.symbol">
+                <span class="font-medium text-foreground">{{
+                    row.symbol
+                }}</span>
+                sem leitura: {{ row.reason }}
+            </li>
+        </ul>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm" data-test="micro-cycles">

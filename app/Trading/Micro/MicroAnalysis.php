@@ -7,8 +7,9 @@ namespace App\Trading\Micro;
  * range), trend (fast and slow moving averages), support and resistance
  * (lowest low and highest high of the recent window). No model is called.
  *
- * Entry needs an uptrend, price sitting near the support and enough room
- * below the resistance to reach the gross target.
+ * Entry needs an uptrend, price near the support or pulled back to the fast
+ * average, room below the resistance and a gross target the pair can plausibly
+ * reach within the holding time.
  */
 class MicroAnalysis
 {
@@ -44,18 +45,27 @@ class MicroAnalysis
         $room = ($resistance - $price) / $price * 100;
         $zone = $grossMarginPct * (float) config('trading.micro.support_zone');
 
+        // Typical move in the holding time: average 1-minute range times the square root of the minutes.
+        $reach = $atrPct * sqrt((float) config('trading.micro.max_hold_minutes'));
+        $reachable = $grossMarginPct <= $reach * (float) config('trading.micro.reach_factor');
+
+        // A pullback inside the uptrend also qualifies: price back near the fast average, not stretched above it.
+        $stretch = ($price - $fast) / $price * 100;
+        $pullback = $uptrend && $stretch <= $atrPct;
+
         $reasons = [];
         $uptrend || $reasons[] = 'Sem tendência de alta (médias de 9 e 21 minutos).';
-        $distance <= $zone || $reasons[] = sprintf('Longe do suporte (%.2f%% acima; zona de %.2f%%).', $distance, $zone);
+        $distance <= $zone || $pullback || $reasons[] = sprintf('Longe do suporte (%.2f%% acima; zona de %.2f%%) e esticado acima da média de 9 minutos (%.2f%%).', $distance, $zone, $stretch);
+        $reachable || $reasons[] = sprintf('Alvo bruto de %.2f%% grande demais para este par: ele costuma andar cerca de %.2f%% em %d minutos.', $grossMarginPct, $reach, (int) config('trading.micro.max_hold_minutes'));
         $room >= $grossMarginPct || $reasons[] = sprintf('Resistência perto (%.2f%% de espaço; alvo bruto de %.2f%%).', $room, $grossMarginPct);
 
         $entry = $reasons === [];
 
         if ($entry) {
-            $reasons[] = sprintf('Tendência de alta, %.2f%% acima do suporte e %.2f%% de espaço até a resistência.', $distance, $room);
+            $reasons[] = sprintf('Tendência de alta, %.2f%% acima do suporte (%s) e %.2f%% de espaço até a resistência.', $distance, $distance <= $zone ? 'perto do suporte' : 'recuo dentro da tendência', $room);
         }
 
-        return new MicroSetup($price, $atrPct, $uptrend, $support, $resistance, $distance, $room, $entry, $reasons);
+        return new MicroSetup($price, $atrPct, $uptrend, $support, $resistance, $distance, $room, $entry, $reach, $reasons);
     }
 
     /**

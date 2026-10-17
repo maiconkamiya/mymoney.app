@@ -4,6 +4,18 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.40] - 2026-10-17
+
+### Adicionado
+
+- **O card "Micro operações" explica por que nada aconteceu.** Mostra a hora da última execução do motor (com aviso vermelho se ele não rodou nos últimos 3 minutos e o serviço a conferir), o motivo de cada ativo não entrar e, para cada par em foco, o alcance típico em 60 minutos.
+- **Aviso de margem alta demais.** Quando o alvo bruto da margem escolhida é maior do que os pares em foco costumam andar em 60 minutos, o card avisa e sugere a margem líquida máxima que cabe. Exemplo: 0,50% líquido vira alvo bruto de 0,80%, que o BTC não alcança em uma hora.
+- **Comando `php artisan micro:run --explain`.** Mostra no terminal o estado de cada carteira com o modo ligado e a leitura de cada ativo, sem enviar ordem.
+
+### Alterado
+
+- **Entradas mais frequentes e mais realistas.** Além de perto do suporte, o agente agora também entra num recuo dentro da tendência de alta (preço de volta perto da média de 9 minutos). Em compensação, não entra mais em par cujo alvo bruto não cabe no movimento típico do tempo limite: antes ele comprava e esperava um alvo que não vinha.
+
 ## [0.3.38] - 2026-10-17
 
 ### Adicionado

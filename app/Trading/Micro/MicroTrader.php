@@ -45,6 +45,8 @@ class MicroTrader
             return 0;
         }
 
+        Cache::put($this->runKey($portfolio), now()->toIso8601String(), now()->addDay());
+
         $this->settle($portfolio);
         $this->expire($portfolio);
 
@@ -293,6 +295,19 @@ class MicroTrader
         AuditLog::record(self::ACTOR, 'micro.opened', $cycle, ['portfolio_id' => $portfolio->id, 'symbol' => $asset->symbol, 'order_id' => $outcome->id]);
 
         return true;
+    }
+
+    /**
+     * When the engine last ran for this portfolio, so a stopped scheduler shows.
+     */
+    public function lastRun(Portfolio $portfolio): ?string
+    {
+        return Cache::get($this->runKey($portfolio));
+    }
+
+    private function runKey(Portfolio $portfolio): string
+    {
+        return 'micro:last-run:'.$portfolio->id;
     }
 
     public function lastBlock(Portfolio $portfolio): ?string
