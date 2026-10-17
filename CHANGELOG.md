@@ -4,6 +4,16 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.38] - 2026-10-17
+
+### Adicionado
+
+- **Quantidade de operações por dia nas micro operações.** No card "Micro operações" há agora o campo "Operações por dia" (por exemplo, 20 operações de 1 dólar cada: valor por operação 1 e operações por dia 20). Ao completar a quantidade, o agente para até o dia seguinte, e a tela mostra "hoje N de M". Deixar vazio mantém sem limite.
+
+### Alterado
+
+- **Valor mínimo por operação conforme a carteira.** A carteira simulada aceita a partir de 1 por operação. A carteira real exige no mínimo 5 USDT (ordem mínima da Binance no spot) e, se o par pedir um mínimo maior, o agente pula esse par e mostra o motivo em "Último bloqueio". O mínimo aparece no nome do campo.
+
 ## [0.3.37] - 2026-10-17
 
 ### Alterado

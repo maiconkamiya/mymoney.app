@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\Market;
 use App\Models\Portfolio;
 use App\Trading\Live\LiveLimits;
+use App\Trading\Micro\MicroTrader;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -26,9 +27,13 @@ class UpdateMicroOperationsRequest extends FormRequest
      */
     public function rules(): array
     {
+        $portfolio = $this->route('portfolio');
+        $min = $portfolio instanceof Portfolio ? MicroTrader::minOrderValue($portfolio) : (float) config('trading.micro.min_order_value');
+
         return [
             'micro_enabled' => ['required', 'boolean'],
-            'micro_order_value' => ['required', 'numeric', 'min:'.config('trading.micro.min_order_value'), 'max:1000000'],
+            'micro_order_value' => ['required', 'numeric', 'min:'.$min, 'max:1000000'],
+            'micro_daily_operations' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'micro_net_margin_pct' => ['required', 'numeric', 'min:0.05', 'max:5'],
             'micro_daily_target' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'micro_daily_loss_limit' => ['nullable', 'numeric', 'min:0', 'max:1000000'],

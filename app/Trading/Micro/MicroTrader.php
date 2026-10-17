@@ -57,6 +57,10 @@ class MicroTrader
         $opened = 0;
 
         foreach ($this->ranker->rank($portfolio, $gross) as $row) {
+            if ($portfolio->micro_daily_operations !== null && $this->openedToday($portfolio) >= $portfolio->micro_daily_operations) {
+                break;
+            }
+
             if ($open >= (int) config('trading.micro.max_open_cycles') || ! $row['setup']->entry) {
                 continue;
             }
@@ -107,6 +111,10 @@ class MicroTrader
             }
         }
 
+        if ($portfolio->micro_daily_operations !== null && $this->openedToday($portfolio) >= $portfolio->micro_daily_operations) {
+            return ['code' => 'operations_done', 'label' => 'Quantidade de operações do dia atingida'];
+        }
+
         $pnl = $this->pnlToday($portfolio);
 
         if ($portfolio->micro_daily_target !== null && $pnl >= $portfolio->micro_daily_target) {
@@ -118,6 +126,23 @@ class MicroTrader
         }
 
         return ['code' => 'active', 'label' => 'Operando'];
+    }
+
+    /**
+     * Cycles opened today, still open or already closed.
+     */
+    public function openedToday(Portfolio $portfolio): int
+    {
+        return $portfolio->microCycles()->where('opened_at', '>=', now()->startOfDay())->count();
+    }
+
+    /**
+     * Smallest order value the owner may set: Binance's 5 USDT spot minimum on a
+     * real portfolio, a lower floor on a simulated one.
+     */
+    public static function minOrderValue(Portfolio $portfolio): float
+    {
+        return (float) config($portfolio->isLive() ? 'trading.micro.min_order_value' : 'trading.micro.min_order_value_paper');
     }
 
     /**
@@ -214,6 +239,13 @@ class MicroTrader
 
     private function open(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): bool
     {
+        // On a real portfolio the pair's own minimum order may be above the 5 USDT floor.
+        if ($portfolio->isLive() && $portfolio->micro_order_value < (float) $asset->min_notional) {
+            Cache::put($this->blockKey($portfolio), $asset->symbol.': o mínimo do par é '.(float) $asset->min_notional.' e o aporte é '.$portfolio->micro_order_value.'.', now()->addHour());
+
+            return false;
+        }
+
         $qty = $portfolio->micro_order_value / $setup->price;
         $stop = $setup->price * (1 - $grossPct / 100 * (float) config('trading.micro.stop_ratio'));
 

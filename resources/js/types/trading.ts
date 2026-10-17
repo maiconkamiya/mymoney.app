@@ -271,10 +271,17 @@ export type MicroOverview = {
     round_trip_cost_pct: number;
     min_order_value: number;
     daily_target: number | null;
+    daily_operations: number | null;
     daily_loss_limit: number | null;
     state: { code: string; label: string };
     last_block: string | null;
-    today: { cycles: number; wins: number; net_pnl: number; fees: number };
+    today: {
+        opened: number;
+        cycles: number;
+        wins: number;
+        net_pnl: number;
+        fees: number;
+    };
     focus: {
         symbol: string;
         atr_pct: number;

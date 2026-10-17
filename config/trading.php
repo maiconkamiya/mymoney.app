@@ -182,7 +182,10 @@ return [
     */
 
     'micro' => [
+        // Carteira real: ordem mínima da Binance no spot (5 USDT) ou o `min_notional` do par, se maior.
+        // Carteira simulada aceita valores menores.
         'min_order_value' => (float) env('TRADING_MICRO_MIN_ORDER_VALUE', 5),
+        'min_order_value_paper' => (float) env('TRADING_MICRO_MIN_ORDER_VALUE_PAPER', 1),
         'lookback_minutes' => 120,
         'atr_window' => 30,
         'ranking_size' => (int) env('TRADING_MICRO_RANKING_SIZE', 5),
