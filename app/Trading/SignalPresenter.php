@@ -39,6 +39,7 @@ class SignalPresenter
                 'veto' => $vote->veto,
                 'abstained' => $vote->abstained,
                 'reasons' => $vote->reasons ?? [],
+                'analysis' => $vote->analysis,
             ])->all(),
         ];
     }

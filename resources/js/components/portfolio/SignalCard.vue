@@ -3,6 +3,7 @@ import { Form } from '@inertiajs/vue3';
 import { ChevronDown } from '@lucide/vue';
 import { ref } from 'vue';
 import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
+import ChartReading from '@/components/portfolio/ChartReading.vue';
 import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -107,6 +108,11 @@ const when = (iso: string) =>
                     <p class="text-muted-foreground">
                         {{ vote.reasons.join(' ') }}
                     </p>
+                    <ChartReading
+                        v-if="vote.analysis && !vote.abstained"
+                        :analysis="vote.analysis"
+                        :market="market"
+                    />
                 </li>
             </ul>
 
