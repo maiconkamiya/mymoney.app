@@ -3,6 +3,7 @@
 namespace App\Trading\Live;
 
 use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Models\AuditLog;
 use App\Models\Order;
 use App\Trading\BrokerManager;
@@ -33,6 +34,8 @@ class OrderReconciler
             ->whereHas('portfolio', fn ($query) => $query->where('mode', 'live'))
             ->whereIn('status', [OrderStatus::Pending, OrderStatus::Filled, OrderStatus::PartiallyFilled])
             ->where('created_at', '>=', now()->subDays(2))
+            // A resting limit sell is pending by design and the exits job books its fill.
+            ->whereNot(fn ($query) => $query->where('status', OrderStatus::Pending)->where('type', OrderType::Limit))
             ->get();
 
         foreach ($orders as $order) {

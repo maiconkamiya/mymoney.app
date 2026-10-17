@@ -5,6 +5,7 @@ namespace Tests\Feature\Trading;
 use App\Enums\Market;
 use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Models\Asset;
 use App\Models\BrokerCredential;
 use App\Models\Candle;
@@ -14,6 +15,8 @@ use App\Models\Portfolio;
 use App\Models\Position;
 use App\Models\User;
 use App\Trading\Data\OrderRequest;
+use App\Trading\Live\BinanceAccountSync;
+use App\Trading\Live\OrderReconciler;
 use App\Trading\Micro\MicroCosts;
 use App\Trading\Micro\MicroOverview;
 use App\Trading\Micro\MicroRanker;
@@ -190,6 +193,9 @@ class MicroOperationsTest extends TestCase
         $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
         $this->assertSame(1, MicroCycle::count());
         $this->assertEqualsWithDelta(1, MicroCycle::sole()->qty * MicroCycle::sole()->entry_price, 0.05);
+        // The buy and its resting sale are one operation: only the buy counts.
+        $this->assertSame(2, Order::count());
+        $this->assertSame(1, app(MicroTrader::class)->openedToday($portfolio));
 
         $this->assertSame('operations_done', app(MicroTrader::class)->state($portfolio)['code']);
         $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
@@ -382,8 +388,174 @@ class MicroOperationsTest extends TestCase
         $this->artisan('micro:run')->assertSuccessful();
 
         $this->assertSame(1, MicroCycle::count());
-        $this->assertSame(OrderSide::Buy, Order::sole()->side);
-        $this->assertSame(OrderStatus::Filled, Order::sole()->status);
+        $this->assertSame(OrderStatus::Filled, Order::where('side', OrderSide::Buy)->sole()->status);
+        $this->assertSame(OrderStatus::Pending, Order::where('side', OrderSide::Sell)->sole()->status);
+    }
+
+    // --- Venda limitada registrada logo após a compra ---------------------
+
+    public function test_the_target_sale_is_registered_right_after_the_buy_and_fills_at_its_own_price()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+
+        $cycle = MicroCycle::sole();
+        $sell = Order::where('side', OrderSide::Sell)->sole();
+        $this->assertSame(OrderType::Limit, $sell->type);
+        $this->assertSame(OrderStatus::Pending, $sell->status);
+        $this->assertSame('target', $sell->reason);
+        // Up to the 0.01 tick, never under the target.
+        $this->assertEqualsWithDelta(ceil(round($cycle->target_price / 0.01, 8)) * 0.01, $sell->price, 1e-8);
+        $this->assertGreaterThanOrEqual($cycle->target_price, $sell->price);
+        $this->assertEqualsWithDelta($cycle->qty, $sell->qty, 1e-8);
+        $this->assertDatabaseHas('audit_log', ['action' => 'micro.target_order_placed', 'subject_id' => $cycle->id]);
+        $this->assertSame($sell->price, app(MicroOverview::class)->for($portfolio)['cycles'][0]['resting_sell_price']);
+
+        // Just under the limit: it keeps resting, nothing is sold at market.
+        $this->advanceTo($sell->price - 0.01);
+        app(PositionExits::class)->checkStopsAndTargets();
+        $this->assertSame(OrderStatus::Pending, $sell->fresh()->status);
+        $this->assertSame(2, Order::count());
+
+        $this->advanceTo(101.0);
+        app(PositionExits::class)->checkStopsAndTargets();
+        app(MicroTrader::class)->settle($portfolio);
+
+        $this->assertSame(OrderStatus::Filled, $sell->fresh()->status);
+        $this->assertSame(2, Order::count());
+        $cycle->refresh();
+        $this->assertSame('closed', $cycle->status);
+        $this->assertSame('target', $cycle->exit_reason);
+        $this->assertEqualsWithDelta($sell->price, $cycle->exit_price, 1e-8);
+        $this->assertGreaterThan(0, $cycle->net_pnl);
+    }
+
+    public function test_the_stop_cancels_the_resting_sale_before_selling_at_market()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+        $limit = Order::where('side', OrderSide::Sell)->sole();
+
+        $this->advanceTo(99.0);
+        app(PositionExits::class)->checkStopsAndTargets();
+
+        $this->assertSame(OrderStatus::Cancelled, $limit->fresh()->status);
+        $market = Order::where('side', OrderSide::Sell)->where('type', OrderType::Market)->sole();
+        $this->assertSame(OrderStatus::Filled, $market->status);
+        $this->assertSame('stop', $market->reason);
+    }
+
+    public function test_the_time_limit_cancels_the_resting_sale_before_selling_at_market()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+        MicroCycle::query()->update(['opened_at' => now()->subHours(2)]);
+
+        app(MicroTrader::class)->run($portfolio);
+
+        $this->assertSame(OrderStatus::Cancelled, Order::where('side', OrderSide::Sell)->where('type', OrderType::Limit)->oldest('id')->first()->status);
+        $this->assertSame('micro_time', MicroCycle::oldest('id')->first()->exit_reason);
+    }
+
+    /**
+     * A real portfolio with micro operations on, and a fake Binance whose
+     * resting sell answers `$sellState` when queried.
+     */
+    private function liveMicro(string &$sellState): Portfolio
+    {
+        config(['trading.live.enabled' => true]);
+        $this->asset->update(['lot_size' => '0.0001', 'tick_size' => '0.01', 'min_qty' => '0.0001', 'min_notional' => '5']);
+        $user = User::factory()->create();
+        $credential = BrokerCredential::create(['user_id' => $user->id, 'broker' => 'binance', 'label' => 'x', 'api_key' => 'k', 'api_secret' => 's', 'can_withdraw' => false, 'verified_at' => now()]);
+
+        Http::fake(function (Request $request) use (&$sellState) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            $url = $request->url();
+
+            return match (true) {
+                $path === '/api/v3/time' => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+                $path === '/api/v3/ticker/price' => Http::response([]),
+                // The buy fee came out in DOGE: 0.1999 bought, 0.19970001 on the account.
+                $path === '/api/v3/account' => Http::response(['balances' => [['asset' => 'DOGE', 'free' => '0.19970001', 'locked' => '0'], ['asset' => 'USDT', 'free' => '30', 'locked' => '0']]]),
+                $request->method() === 'POST' && str_contains($url, 'type=LIMIT') => Http::response(['orderId' => 2, 'status' => 'NEW', 'executedQty' => '0', 'cummulativeQuoteQty' => '0', 'fills' => []]),
+                $request->method() === 'POST' => Http::response(['orderId' => str_contains($url, 'side=BUY') ? 1 : 3, 'status' => 'FILLED', 'executedQty' => '0.1999', 'cummulativeQuoteQty' => '20.02', 'transactTime' => now()->getTimestampMs(), 'fills' => [['price' => '100.15', 'qty' => '0.1999', 'commission' => str_contains($url, 'side=BUY') ? '0.0002' : '0.02', 'commissionAsset' => str_contains($url, 'side=BUY') ? 'DOGE' : 'USDT']]]),
+                $request->method() === 'DELETE' => Http::response(['orderId' => 2, 'status' => $sellState = 'CANCELED']),
+                str_contains($url, 'orderId=2') => Http::response(['orderId' => 2, 'status' => $sellState, 'executedQty' => $sellState === 'FILLED' ? '0.1997' : '0', 'cummulativeQuoteQty' => $sellState === 'FILLED' ? '20.12' : '0', 'transactTime' => now()->getTimestampMs()]),
+                default => Http::response(['orderId' => 1, 'status' => 'FILLED', 'executedQty' => '0.1999', 'cummulativeQuoteQty' => '20.02']),
+            };
+        });
+
+        return $this->micro(['user_id' => $user->id, 'mode' => 'live', 'broker' => 'binance', 'broker_credential_id' => $credential->id, 'auto_execute' => true, 'live_auto_confirmed_at' => now(), 'cash' => 50, 'initial_cash' => 50]);
+    }
+
+    public function test_a_real_cycle_leaves_a_limit_sale_on_binance_with_the_free_quantity_and_closes_when_it_executes()
+    {
+        $this->candles($this->asset);
+        $sellState = 'NEW';
+        $portfolio = $this->liveMicro($sellState);
+
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+
+        $cycle = MicroCycle::sole();
+        $limit = Order::where('side', OrderSide::Sell)->sole();
+        $price = ceil(round($cycle->target_price / 0.01, 8)) * 0.01;
+        // The free balance after the fee, rounded down to the 0.0001 step, at the target rounded up to the tick.
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_contains($request->url(), 'type=LIMIT') && str_contains($request->url(), 'side=SELL') && str_contains($request->url(), 'quantity=0.1997&') && str_contains($request->url(), 'price='.rtrim(rtrim(number_format($price, 8, '.', ''), '0'), '.').'&') && str_contains($request->url(), 'timeInForce=GTC'));
+        $this->assertSame(OrderStatus::Pending, $limit->status);
+
+        // Still resting: the reconciliation sees no divergence and the account sync keeps the position.
+        $this->assertSame([], app(OrderReconciler::class)->reconcile());
+        app(PositionExits::class)->checkStopsAndTargets();
+        $this->assertNull($cycle->position->fresh()->closed_at);
+
+        // Binance executed it: the exits job books the sale and the cycle closes at the limit price.
+        $sellState = 'FILLED';
+        app(PositionExits::class)->checkStopsAndTargets();
+        app(MicroTrader::class)->settle($portfolio);
+
+        $this->assertSame(OrderStatus::Filled, $limit->fresh()->status);
+        $this->assertSame(0, Order::where('side', OrderSide::Sell)->where('type', OrderType::Market)->count());
+        $cycle->refresh();
+        $this->assertSame('closed', $cycle->status);
+        $this->assertSame('target', $cycle->exit_reason);
+        $this->assertSame([], app(OrderReconciler::class)->reconcile());
+    }
+
+    public function test_the_account_sync_does_not_close_a_position_with_a_resting_sale()
+    {
+        $this->candles($this->asset);
+        $sellState = 'NEW';
+        $portfolio = $this->liveMicro($sellState);
+        app(MicroTrader::class)->run($portfolio);
+
+        // Even if the account read misses the coin, the position of the resting sale stays open.
+        Http::fake(fn (Request $request) => match (parse_url($request->url(), PHP_URL_PATH)) {
+            '/api/v3/account' => Http::response(['balances' => [['asset' => 'USDT', 'free' => '30', 'locked' => '0']]]),
+            '/api/v3/time' => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+            default => Http::response([]),
+        });
+        app(BinanceAccountSync::class)->sync($portfolio);
+
+        $this->assertNull(MicroCycle::sole()->position->fresh()->closed_at);
+        $this->assertSame('open', MicroCycle::sole()->status);
+    }
+
+    public function test_a_real_stop_cancels_the_limit_sale_on_binance_first()
+    {
+        $this->candles($this->asset);
+        $sellState = 'NEW';
+        $portfolio = $this->liveMicro($sellState);
+        app(MicroTrader::class)->run($portfolio);
+
+        $this->advanceTo(99.0);
+        app(PositionExits::class)->checkStopsAndTargets();
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'DELETE' && str_contains($request->url(), 'orderId=2'));
+        $this->assertSame(OrderStatus::Cancelled, Order::where('type', OrderType::Limit)->sole()->status);
+        $this->assertSame('stop', Order::where('side', OrderSide::Sell)->where('type', OrderType::Market)->sole()->reason);
     }
 
     public function test_owner_saves_the_settings_and_the_page_shows_the_mode()

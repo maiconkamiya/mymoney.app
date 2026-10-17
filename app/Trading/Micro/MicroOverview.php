@@ -6,6 +6,7 @@ use App\Enums\Market;
 use App\Models\Asset;
 use App\Models\MicroCycle;
 use App\Models\Portfolio;
+use App\Trading\OrderExecutor;
 use Illuminate\Support\Carbon;
 
 /**
@@ -18,6 +19,7 @@ class MicroOverview
         private readonly MicroTrader $trader,
         private readonly MicroRanker $ranker,
         private readonly MicroCosts $costs,
+        private readonly OrderExecutor $executor,
     ) {}
 
     /**
@@ -89,7 +91,7 @@ class MicroOverview
                 'reason' => $row['setup']->reasons[0] ?? '',
                 'blocked' => $canTrade && $row['setup']->entry ? $this->trader->gate($portfolio, $row['asset'], $row['setup'], $openCycles) : null,
             ])->all(),
-            'cycles' => $portfolio->microCycles()->with('asset')->latest('id')->limit(30)->get()->map(fn (MicroCycle $cycle) => [
+            'cycles' => $portfolio->microCycles()->with(['asset', 'position'])->latest('id')->limit(30)->get()->map(fn (MicroCycle $cycle) => [
                 'id' => $cycle->id,
                 'symbol' => $cycle->asset->symbol,
                 'status' => $cycle->status,
@@ -98,6 +100,9 @@ class MicroOverview
                 'target_price' => $cycle->target_price,
                 'stop_price' => $cycle->stop_price,
                 'exit_price' => $cycle->exit_price,
+                'resting_sell_price' => $cycle->status === 'open' && $cycle->position !== null
+                    ? $this->executor->restingSells($cycle->position)->first()?->price
+                    : null,
                 'fees' => round($cycle->fees, 6),
                 'net_pnl' => $cycle->net_pnl === null ? null : round($cycle->net_pnl, 6),
                 'exit_reason' => $cycle->exit_reason,

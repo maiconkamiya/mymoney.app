@@ -5,6 +5,7 @@ namespace App\Trading;
 use App\Agents\AgentActivityBroadcaster;
 use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Enums\SignalStage;
 use App\Models\AuditLog;
 use App\Models\Order;
@@ -18,6 +19,7 @@ use App\Trading\Live\BinanceAccountSync;
 use App\Trading\Live\LiveAlerts;
 use App\Trading\Live\LiveTradingException;
 use App\Trading\Risk\RiskGuard;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -107,6 +109,25 @@ class OrderExecutor
      */
     public function closePosition(Position $position, string $reason, string $actor): ?Order
     {
+        // A resting limit sell locks the coins: it goes first, and what it already sold counts.
+        if (! $this->cancelResting($position, $actor)) {
+            $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'detail' => 'A venda limitada aberta não pôde ser cancelada na corretora.']);
+
+            return null;
+        }
+
+        $position->refresh();
+
+        if ($position->closed_at !== null) {
+            return Order::query()
+                ->where('portfolio_id', $position->portfolio_id)
+                ->where('asset_id', $position->asset_id)
+                ->where('side', OrderSide::Sell)
+                ->where('status', OrderStatus::Filled)
+                ->latest('id')
+                ->first();
+        }
+
         $request = new OrderRequest(
             asset: $position->asset,
             side: OrderSide::Sell,
@@ -117,24 +138,225 @@ class OrderExecutor
         $outcome = $this->submit($position->portfolio, $request, $position->signal, $actor, $reason);
 
         if (is_string($outcome)) {
-            // The exits job retries every minute; log the same block once an hour, not once a minute.
-            $payload = ['reason' => $reason, 'detail' => $outcome];
-            $repeated = AuditLog::query()
-                ->where('action', 'position.close_blocked')
-                ->where('subject_type', $position->getMorphClass())
-                ->where('subject_id', $position->getKey())
-                ->where('created_at', '>=', now()->subHour())
-                ->get()
-                ->contains(fn (AuditLog $log) => $log->payload === $payload);
-
-            if (! $repeated) {
-                AuditLog::record($actor, 'position.close_blocked', $position, $payload);
-            }
+            $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'detail' => $outcome]);
 
             return null;
         }
 
         return $outcome;
+    }
+
+    /**
+     * The exits job retries every minute; log the same block once an hour, not once a minute.
+     *
+     * @param  array<string, string>  $payload
+     */
+    private function logCloseBlocked(Position $position, string $actor, array $payload): void
+    {
+        $repeated = AuditLog::query()
+            ->where('action', 'position.close_blocked')
+            ->where('subject_type', $position->getMorphClass())
+            ->where('subject_id', $position->getKey())
+            ->where('created_at', '>=', now()->subHour())
+            ->get()
+            ->contains(fn (AuditLog $log) => $log->payload === $payload);
+
+        if (! $repeated) {
+            AuditLog::record($actor, 'position.close_blocked', $position, $payload);
+        }
+    }
+
+    /**
+     * Leave a limit sell of the whole position resting at `$price` (the micro
+     * operations target, registered right after the buy). It passes the risk
+     * guard like any order. The quantity is what can really be sold and the
+     * price goes up to the pair's tick, so the margin is never cut.
+     */
+    public function placeRestingSell(Position $position, float $price, string $reason, string $actor): Order|string
+    {
+        $asset = $position->asset;
+        $tick = (float) $asset->tick_size;
+        $limit = $tick > 0 ? round(ceil(round($price / $tick, 8)) * $tick, 8) : $price;
+        $qty = $this->sellableQty($position);
+
+        if ($qty <= 0) {
+            return 'Quantidade vendável zerada pelo passo do par.';
+        }
+
+        $minimum = $position->portfolio->isLive() ? (float) $asset->min_notional : 0.0;
+
+        if ($qty * $limit < $minimum) {
+            return sprintf('A venda de %s a %s vale %.2f USDT, abaixo do mínimo de %.2f USDT do par.', $qty, $limit, $qty * $limit, $minimum);
+        }
+
+        $request = new OrderRequest(
+            asset: $asset,
+            side: OrderSide::Sell,
+            qty: $qty,
+            type: OrderType::Limit,
+            limitPrice: $limit,
+            clientId: 'position-'.$position->id.'-'.$reason,
+        );
+
+        return $this->submit($position->portfolio, $request, null, $actor, $reason);
+    }
+
+    /**
+     * Limit sells of the position still resting at the broker.
+     *
+     * @return Collection<int, Order>
+     */
+    public function restingSells(Position $position): Collection
+    {
+        return Order::query()
+            ->with('asset')
+            ->where('portfolio_id', $position->portfolio_id)
+            ->where('asset_id', $position->asset_id)
+            ->where('side', OrderSide::Sell)
+            ->where('type', OrderType::Limit)
+            ->where('status', OrderStatus::Pending)
+            ->get();
+    }
+
+    /**
+     * Book the resting sells of the position that the broker executed. A
+     * simulated one fills at its own price once the quote reaches it.
+     */
+    public function refreshResting(Position $position, string $actor): void
+    {
+        foreach ($this->restingSells($position) as $order) {
+            $this->settleResting($position->portfolio, $order, $this->restingState($position->portfolio, $order), $actor);
+        }
+    }
+
+    /**
+     * Cancel the resting sells of the position, booking what they already sold.
+     * False when the broker could not confirm it, so nothing else is sent.
+     */
+    private function cancelResting(Position $position, string $actor): bool
+    {
+        $portfolio = $position->portfolio;
+
+        foreach ($this->restingSells($position) as $order) {
+            if (! $portfolio->isLive()) {
+                $this->settleResting($portfolio, $order, $this->restingState($portfolio, $order) ?? new OrderResult(OrderStatus::Cancelled, $order->external_id), $actor);
+
+                continue;
+            }
+
+            try {
+                $broker = $this->brokers->for($portfolio);
+
+                try {
+                    $broker->cancelOrder((string) $order->external_id);
+                } catch (LiveTradingException $e) {
+                    // -2011: already executed or cancelled; the order's state below says which.
+                    if ($e->binanceCode !== -2011) {
+                        throw $e;
+                    }
+                }
+
+                $remote = $broker->getOrder((string) $order->external_id);
+            } catch (\Throwable) {
+                return false;
+            }
+
+            if (! $this->settleResting($portfolio, $order, $remote, $actor)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Where a resting order stands: the exchange's answer on a real portfolio,
+     * a fill at the limit price on a simulated one once the quote reaches it.
+     * Null when it is unknown or still resting.
+     */
+    private function restingState(Portfolio $portfolio, Order $order): ?OrderResult
+    {
+        if ($portfolio->isLive()) {
+            try {
+                return $this->brokers->for($portfolio)->getOrder((string) $order->external_id);
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        $quote = $this->prices->quote($order->asset);
+        $limit = (float) $order->price;
+
+        if ($quote === null || $quote->price < $limit) {
+            return null;
+        }
+
+        $costs = config('trading.costs.'.$order->asset->market->value);
+
+        return new OrderResult(
+            status: OrderStatus::Filled,
+            externalId: $order->external_id,
+            filledQty: $order->qty,
+            avgPrice: $limit,
+            fees: round($order->qty * $limit * $costs['fee_rate'] + ($costs['brokerage_per_order'] ?? 0), 8),
+            filledAt: now(),
+        );
+    }
+
+    /**
+     * Book the final state of a resting order once: the fill (whole, or the
+     * part sold before a cancel) reduces the position like any sale.
+     *
+     * @return bool false while the order is still resting
+     */
+    private function settleResting(Portfolio $portfolio, Order $order, ?OrderResult $result, string $actor): bool
+    {
+        if ($result === null || in_array($result->status, [OrderStatus::Pending, OrderStatus::PartiallyFilled], true)) {
+            return false;
+        }
+
+        $booked = DB::transaction(function () use ($portfolio, $order, $result): bool {
+            $fresh = Order::query()->whereKey($order->id)->lockForUpdate()->first();
+
+            if ($fresh === null || $fresh->status !== OrderStatus::Pending) {
+                return false;
+            }
+
+            $fresh->update([
+                'status' => $result->status,
+                'price' => $result->avgPrice ?? $fresh->price,
+                'fees' => $result->fees,
+                'reject_reason' => $result->rejectReason,
+                'filled_at' => $result->filledAt,
+            ]);
+
+            if ($result->filledQty <= 0 || ! $portfolio->openPositions()->where('asset_id', $order->asset_id)->exists()) {
+                return true;
+            }
+
+            $fresh->fills()->create([
+                'qty' => $result->filledQty,
+                'price' => $result->avgPrice,
+                'fee' => $result->fees,
+                'executed_at' => $result->filledAt ?? now(),
+            ]);
+
+            $request = new OrderRequest(asset: $order->asset, side: OrderSide::Sell, qty: $result->filledQty, type: OrderType::Limit, limitPrice: $order->price);
+            $this->book($portfolio, $request, $result, null, $order->reason);
+
+            return true;
+        });
+
+        if ($booked) {
+            $order->refresh();
+            AuditLog::record($actor, 'order.'.$order->status->value, $order, ['reason' => $order->reason, 'resting' => true, 'filled_qty' => $result->filledQty]);
+
+            if ($portfolio->isLive()) {
+                $this->alerts->order($order);
+            }
+        }
+
+        return true;
     }
 
     /**

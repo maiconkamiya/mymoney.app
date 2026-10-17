@@ -58,8 +58,9 @@ class PaperBroker implements Broker
         if ($order->type === OrderType::Limit && $order->limitPrice !== null) {
             $crosses = $order->side === OrderSide::Buy ? $price <= $order->limitPrice : $price >= $order->limitPrice;
 
+            // It rests: the executor fills it at its own price once the quote reaches it.
             if (! $crosses) {
-                return OrderResult::rejected('Ordem limitada não cruzaria o preço atual.');
+                return new OrderResult(OrderStatus::Pending, externalId: 'paper-'.Str::ulid());
             }
         }
 

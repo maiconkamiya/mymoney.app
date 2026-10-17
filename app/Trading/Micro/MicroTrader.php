@@ -23,8 +23,9 @@ use Illuminate\Support\Facades\Cache;
  * books of finished cycles, forces out the ones held too long, and opens new
  * ones on the most volatile pairs whose chart allows an entry.
  *
- * Exits (target and stop) are the ones every position already has: the
- * regular exits job sells them. Every order goes through the executor, so the
+ * Right after the buy a limit sell rests at the target on the exchange; the
+ * regular exits job books its fill, and the stop or the time limit cancel it
+ * before selling at market. Every order goes through the executor, so the
  * risk guard, the live caps and "Parar tudo" apply as for any other order.
  */
 class MicroTrader
@@ -157,11 +158,18 @@ class MicroTrader
     }
 
     /**
-     * Cycles opened today, still open or already closed.
+     * Purchases the mode made today. Only buys count: the sale at the target is
+     * registered with each purchase and is part of the same operation.
      */
     public function openedToday(Portfolio $portfolio): int
     {
-        return $portfolio->microCycles()->where('opened_at', '>=', now()->startOfDay())->count();
+        return Order::query()
+            ->where('portfolio_id', $portfolio->id)
+            ->where('reason', 'micro')
+            ->where('side', OrderSide::Buy)
+            ->whereIn('status', [OrderStatus::Filled, OrderStatus::PartiallyFilled])
+            ->where('created_at', '>=', now()->startOfDay())
+            ->count();
     }
 
     /**
@@ -537,6 +545,16 @@ class MicroTrader
         ]);
 
         AuditLog::record(self::ACTOR, 'micro.opened', $cycle, ['portfolio_id' => $portfolio->id, 'symbol' => $asset->symbol, 'order_id' => $outcome->id]);
+
+        // The sale at the target is registered at once and rests until it executes.
+        // Without it the cycle keeps the old exit: the target checked every minute.
+        $sell = $this->executor->placeRestingSell($position->refresh(), $target, 'target', self::ACTOR);
+
+        if (is_string($sell) || $sell->status === OrderStatus::Rejected) {
+            AuditLog::record(self::ACTOR, 'micro.target_order_failed', $cycle, ['portfolio_id' => $portfolio->id, 'reason' => is_string($sell) ? $sell : $sell->reject_reason]);
+        } else {
+            AuditLog::record(self::ACTOR, 'micro.target_order_placed', $cycle, ['portfolio_id' => $portfolio->id, 'order_id' => $sell->id, 'price' => $sell->price, 'qty' => $sell->qty]);
+        }
 
         return true;
     }

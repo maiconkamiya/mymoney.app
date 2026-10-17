@@ -4,6 +4,13 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.46] - 2026-10-17
+
+### Alterado
+
+- **A venda das micro operações fica registrada logo depois da compra.** Assim que a compra é executada, o sistema já deixa uma ordem de venda limitada no preço do alvo (custo de compra mais a margem de custo e a margem de lucro), aberta na Binance até executar. Na carteira simulada a venda acontece no preço do alvo quando a cotação chega lá. O card mostra "venda registrada a" com o preço. O stop e o tempo limite de 60 minutos continuam valendo: quando disparam, cancelam a venda registrada antes de vender a mercado. A sincronização da conta não encerra mais um ciclo que tem venda registrada aberta.
+- **"Operações por dia" conta só as compras.** A venda no alvo faz parte da mesma operação e não gasta o limite.
+
 ## [0.3.45] - 2026-10-17
 
 ### Adicionado
