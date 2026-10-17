@@ -24,3 +24,4 @@ foreach (array_filter(array_keys(config('news.sources')), is_string(...)) as $so
 
 Schedule::command('portfolios:snapshot')->dailyAt('23:55')->withoutOverlapping();
 Schedule::command('agents:score')->dailyAt('00:10')->withoutOverlapping();
+Schedule::command('forecast:train')->weeklyOn(0, '04:00')->withoutOverlapping()->runInBackground()->when(fn () => (bool) config('forecast.enabled'));

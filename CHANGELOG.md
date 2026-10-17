@@ -16,6 +16,14 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 
 - **Entradas mais frequentes e mais realistas.** Além de perto do suporte, o agente agora também entra num recuo dentro da tendência de alta (preço de volta perto da média de 9 minutos). Em compensação, não entra mais em par cujo alvo bruto não cabe no movimento típico do tempo limite: antes ele comprava e esperava um alvo que não vinha.
 
+## [0.3.39] - 2026-10-17
+
+### Adicionado
+
+- **Previsão própria no ar na produção.** O agente Quantitativo passa a poder usar o modelo de previsão do próprio sistema (sem IA externa) como um serviço permanente, que sobe sozinho e reinicia se cair. O modelo só pesa no voto depois de passar no teste com dados que ele não viu; enquanto não passar, o Quantitativo continua em "aguardar", como hoje.
+- **Treino automático toda semana.** Com a previsão ligada, o modelo é treinado de novo todo domingo de madrugada com os candles mais recentes e a API passa a usar a versão nova sem reiniciar.
+- **Histórico de cotações para treinar.** Novo comando `market:backfill-binance` baixa da Binance os últimos dias de candles de 1 minuto dos ativos cripto, para o modelo não precisar esperar semanas de coleta. Rodar de novo não duplica nada.
+
 ## [0.3.38] - 2026-10-17
 
 ### Adicionado

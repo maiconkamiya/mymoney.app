@@ -118,6 +118,22 @@ O script (`deploy/deploy.sh`) roda só em Linux, aborta se houver mudanças loca
 
 O script **não substitui o `composer ci`**: a CI roda na nuvem antes do PR, e o deploy só publica o que já foi mesclado. Variáveis `VITE_*` entram no bundle, então mudou o `.env`, rode o deploy de novo.
 
+## Serviço de previsão na produção (Ubuntu no WSL)
+
+O serviço Python de `services/forecast` roda como unidade systemd de usuário `mymoney-forecast`, em CPU (não usa GPU), ao lado dos outros `mymoney-*`. Passo a passo no clone de produção:
+
+```bash
+git pull && deploy/forecast-install.sh        # venv Python, dependências e unidade (--dry-run só mostra)
+openssl rand -hex 32                          # gera o FORECAST_TOKEN
+# no .env: FORECAST_ENABLED=true, FORECAST_URL=http://127.0.0.1:8001, FORECAST_TOKEN=..., FORECAST_PYTHON=<repo>/services/forecast/.venv/bin/python
+php artisan config:clear && php artisan optimize && php artisan queue:restart
+php artisan market:backfill-binance --days=30 # histórico público da Binance (a coleta ao vivo só existe desde 2026-10-16)
+php artisan forecast:train                    # treina e roda o backtest walk-forward
+curl -s http://127.0.0.1:8001/health          # versão do modelo e se está validado
+```
+
+Sem modelo a API responde 503 e o Laravel segue sem previsão. Modelo que não passa no backtest fica `validated=false` e o Quantitativo vota "aguardar" com confiança 0: isso é o comportamento correto, não um defeito. Com `FORECAST_ENABLED=true` o `forecast:train` roda sozinho aos domingos às 04:00 (agendador) e a API recarrega o modelo novo sem reiniciar. A porta padrão é 8001 (`FORECAST_PORT`); a API escuta só em 127.0.0.1. O `deploy/deploy.sh` já reinicia `mymoney-forecast` quando a unidade existe. Logs: `journalctl --user -u mymoney-forecast -f`.
+
 ## Notícias: embeddings, deduplicação e pgvector
 
 Cada notícia coletada ganha um embedding (título mais o começo do corpo) antes da triagem pelo LLM. Se ela for semanticamente parecida com uma notícia das últimas `NEWS_DEDUP_WINDOW_HOURS` horas (similaridade de cosseno >= `NEWS_DEDUP_THRESHOLD`), é gravada com `duplicate_of_id` e não passa pela triagem. O agente de notícias também recebe em `similarNews` notícias parecidas do passado e quanto o preço andou nas 24 horas seguintes (nunca com dados posteriores a `now()`).
