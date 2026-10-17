@@ -12,6 +12,18 @@ export type PortfolioSummary = {
     starts_at: string;
     ends_at: string;
     auto_execute: boolean;
+    orders_blocked?: boolean;
+    orders_blocked_reason?: string | null;
+    notify_live_email?: boolean;
+};
+
+export type LiveInfo = {
+    enabled: boolean;
+    testnet: boolean;
+    max_order_value: number;
+    max_daily_value: number;
+    remaining_today: number;
+    halted: boolean;
 };
 
 export type AgentVote = {
