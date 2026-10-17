@@ -8,6 +8,7 @@ use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioAssetsController;
 use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioInitialCashController;
 use App\Http\Controllers\PortfolioPanicController;
 use App\Http\Controllers\PortfolioReportController;
 use App\Http\Controllers\PortfolioSignalsController;
@@ -23,7 +24,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('novidades', [NovidadesController::class, 'show'])->name('novidades');
     Route::post('novidades/vista', [NovidadesController::class, 'marcarComoVista'])->name('novidades.vista');
 
-    Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update']);
+    Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+    Route::patch('portfolios/{portfolio}/saldo-inicial', PortfolioInitialCashController::class)->name('portfolios.initial-cash');
     Route::put('portfolios/{portfolio}/ativos', [PortfolioAssetsController::class, 'update'])->name('portfolios.assets.update');
     Route::get('ativos', [AssetController::class, 'index'])->name('assets.index');
     Route::get('ativos/busca', [AssetController::class, 'search'])->middleware('throttle:30,1')->name('assets.search');

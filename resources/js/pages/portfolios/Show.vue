@@ -5,6 +5,8 @@ import { computed, onBeforeUnmount } from 'vue';
 import BinanceController from '@/actions/App/Http/Controllers/Settings/BinanceController';
 import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
+import EditInitialCash from '@/components/portfolio/EditInitialCash.vue';
+import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
 import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
@@ -155,6 +157,9 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     Resultado sobre
                     {{ money(portfolio.initial_cash, portfolio.market) }}
                 </p>
+                <div class="mt-2">
+                    <EditInitialCash :portfolio="portfolio" />
+                </div>
                 <p
                     class="text-2xl font-semibold tabular-nums"
                     :class="result < 0 ? 'text-down' : 'text-up'"
@@ -393,6 +398,19 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
             >
                 Ver todos os sinais ({{ signals_total }})
             </Link>
+        </section>
+
+        <section
+            class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4"
+        >
+            <div>
+                <p class="font-medium">Excluir carteira</p>
+                <p class="text-sm text-muted-foreground">
+                    Apaga a carteira e tudo que está ligado a ela. Não pode ser
+                    desfeito.
+                </p>
+            </div>
+            <DeletePortfolio :portfolio="portfolio" />
         </section>
     </div>
 </template>
