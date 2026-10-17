@@ -19,6 +19,15 @@ export const agentLabels: Record<string, string> = {
     risk: 'Risco',
 };
 
+export const chartScenarioLabels: Record<string, string> = {
+    alta: 'Alta',
+    queda: 'Queda',
+    rompimento_alta: 'Rompimento de alta',
+    rompimento_baixa: 'Rompimento de baixa',
+    teste_resistencia: 'Teste de resistência',
+    lateral: 'Lateral',
+};
+
 export const actionLabels: Record<string, string> = {
     buy: 'Compra',
     sell: 'Venda',

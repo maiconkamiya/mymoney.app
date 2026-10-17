@@ -8,6 +8,7 @@ import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecis
 import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
+import ChartReading from '@/components/portfolio/ChartReading.vue';
 import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
 import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
 import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
@@ -428,6 +429,11 @@ const stageVariant = (stage: string) =>
                             <p class="text-muted-foreground">
                                 {{ vote.reasons.join(' ') }}
                             </p>
+                            <ChartReading
+                                v-if="vote.analysis && !vote.abstained"
+                                :analysis="vote.analysis"
+                                :market="portfolio.market"
+                            />
                         </li>
                     </ul>
 
