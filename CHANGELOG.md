@@ -4,13 +4,37 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.33] - 2026-10-17
+## [0.3.36] - 2026-10-17
 
 ### Adicionado
 
 - **Micro operações em cripto.** Na tela de uma carteira simulada ou real de cripto há o quadro "Micro operações" (desligado por padrão). Você define o **aporte por operação**, a **margem de lucro líquida** por operação (já descontadas as taxas e o deslize; a tela mostra o custo da ida e volta, cerca de 0,30%, e a margem bruta do alvo), a **meta de lucro do dia** e a **perda máxima do dia**. Ligado, o sistema olha a cada minuto os pares cadastrados, ordena pelos mais voláteis e compra só quando há tendência de alta, preço perto do suporte e espaço até a resistência. A venda sai no alvo (margem mais custos), no stop ou, se o ciclo passar de 60 minutos, a mercado. Ao bater a meta ou a perda do dia, ele para até o dia seguinte. Não chama modelo de IA, então não há custo de IA por operação.
 - **Registro de cada ciclo** na carteira: par, preço e hora de entrada, saída, taxas, lucro líquido e motivo da saída (alvo, stop ou tempo limite), mais o resultado do dia e os pares em foco.
 - Na carteira real, as micro operações só ligam com a execução automática já confirmada (CONFIRMO) e respeitam sempre o teto por ordem, o teto por dia, a guarda de risco, o "Parar tudo" e o comando `trading:panic`. Como o teto por dia soma compra e venda, aportes grandes esgotam o teto rápido: o modo pausa quando não sobra o valor de um ciclo completo.
+
+## [0.3.35] - 2026-10-17
+
+### Alterado
+
+- **A carteira mostra só o sinal mais recente de cada ativo, em cards que abrem e fecham.** Fechado, o card traz ativo, ação, score, resultado (aprovado, rejeitado, executado), hora e custo. Aberto, mostra os votos dos agentes, quem se absteve, o cálculo do score e os níveis de entrada, stop e alvo. O card mais novo já vem aberto. A lista acompanha os agentes em tempo real: sinal novo, consenso decidido e ordem concluída aparecem sem recarregar a página.
+
+### Adicionado
+
+- **Tela "Histórico de sinais" da carteira.** Pelo link "Ver todos os sinais" você vê todos os sinais da carteira, do mais novo para o mais antigo, com os mesmos cards fechados. Mais sinais carregam sozinhos ao chegar ao fim da lista, e há filtros por ativo e por resultado. Só o dono da carteira acessa.
+
+## [0.3.34] - 2026-10-17
+
+### Adicionado
+
+- **Excluir carteira simulada.** Na lista de carteiras e na tela de cada carteira há o botão "Excluir carteira". Ele pede que você digite o nome da carteira para confirmar e apaga a carteira junto com sinais, votos dos agentes, ordens, posições e histórico, mesmo que ela ainda esteja em execução. Se houver sinal em andamento (aguardando análise, confirmação ou execução) ou ordem pendente, a exclusão é recusada com a explicação: confirme ou descarte os sinais primeiro. Carteira real, como a Conta Binance, não pode ser excluída por aqui. A exclusão fica registrada na auditoria e só o dono da carteira pode fazê-la.
+- **Alterar o saldo inicial da carteira simulada.** Na tela da carteira, o botão "Alterar saldo inicial" abre um diálogo para informar o novo valor (mínimo 100). O caixa muda pela diferença e o histórico de patrimônio acompanha, como se o capital sempre tivesse sido o novo; posições, ordens e sinais ficam como estão, e o retorno passa a ser calculado sobre o novo valor. Se o novo valor deixaria o caixa negativo, a alteração é recusada. Carteira real usa o saldo da corretora e não pode ser alterada. A mudança fica registrada na auditoria, com o valor antigo e o novo.
+
+## [0.3.33] - 2026-10-17
+
+### Adicionado
+
+- **O agente Técnico agora lê o gráfico como um investidor experiente.** Antes de votar, o sistema calcula, em 5 minutos, 15 minutos, 1 hora, 4 horas e 1 dia, a tendência, as médias de 9, 21 e 50 períodos, o RSI, a volatilidade (ATR), o volume relativo, os suportes e resistências (com quantas vezes o preço tocou cada um), a faixa de consolidação e os rompimentos, falsos rompimentos e testes de nível. O agente raciocina em cima desses números, sem inventar nível, e devolve o cenário esperado (alta, queda, rompimento de alta, rompimento de baixa, teste de resistência ou lateral), os suportes e resistências que usou, e um stop e um alvo coerentes com a volatilidade. Tempo gráfico sem histórico suficiente fica de fora e o agente avisa; se nenhum tem histórico, ele se abstém.
+- **Cenário e níveis no sinal.** No cartão de cada sinal, o voto do Técnico mostra o cenário, os suportes, as resistências, os gráficos usados e os que ficaram sem histórico.
 
 ## [0.3.32] - 2026-10-17
 

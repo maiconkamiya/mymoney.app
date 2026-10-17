@@ -23,4 +23,14 @@ trait BuildsMarket
             'volume' => 1,
         ]);
     }
+
+    /**
+     * Flat 1-minute history ending a minute before now, enough for the Technical agent to read a chart.
+     */
+    protected function history(Asset $asset, float $price, int $minutes = 240): void
+    {
+        for ($i = $minutes; $i >= 1; $i--) {
+            $this->quote($asset, $price, now()->subMinutes($i));
+        }
+    }
 }

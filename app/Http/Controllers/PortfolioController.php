@@ -5,10 +5,10 @@ namespace App\Http\Controllers;
 use App\Agents\AgentActivity;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
+use App\Http\Requests\DestroyPortfolioRequest;
 use App\Http\Requests\StorePortfolioRequest;
 use App\Http\Requests\UpdatePortfolioRequest;
 use App\Models\AgentScore;
-use App\Models\AgentVote;
 use App\Models\Asset;
 use App\Models\AuditLog;
 use App\Models\Portfolio;
@@ -21,14 +21,18 @@ use App\Trading\Live\LiveLimits;
 use App\Trading\Micro\MicroOverview;
 use App\Trading\PortfolioCharts;
 use App\Trading\PortfolioValuation;
+use App\Trading\SignalPresenter;
 use App\Trading\TradingHalt;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PortfolioController extends Controller
 {
+    public const LATEST_SIGNALS = 12;
+
     public function index(Request $request, PortfolioValuation $valuation, TradingHalt $halt): Response
     {
         $portfolios = $request->user()->portfolios()->latest()->get()
@@ -114,40 +118,43 @@ class PortfolioController extends Controller
         return back();
     }
 
+    /**
+     * A carteira em execução é apagada junto: parar antes não muda o resultado, já que tudo some.
+     * As FKs em cascata levam sinais, votos, ordens, execuções, posições e snapshots.
+     */
+    public function destroy(DestroyPortfolioRequest $request, Portfolio $portfolio): RedirectResponse
+    {
+        DB::transaction(function () use ($request, $portfolio): void {
+            AuditLog::record('user:'.$request->user()->id, 'portfolio.deleted', null, [
+                'portfolio_id' => $portfolio->id,
+                'name' => $portfolio->name,
+                'status' => $portfolio->status->value,
+                'signals' => $portfolio->signals()->count(),
+                'orders' => $portfolio->orders()->count(),
+            ]);
+
+            $portfolio->delete();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Carteira "'.$portfolio->name.'" excluída.']);
+
+        return to_route('portfolios.index');
+    }
+
     public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt, MicroOverview $micro): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
         $holdings = collect($portfolio->sync_report['holdings'] ?? [])->keyBy('coin');
 
+        // Só o sinal mais recente de cada ativo; o histórico completo fica em portfolios.signals.
         $signals = $portfolio->signals()
+            ->whereIn('id', Signal::query()->where('portfolio_id', $portfolio->id)->selectRaw('max(id)')->groupBy('asset_id'))
             ->with(['asset', 'votes'])
-            ->latest()
-            ->limit(50)
+            ->orderByDesc('id')
+            ->limit(self::LATEST_SIGNALS)
             ->get()
-            ->map(fn (Signal $signal) => [
-                'id' => $signal->id,
-                'symbol' => $signal->asset->symbol,
-                'stage' => $signal->stage->value,
-                'side' => $signal->side?->value,
-                'score' => $signal->score,
-                'calculation' => $signal->calculation,
-                'entry_price' => $signal->entry_price,
-                'stop_price' => $signal->stop_price,
-                'target_price' => $signal->target_price,
-                'reason' => $signal->decision_reason,
-                'created_at' => $signal->created_at->toIso8601String(),
-                'cost' => round($signal->votes->sum('cost'), 4),
-                'votes' => $signal->votes->sortBy([['round', 'desc']])->unique(fn (AgentVote $vote) => $vote->agent->value)->values()->map(fn (AgentVote $vote) => [
-                    'agent' => $vote->agent->value,
-                    'round' => $vote->round,
-                    'action' => $vote->action->value,
-                    'confidence' => $vote->confidence,
-                    'veto' => $vote->veto,
-                    'abstained' => $vote->abstained,
-                    'reasons' => $vote->reasons ?? [],
-                ]),
-            ]);
+            ->map(fn (Signal $signal) => SignalPresenter::present($signal));
 
         return Inertia::render('portfolios/Show', [
             'portfolio' => [
@@ -190,6 +197,7 @@ class PortfolioController extends Controller
                 'not_mirrored' => $holdings->whereIn('status', ['sem_cotacao', 'sem_par_usdt'])->values(),
             ] : null,
             'signals' => $signals,
+            'signals_total' => $portfolio->signals()->count(),
             'performance' => $performance->build($portfolio),
             'agent_scores' => AgentScore::query()->where('market', $portfolio->market)->orderByDesc('hit_rate')->get()->map(fn (AgentScore $score) => [
                 'agent' => $score->agent->value,

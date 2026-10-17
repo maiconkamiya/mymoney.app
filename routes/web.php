@@ -9,8 +9,10 @@ use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioAssetsController;
 use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioInitialCashController;
 use App\Http\Controllers\PortfolioPanicController;
 use App\Http\Controllers\PortfolioReportController;
+use App\Http\Controllers\PortfolioSignalsController;
 use App\Http\Controllers\SignalDecisionController;
 use App\Http\Controllers\TradingHaltController;
 use Illuminate\Support\Facades\Route;
@@ -23,7 +25,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('novidades', [NovidadesController::class, 'show'])->name('novidades');
     Route::post('novidades/vista', [NovidadesController::class, 'marcarComoVista'])->name('novidades.vista');
 
-    Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update']);
+    Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+    Route::patch('portfolios/{portfolio}/saldo-inicial', PortfolioInitialCashController::class)->name('portfolios.initial-cash');
     Route::put('portfolios/{portfolio}/micro-operacoes', [MicroOperationsController::class, 'update'])->name('portfolios.micro');
     Route::put('portfolios/{portfolio}/ativos', [PortfolioAssetsController::class, 'update'])->name('portfolios.assets.update');
     Route::get('ativos', [AssetController::class, 'index'])->name('assets.index');
@@ -33,6 +36,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'store'])->name('portfolios.panic');
     Route::delete('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'destroy'])->name('portfolios.release');
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');
+    Route::get('portfolios/{portfolio}/sinais', PortfolioSignalsController::class)->name('portfolios.signals');
     Route::get('portfolios/{portfolio}/graficos', PortfolioChartsController::class)->name('portfolios.charts');
     Route::get('portfolios/{portfolio}/reports/tax.csv', [PortfolioReportController::class, 'tax'])->name('portfolios.reports.tax');
     Route::post('signals/{signal}/confirm', [SignalDecisionController::class, 'confirm'])->name('signals.confirm');
