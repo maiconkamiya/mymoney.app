@@ -4,12 +4,18 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.30] - 2026-10-17
+## [0.3.31] - 2026-10-17
 
 ### Adicionado
 
 - **O agente Técnico agora lê o gráfico como um investidor experiente.** Antes de votar, o sistema calcula, em 5 minutos, 15 minutos, 1 hora, 4 horas e 1 dia, a tendência, as médias de 9, 21 e 50 períodos, o RSI, a volatilidade (ATR), o volume relativo, os suportes e resistências (com quantas vezes o preço tocou cada um), a faixa de consolidação e os rompimentos, falsos rompimentos e testes de nível. O agente raciocina em cima desses números, sem inventar nível, e devolve o cenário esperado (alta, queda, rompimento de alta, rompimento de baixa, teste de resistência ou lateral), os suportes e resistências que usou, e um stop e um alvo coerentes com a volatilidade. Tempo gráfico sem histórico suficiente fica de fora e o agente avisa; se nenhum tem histórico, ele se abstém.
 - **Cenário e níveis no sinal.** No cartão de cada sinal, o voto do Técnico mostra o cenário, os suportes, as resistências, os gráficos usados e os que ficaram sem histórico.
+
+## [0.3.30] - 2026-10-17
+
+### Adicionado
+
+- **Script de deploy para a produção.** Na máquina onde o MyMoney.App roda, `composer deploy` (ou `deploy/deploy.sh`) atualiza o sistema em um comando: baixa a versão nova da main, instala dependências só quando mudaram, refaz o build, aplica as migrations, atualiza os caches e reinicia o Reverb, o coletor da Binance e o serviço de previsão quando instalados. Antes de mexer em qualquer coisa ele confere se não há alterações locais e se o `.env` existe, e no fim mostra a versão e o estado dos serviços. `--dry-run` só lista o que seria feito. Isso também evita o erro de build "update is not exported" que aparecia quando uma rota nova era publicada com o cache de rotas antigo.
 
 ## [0.3.29] - 2026-10-17
 
