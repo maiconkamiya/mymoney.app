@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Trading\Micro\MicroCosts;
 use App\Trading\Micro\MicroOverview;
 use App\Trading\Micro\MicroTrader;
+use App\Trading\PortfolioValuation;
 use App\Trading\PositionExits;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -250,6 +251,32 @@ class MicroOperationsTest extends TestCase
 
         $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
         $this->assertNull(app(MicroTrader::class)->lastBlock($portfolio));
+    }
+
+    public function test_an_order_cut_by_the_risk_guard_below_the_minimum_is_not_sent_and_says_so()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_order_value' => 20]);
+        $equity = app(PortfolioValuation::class)->equity($portfolio);
+        // O perfil só deixa 0,5 USDT por ordem: o aporte de 20 seria cortado para abaixo do mínimo de 1.
+        $portfolio->riskProfile->update(['max_order_pct' => 0.5 / $equity]);
+
+        $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
+        $this->assertSame(0, Order::count());
+        $this->assertStringContainsString('seria reduzido pela guarda de risco', (string) app(MicroTrader::class)->lastBlock($portfolio));
+    }
+
+    public function test_the_quantity_is_rounded_up_to_the_step_so_the_value_never_falls_under_the_order()
+    {
+        $this->asset->update(['lot_size' => '0.01']);
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_order_value' => 5]);
+
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+
+        $cycle = MicroCycle::sole();
+        $this->assertGreaterThanOrEqual(5, $cycle->qty * $cycle->entry_price);
+        $this->assertEqualsWithDelta(0.0, fmod(round($cycle->qty * 100, 6), 1.0), 0.00001);
     }
 
     public function test_the_overview_shows_the_last_run_and_flags_a_stopped_scheduler()

@@ -4,6 +4,7 @@ namespace App\Trading\Micro;
 
 use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
+use App\MarketData\BinanceSymbols;
 use App\Models\Asset;
 use App\Models\AuditLog;
 use App\Models\Order;
@@ -36,6 +37,7 @@ class MicroTrader
         private readonly LiveLimits $live,
         private readonly TradingHalt $halt,
         private readonly RiskGuard $risk,
+        private readonly BinanceSymbols $symbols,
     ) {}
 
     /**
@@ -268,6 +270,10 @@ class MicroTrader
             return 'pausa de '.$cooldown.' minutos depois de um stop neste par.';
         }
 
+        if ($portfolio->isLive()) {
+            $this->refreshFilters($asset);
+        }
+
         // On a real portfolio the pair's own minimum order may be above the 5 USDT floor.
         if ($portfolio->isLive() && $portfolio->micro_order_value < (float) $asset->min_notional) {
             return 'o mínimo do par é '.(float) $asset->min_notional.' USDT e o aporte é '.$portfolio->micro_order_value.'.';
@@ -279,13 +285,73 @@ class MicroTrader
             return 'guarda de risco: '.$decision->summary();
         }
 
+        $wanted = $this->entryQty($portfolio, $asset, $setup->price) * $setup->price;
+        $minimum = max(self::minOrderValue($portfolio), $portfolio->isLive() ? (float) $asset->min_notional : 0.0);
+
+        if ($wanted > $portfolio->micro_order_value * 1.1) {
+            return sprintf('o passo de quantidade do par (%s) obriga uma ordem de %.2f USDT, acima do aporte de %.2f.', (float) $asset->lot_size, $wanted, $portfolio->micro_order_value);
+        }
+
         $value = ($decision->order->qty ?? 0) * $setup->price;
 
-        if ($value < self::minOrderValue($portfolio) * 0.99) {
-            return sprintf('a guarda de risco reduziria a ordem para %.2f USDT, abaixo do mínimo de %.2f.%s', $value, self::minOrderValue($portfolio), $decision->summary() === '' ? '' : ' '.$decision->summary());
+        if ($value < $minimum * 0.99) {
+            return sprintf('o aporte de %.2f USDT seria reduzido pela guarda de risco para %.2f USDT, abaixo do mínimo de %.2f USDT, e a ordem não é enviada. %s Aumente o saldo ou o limite por ordem do perfil de risco da carteira.', $portfolio->micro_order_value, $value, $minimum, $decision->summary());
         }
 
         return null;
+    }
+
+    /**
+     * The quantity that fits the pair's filters: rounded UP to the step so the
+     * value never falls under the minimum order (a floor to the step turned
+     * 5 USDT into 4.9 and the exchange refused it), and at least the pair's
+     * minimum quantity and, on a real portfolio, its minimum order value plus
+     * a 1% margin for the price moving before the fill.
+     */
+    private function entryQty(Portfolio $portfolio, Asset $asset, float $price): float
+    {
+        $value = $portfolio->micro_order_value;
+
+        if ($portfolio->isLive()) {
+            $value = max($value, (float) $asset->min_notional * 1.01);
+        }
+
+        $qty = max($value / $price, (float) $asset->min_qty);
+        $step = (float) $asset->lot_size;
+
+        return $step > 0 ? ceil(round($qty / $step, 8)) * $step : $qty;
+    }
+
+    /**
+     * Assets created by the account sync carry placeholder filters; read the
+     * pair's real ones from the exchange once an hour before ordering.
+     */
+    private function refreshFilters(Asset $asset): void
+    {
+        if ($asset->min_notional !== null) {
+            return;
+        }
+
+        Cache::remember('micro:filters:'.$asset->id, now()->addHour(), function () use ($asset): bool {
+            try {
+                $pair = $this->symbols->find($asset->symbol);
+            } catch (\Throwable) {
+                return false;
+            }
+
+            if ($pair === null) {
+                return false;
+            }
+
+            $asset->update([
+                'lot_size' => $pair['lot_size'],
+                'tick_size' => $pair['tick_size'],
+                'min_qty' => $pair['min_qty'],
+                'min_notional' => $pair['min_notional'],
+            ]);
+
+            return true;
+        });
     }
 
     private function buyRequest(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): OrderRequest
@@ -293,7 +359,7 @@ class MicroTrader
         return new OrderRequest(
             asset: $asset,
             side: OrderSide::Buy,
-            qty: $portfolio->micro_order_value / $setup->price,
+            qty: $this->entryQty($portfolio, $asset, $setup->price),
             stopPrice: $setup->price * (1 - $grossPct / 100 * (float) config('trading.micro.stop_ratio')),
             clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHi'),
         );
