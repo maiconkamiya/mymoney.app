@@ -4,11 +4,17 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.30] - 2026-10-17
+## [0.3.31] - 2026-10-17
 
 ### Corrigido
 
 - **Sincronização da Binance não falha mais quando o relógio da máquina está fora de hora.** Em computadores que suspendem (como o WSL no Windows), o relógio podia adiantar ou atrasar e a Binance recusava a chamada com "Timestamp for this request was 1000ms ahead of the server's time". Agora o sistema confere a hora da Binance, ajusta o próprio relógio nas chamadas e, se mesmo assim a Binance reclamar, refaz o ajuste e tenta de novo uma vez. Se ainda falhar, a mensagem explica em português que é preciso acertar o relógio da máquina (no WSL: `sudo hwclock -s`). A tolerância da Binance pode ser mudada com `BINANCE_RECV_WINDOW` no `.env` (padrão 5000 ms).
+
+## [0.3.30] - 2026-10-17
+
+### Adicionado
+
+- **Script de deploy para a produção.** Na máquina onde o MyMoney.App roda, `composer deploy` (ou `deploy/deploy.sh`) atualiza o sistema em um comando: baixa a versão nova da main, instala dependências só quando mudaram, refaz o build, aplica as migrations, atualiza os caches e reinicia o Reverb, o coletor da Binance e o serviço de previsão quando instalados. Antes de mexer em qualquer coisa ele confere se não há alterações locais e se o `.env` existe, e no fim mostra a versão e o estado dos serviços. `--dry-run` só lista o que seria feito. Isso também evita o erro de build "update is not exported" que aparecia quando uma rota nova era publicada com o cache de rotas antigo.
 
 ## [0.3.29] - 2026-10-17
 
