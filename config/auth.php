@@ -113,5 +113,17 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+    /*
+    |--------------------------------------------------------------------------
+    | Confirmação de e-mail
+    |--------------------------------------------------------------------------
+    |
+    | Exige que a pessoa confirme o e-mail antes de entrar no painel. Fica
+    | ligada por padrão e só desliga sozinha com APP_ENV=local (instalação
+    | na própria máquina, sem SMTP). Force com AUTH_EMAIL_VERIFICATION.
+    |
+    */
+
+    'email_verification' => (bool) env('AUTH_EMAIL_VERIFICATION', env('APP_ENV') !== 'local'),
 
 ];
