@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\SignalStage;
 use App\Events\PortfolioChanged;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Asset;
 use App\Models\Portfolio;
 use App\Models\Signal;
@@ -50,6 +51,7 @@ class CarteiraTempoRealTest extends TestCase
         $this->actingAs($portfolio->user)
             ->get(route('portfolios.show', $portfolio), [
                 'X-Inertia' => 'true',
+                'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)->version(request()),
                 'X-Inertia-Partial-Component' => 'portfolios/Show',
                 'X-Inertia-Partial-Data' => 'positions',
             ])
