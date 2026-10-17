@@ -8,11 +8,8 @@ import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecis
 import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
-<<<<<<< HEAD
 import ChartReading from '@/components/portfolio/ChartReading.vue';
-=======
 import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
->>>>>>> origin/main
 import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
 import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
