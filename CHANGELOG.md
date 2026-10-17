@@ -4,6 +4,14 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.36] - 2026-10-17
+
+### Adicionado
+
+- **Micro operações em cripto.** Na tela de uma carteira simulada ou real de cripto há o quadro "Micro operações" (desligado por padrão). Você define o **aporte por operação**, a **margem de lucro líquida** por operação (já descontadas as taxas e o deslize; a tela mostra o custo da ida e volta, cerca de 0,30%, e a margem bruta do alvo), a **meta de lucro do dia** e a **perda máxima do dia**. Ligado, o sistema olha a cada minuto os pares cadastrados, ordena pelos mais voláteis e compra só quando há tendência de alta, preço perto do suporte e espaço até a resistência. A venda sai no alvo (margem mais custos), no stop ou, se o ciclo passar de 60 minutos, a mercado. Ao bater a meta ou a perda do dia, ele para até o dia seguinte. Não chama modelo de IA, então não há custo de IA por operação.
+- **Registro de cada ciclo** na carteira: par, preço e hora de entrada, saída, taxas, lucro líquido e motivo da saída (alvo, stop ou tempo limite), mais o resultado do dia e os pares em foco.
+- Na carteira real, as micro operações só ligam com a execução automática já confirmada (CONFIRMO) e respeitam sempre o teto por ordem, o teto por dia, a guarda de risco, o "Parar tudo" e o comando `trading:panic`. Como o teto por dia soma compra e venda, aportes grandes esgotam o teto rápido: o modo pausa quando não sobra o valor de um ciclo completo.
+
 ## [0.3.35] - 2026-10-17
 
 ### Alterado

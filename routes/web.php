@@ -3,6 +3,7 @@
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\BrokerCredentialController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MicroOperationsController;
 use App\Http\Controllers\NovidadesController;
 use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioAssetsController;
@@ -26,6 +27,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::patch('portfolios/{portfolio}/saldo-inicial', PortfolioInitialCashController::class)->name('portfolios.initial-cash');
+    Route::put('portfolios/{portfolio}/micro-operacoes', [MicroOperationsController::class, 'update'])->name('portfolios.micro');
     Route::put('portfolios/{portfolio}/ativos', [PortfolioAssetsController::class, 'update'])->name('portfolios.assets.update');
     Route::get('ativos', [AssetController::class, 'index'])->name('assets.index');
     Route::get('ativos/busca', [AssetController::class, 'search'])->middleware('throttle:30,1')->name('assets.search');

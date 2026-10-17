@@ -168,6 +168,32 @@ return [
         'max_daily_value' => (float) env('TRADING_LIVE_MAX_DAILY_VALUE', 100),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Micro operações (cripto)
+    |--------------------------------------------------------------------------
+    |
+    | Modo por carteira, desligado por padrão. Sem modelo de IA: tendência,
+    | suporte, resistência e volatilidade saem dos candles de 1 minuto. A
+    | margem bruta do alvo é a líquida do dono mais o custo da ida e volta
+    | (taxas + deslize de `costs.crypto`). A guarda de risco e os limites
+    | reais valem em toda ordem.
+    |
+    */
+
+    'micro' => [
+        'min_order_value' => (float) env('TRADING_MICRO_MIN_ORDER_VALUE', 5),
+        'lookback_minutes' => 120,
+        'atr_window' => 30,
+        'ranking_size' => (int) env('TRADING_MICRO_RANKING_SIZE', 5),
+        'max_open_cycles' => (int) env('TRADING_MICRO_MAX_OPEN', 3),
+        'max_hold_minutes' => (int) env('TRADING_MICRO_MAX_HOLD_MINUTES', 60),
+        'cooldown_minutes' => (int) env('TRADING_MICRO_COOLDOWN_MINUTES', 10),
+        'support_zone' => 0.6,
+        'stop_ratio' => 1.0,
+        'max_candle_age_seconds' => 150,
+    ],
+
     'binance' => [
         // Signed requests (orders, account). BINANCE_TESTNET=true aponta para o
         // testnet spot (sem dinheiro real); BINANCE_API_URL troca a base à mão.

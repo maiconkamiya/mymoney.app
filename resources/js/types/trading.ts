@@ -247,6 +247,43 @@ export type PortfolioCharts = {
     assets: ChartAsset[];
 };
 
+export type MicroCycleRow = {
+    id: number;
+    symbol: string;
+    status: 'open' | 'closed';
+    qty: number;
+    entry_price: number;
+    target_price: number;
+    stop_price: number;
+    exit_price: number | null;
+    fees: number;
+    net_pnl: number | null;
+    exit_reason: string | null;
+    opened_at: string;
+    closed_at: string | null;
+};
+
+export type MicroOverview = {
+    enabled: boolean;
+    order_value: number;
+    net_margin_pct: number;
+    gross_margin_pct: number;
+    round_trip_cost_pct: number;
+    min_order_value: number;
+    daily_target: number | null;
+    daily_loss_limit: number | null;
+    state: { code: string; label: string };
+    last_block: string | null;
+    today: { cycles: number; wins: number; net_pnl: number; fees: number };
+    focus: {
+        symbol: string;
+        atr_pct: number;
+        entry: boolean;
+        reason: string;
+    }[];
+    cycles: MicroCycleRow[];
+};
+
 export type AssetRow = {
     id: number;
     symbol: string;

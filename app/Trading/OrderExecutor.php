@@ -137,6 +137,16 @@ class OrderExecutor
     }
 
     /**
+     * Send an order that has no signal behind it (micro operations). It still
+     * passes the risk guard and the broker; the caller decides whether the
+     * portfolio may trade on its own.
+     */
+    public function placeDirect(Portfolio $portfolio, OrderRequest $request, string $actor, string $reason): Order|string
+    {
+        return $this->submit($portfolio, $request, null, $actor, $reason);
+    }
+
+    /**
      * Risk-check, send and book one order. Returns the order (filled or
      * rejected by the broker) or the reason the risk guard blocked it.
      */

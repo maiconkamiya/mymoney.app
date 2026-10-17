@@ -77,6 +77,10 @@ As fontes Geist e Geist Mono (licença SIL OFL 1.1) vêm dos pacotes npm `@fonts
 - Provedor definitivo de cotações da B3 (hoje brapi.dev, precisa de `BRAPI_TOKEN`) e escolha entre Binance e Mercado Bitcoin.
 - Ligar o serviço de previsão (`FORECAST_ENABLED=true`) depois de treinar com `php artisan forecast:train` e conferir o backtest; sem modelo validado, o agente quantitativo vota "aguardar".
 
+## Micro operações (cripto)
+
+Modo por carteira, desligado por padrão: muitas compras e vendas pequenas nos pares mais voláteis, com lucro líquido pequeno por operação. O dono define aporte por operação, margem líquida, meta de lucro do dia e perda máxima do dia. Sem modelo de IA: `micro:run` (a cada minuto) lê os candles de 1 minuto (volatilidade, médias de 9 e 21 minutos, suporte e resistência), entra só em tendência de alta perto do suporte, e a saída é o alvo (margem líquida + taxas e deslize), o stop ou o tempo limite (`TRADING_MICRO_MAX_HOLD_MINUTES`, 60). Os ciclos ficam em `micro_cycles`. Valem a guarda de risco, os tetos reais, o "Parar tudo" e `trading:panic`; na carteira real exige a execução automática confirmada. Ajustes opcionais no `.env`: `TRADING_MICRO_MAX_OPEN` (3), `TRADING_MICRO_RANKING_SIZE` (5), `TRADING_MICRO_COOLDOWN_MINUTES` (10).
+
 ## Execução automática com dinheiro real
 
 A carteira real (Conta Binance) pode executar sozinha os sinais aprovados pelo consenso. É decisão do Maicon (17/10/2026) e vem com travas que não saem do código:

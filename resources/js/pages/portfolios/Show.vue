@@ -11,6 +11,7 @@ import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
 import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
 import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
+import MicroOperationsCard from '@/components/portfolio/MicroOperationsCard.vue';
 import SignalCard from '@/components/portfolio/SignalCard.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ import type {
     AgentScoreRow,
     AvailableAsset,
     LiveInfo,
+    MicroOverview,
     Performance,
     PortfolioCharts,
     PortfolioSummary,
@@ -45,6 +47,7 @@ const props = defineProps<{
     available_assets: AvailableAsset[];
     tracked_asset_ids: number[];
     live: LiveInfo | null;
+    micro: MicroOverview | null;
 }>();
 
 defineOptions({
@@ -119,6 +122,7 @@ if (echoIsConfigured()) {
                     'positions',
                     'signals',
                     'signals_total',
+                    'micro',
                 ],
             });
         },
@@ -218,6 +222,12 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
             v-if="portfolio.mode === 'live' && live"
             :portfolio="portfolio"
             :live="live"
+        />
+
+        <MicroOperationsCard
+            v-if="micro"
+            :portfolio="portfolio"
+            :micro="micro"
         />
 
         <AssetChartsCard
