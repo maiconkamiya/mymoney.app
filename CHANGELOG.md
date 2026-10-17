@@ -4,6 +4,16 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.35] - 2026-10-17
+
+### Alterado
+
+- **A carteira mostra só o sinal mais recente de cada ativo, em cards que abrem e fecham.** Fechado, o card traz ativo, ação, score, resultado (aprovado, rejeitado, executado), hora e custo. Aberto, mostra os votos dos agentes, quem se absteve, o cálculo do score e os níveis de entrada, stop e alvo. O card mais novo já vem aberto. A lista acompanha os agentes em tempo real: sinal novo, consenso decidido e ordem concluída aparecem sem recarregar a página.
+
+### Adicionado
+
+- **Tela "Histórico de sinais" da carteira.** Pelo link "Ver todos os sinais" você vê todos os sinais da carteira, do mais novo para o mais antigo, com os mesmos cards fechados. Mais sinais carregam sozinhos ao chegar ao fim da lista, e há filtros por ativo e por resultado. Só o dono da carteira acessa.
+
 ## [0.3.34] - 2026-10-17
 
 ### Adicionado
