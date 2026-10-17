@@ -17,6 +17,7 @@ use App\Support\VersaoDoSistema;
 use App\Trading\CandlePriceFeed;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Gateways\OrderGateway;
+use App\Trading\PortfolioChangeBroadcaster;
 use App\Trading\TradingHalt;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -64,6 +65,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        PortfolioChangeBroadcaster::register();
 
         Candle::saved(fn (Candle $candle) => app(PriceMoveTrigger::class)->handle($candle));
     }

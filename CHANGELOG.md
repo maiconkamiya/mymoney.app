@@ -4,6 +4,16 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.41] - 2026-10-17
+
+### Adicionado
+
+- **A carteira se atualiza sozinha por websocket.** Saldo, posições, ordens, sinais e ciclos de micro operações mudam na tela assim que acontecem no servidor (agendador, fila ou coletor), sem F5 e sem perder o ponto da rolagem.
+
+### Alterado
+
+- **Ações da carteira não recarregam mais a tela inteira.** Confirmar ou descartar um sinal, alterar o saldo inicial, salvar as micro operações e a parada geral atualizam só os blocos afetados e mantêm a rolagem.
+
 ## [0.3.40] - 2026-10-17
 
 ### Adicionado
