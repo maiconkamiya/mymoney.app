@@ -53,12 +53,89 @@ class BinanceBroker implements Broker
         }
 
         try {
-            $response = $client->signed('POST', '/api/v3/order', $params);
+            $response = $this->send($client, $params);
         } catch (LiveTradingException $e) {
+            if ($e->uncertain) {
+                // The order may be on the exchange without us knowing: stop this portfolio until a person looks.
+                $this->portfolio->forceFill([
+                    'auto_execute' => false,
+                    'live_auto_confirmed_at' => null,
+                    'orders_blocked_at' => now(),
+                    'orders_blocked_reason' => 'Envio incerto à Binance: confira as ordens na corretora antes de liberar.',
+                ])->save();
+            }
+
             return OrderResult::rejected($e->getMessage());
         }
 
         return $this->toResult($symbol, $response);
+    }
+
+    /**
+     * Sends the order. Only a failure that leaves the order's fate unknown (timeout,
+     * 5xx) is retried, once, and only after asking the exchange for the order by its
+     * client id: the same id makes a second POST safe, but looking first avoids relying on it.
+     *
+     * @param  array<string, scalar>  $params
+     * @return array<string, mixed>
+     */
+    private function send(BinanceClient $client, array $params): array
+    {
+        try {
+            return $client->signed('POST', '/api/v3/order', $params);
+        } catch (LiveTradingException $e) {
+            if (! $e->uncertain || ! isset($params['newClientOrderId'])) {
+                throw $e;
+            }
+        }
+
+        try {
+            return $client->signed('GET', '/api/v3/order', ['symbol' => $params['symbol'], 'origClientOrderId' => $params['newClientOrderId']]);
+        } catch (LiveTradingException $lookup) {
+            // -2013: the exchange never saw it, so sending again cannot duplicate it.
+            if ($lookup->binanceCode !== -2013) {
+                throw $lookup;
+            }
+        }
+
+        return $client->signed('POST', '/api/v3/order', $params);
+    }
+
+    /**
+     * Cancels every open order this app sent (client ids "signal-*" and "position-*")
+     * and returns how many were cancelled. Orders placed by hand on the exchange stay.
+     * It works even while the portfolio is blocked, halted or live execution is off:
+     * cancelling never moves money.
+     *
+     * @return array{cancelled: list<string>, failed: list<string>}
+     */
+    public function cancelOpenOrders(): array
+    {
+        $client = $this->readClient();
+        $cancelled = [];
+        $failed = [];
+
+        /** @var list<array<string, mixed>> $open */
+        $open = $client->signed('GET', '/api/v3/openOrders');
+
+        foreach ($open as $remote) {
+            $clientId = (string) ($remote['clientOrderId'] ?? '');
+
+            if (! str_starts_with($clientId, 'signal-') && ! str_starts_with($clientId, 'position-')) {
+                continue;
+            }
+
+            $externalId = $remote['symbol'].':'.$remote['orderId'];
+
+            try {
+                $client->signed('DELETE', '/api/v3/order', ['symbol' => $remote['symbol'], 'orderId' => $remote['orderId']]);
+                $cancelled[] = $externalId;
+            } catch (LiveTradingException $e) {
+                $failed[] = $externalId.': '.$e->getMessage();
+            }
+        }
+
+        return ['cancelled' => $cancelled, 'failed' => $failed];
     }
 
     public function cancelOrder(string $externalId): void

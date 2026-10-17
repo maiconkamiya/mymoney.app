@@ -7,6 +7,7 @@ use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioController;
 use App\Http\Controllers\PortfolioInitialCashController;
+use App\Http\Controllers\PortfolioPanicController;
 use App\Http\Controllers\PortfolioReportController;
 use App\Http\Controllers\SignalDecisionController;
 use App\Http\Controllers\TradingHaltController;
@@ -22,6 +23,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::patch('portfolios/{portfolio}/saldo-inicial', PortfolioInitialCashController::class)->name('portfolios.initial-cash');
+    Route::post('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'store'])->name('portfolios.panic');
+    Route::delete('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'destroy'])->name('portfolios.release');
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');
     Route::get('portfolios/{portfolio}/graficos', PortfolioChartsController::class)->name('portfolios.charts');
     Route::get('portfolios/{portfolio}/reports/tax.csv', [PortfolioReportController::class, 'tax'])->name('portfolios.reports.tax');

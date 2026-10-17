@@ -36,6 +36,14 @@ class RiskGuard
             return RiskDecision::block('Parada geral acionada.');
         }
 
+        if ($portfolio->isOrdersBlocked()) {
+            return RiskDecision::block('Ordens bloqueadas nesta carteira ("Parar tudo").');
+        }
+
+        if ($asset->market !== $portfolio->market) {
+            return RiskDecision::block('Ativo fora do mercado da carteira.');
+        }
+
         if ($portfolio->isLive() && ! $this->live->enabled()) {
             return RiskDecision::block('Execução real desligada.');
         }
