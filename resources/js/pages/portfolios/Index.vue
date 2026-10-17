@@ -4,6 +4,7 @@ import PortfolioController from '@/actions/App/Http/Controllers/PortfolioControl
 import TradingHaltController from '@/actions/App/Http/Controllers/TradingHaltController';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
+import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,6 +93,7 @@ const inThirtyDays = new Date(Date.now() + 30 * 86_400_000)
                                 Retorno
                             </th>
                             <th class="px-4 py-2 font-medium">Status</th>
+                            <th class="px-4 py-2"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -136,6 +138,12 @@ const inThirtyDays = new Date(Date.now() + 30 * 86_400_000)
                                     }}
                                     · {{ statusLabels[portfolio.status] }}
                                 </Badge>
+                            </td>
+                            <td class="px-4 py-2 text-right">
+                                <DeletePortfolio
+                                    :portfolio="portfolio"
+                                    size="sm"
+                                />
                             </td>
                         </tr>
                     </tbody>

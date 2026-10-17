@@ -6,6 +6,8 @@ import BinanceController from '@/actions/App/Http/Controllers/Settings/BinanceCo
 import { toast } from 'vue-sonner';
 import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
 import Heading from '@/components/Heading.vue';
+import EditInitialCash from '@/components/portfolio/EditInitialCash.vue';
+import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
 import ChartReading from '@/components/portfolio/ChartReading.vue';
@@ -132,6 +134,9 @@ const stageVariant = (stage: string) =>
                     Resultado sobre
                     {{ money(portfolio.initial_cash, portfolio.market) }}
                 </p>
+                <div class="mt-2">
+                    <EditInitialCash :portfolio="portfolio" />
+                </div>
                 <p
                     class="text-2xl font-semibold tabular-nums"
                     :class="result < 0 ? 'text-down' : 'text-up'"
@@ -468,6 +473,19 @@ const stageVariant = (stage: string) =>
                     </div>
                 </article>
             </div>
+        </section>
+
+        <section
+            class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4"
+        >
+            <div>
+                <p class="font-medium">Excluir carteira</p>
+                <p class="text-sm text-muted-foreground">
+                    Apaga a carteira e tudo que está ligado a ela. Não pode ser
+                    desfeito.
+                </p>
+            </div>
+            <DeletePortfolio :portfolio="portfolio" />
         </section>
     </div>
 </template>
