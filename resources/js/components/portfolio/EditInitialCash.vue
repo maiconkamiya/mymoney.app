@@ -42,7 +42,10 @@ defineProps<{
             <Form
                 v-bind="InitialCashController.form(portfolio.id)"
                 class="space-y-6"
-                :options="{ preserveScroll: true }"
+                :options="{
+                    preserveScroll: true,
+                    only: ['portfolio', 'performance'],
+                }"
                 v-slot="{ errors, processing }"
             >
                 <DialogHeader class="space-y-3">

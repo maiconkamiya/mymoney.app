@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Form } from '@inertiajs/vue3';
+import { Form, usePage } from '@inertiajs/vue3';
 import { ChevronDown } from '@lucide/vue';
 import { ref } from 'vue';
 import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
@@ -14,6 +14,25 @@ import {
 } from '@/components/ui/collapsible';
 import { actionLabels, agentLabels, money, stageLabels } from '@/lib/trading';
 import type { SignalRow } from '@/types';
+
+const page = usePage();
+
+// Na carteira, decidir um sinal recarrega só os blocos que ele muda.
+const decisionOptions = {
+    preserveScroll: true,
+    ...(page.component === 'portfolios/Show'
+        ? {
+              only: [
+                  'portfolio',
+                  'live',
+                  'positions',
+                  'signals',
+                  'signals_total',
+                  'micro',
+              ],
+          }
+        : {}),
+};
 
 const props = withDefaults(
     defineProps<{
@@ -126,6 +145,7 @@ const when = (iso: string) =>
                 <Form
                     v-bind="SignalDecisionController.confirm.form(signal.id)"
                     v-slot="{ processing }"
+                    :options="decisionOptions"
                 >
                     <Button size="sm" :disabled="processing">
                         Confirmar e executar
@@ -134,6 +154,7 @@ const when = (iso: string) =>
                 <Form
                     v-bind="SignalDecisionController.reject.form(signal.id)"
                     v-slot="{ processing }"
+                    :options="decisionOptions"
                 >
                     <Button size="sm" variant="outline" :disabled="processing">
                         Descartar

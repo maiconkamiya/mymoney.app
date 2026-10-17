@@ -58,10 +58,18 @@ const inThirtyDays = new Date(Date.now() + 30 * 86_400_000)
                     }}
                 </p>
             </div>
-            <Form v-if="halted" v-bind="TradingHaltController.destroy.form()">
+            <Form
+                v-if="halted"
+                v-bind="TradingHaltController.destroy.form()"
+                :options="{ preserveScroll: true }"
+            >
                 <Button variant="outline">Retomar negociação</Button>
             </Form>
-            <Form v-else v-bind="TradingHaltController.store.form()">
+            <Form
+                v-else
+                v-bind="TradingHaltController.store.form()"
+                :options="{ preserveScroll: true }"
+            >
                 <Button variant="destructive">Parada geral</Button>
             </Form>
         </div>
