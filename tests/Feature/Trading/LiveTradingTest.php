@@ -85,11 +85,13 @@ class LiveTradingTest extends TestCase
 
     private function fakeBinanceFill(): void
     {
-        Http::fake(['api.binance.com/api/v3/order*' => Http::response([
-            'orderId' => 77, 'status' => 'FILLED', 'executedQty' => '0.2', 'cummulativeQuoteQty' => '20',
-            'transactTime' => now()->getTimestampMs(),
-            'fills' => [['price' => '100', 'qty' => '0.2', 'commission' => '0.02', 'commissionAsset' => 'USDT']],
-        ])]);
+        Http::fake([
+            '*/api/v3/time' => fn () => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+            'api.binance.com/api/v3/order*' => Http::response([
+                'orderId' => 77, 'status' => 'FILLED', 'executedQty' => '0.2', 'cummulativeQuoteQty' => '20',
+                'transactTime' => now()->getTimestampMs(),
+                'fills' => [['price' => '100', 'qty' => '0.2', 'commission' => '0.02', 'commissionAsset' => 'USDT']],
+            ])]);
     }
 
     public function test_live_execution_is_off_by_default()
@@ -223,9 +225,11 @@ class LiveTradingTest extends TestCase
         $exchange = ['orderId' => 77, 'status' => 'FILLED', 'executedQty' => '0.2', 'cummulativeQuoteQty' => '20',
             'transactTime' => now()->getTimestampMs(),
             'fills' => [['price' => '100', 'qty' => '0.2', 'commission' => '0.02', 'commissionAsset' => 'USDT']]];
-        Http::fake(['api.binance.com/api/v3/order*' => function () use (&$exchange) {
-            return Http::response($exchange);
-        }]);
+        Http::fake([
+            '*/api/v3/time' => fn () => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+            'api.binance.com/api/v3/order*' => function () use (&$exchange) {
+                return Http::response($exchange);
+            }]);
 
         $portfolio = $this->livePortfolio();
         $order = app(OrderExecutor::class)->execute($this->signal($portfolio), 'user:1');
