@@ -236,7 +236,14 @@ const time = (iso: string) =>
                         alcance {{ row.reach_pct.toFixed(2) }}% em 60 min
                     </span>
                     <span class="text-muted-foreground">
-                        {{ row.entry ? 'Entrada liberada' : row.reason }}
+                        {{
+                            row.blocked
+                                ? 'Entrada liberada, mas bloqueada: ' +
+                                  row.blocked
+                                : row.entry
+                                  ? 'Entrada liberada'
+                                  : row.reason
+                        }}
                     </span>
                 </li>
             </ul>

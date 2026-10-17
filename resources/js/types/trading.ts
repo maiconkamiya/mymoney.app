@@ -292,6 +292,7 @@ export type MicroOverview = {
         reach_pct: number;
         entry: boolean;
         reason: string;
+        blocked: string | null;
     }[];
     cycles: MicroCycleRow[];
 };

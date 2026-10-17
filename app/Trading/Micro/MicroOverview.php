@@ -36,6 +36,8 @@ class MicroOverview
         $reachable = $evaluation['ready']->take((int) config('trading.micro.ranking_size'))->max(fn (array $row) => $row['setup']->reachPct) ?? 0;
         $maxMove = $reachable * (float) config('trading.micro.reach_factor');
         $roundTrip = $this->costs->roundTripPct();
+        $openCycles = $portfolio->microCycles()->where('status', 'open')->count();
+        $canTrade = $portfolio->micro_enabled && $this->trader->state($portfolio)['code'] === 'active';
 
         return [
             'margin_warning' => $evaluation['ready']->isNotEmpty() && $gross > $maxMove
@@ -78,6 +80,7 @@ class MicroOverview
                 'reach_pct' => round($row['setup']->reachPct * (float) config('trading.micro.reach_factor'), 4),
                 'entry' => $row['setup']->entry,
                 'reason' => $row['setup']->reasons[0] ?? '',
+                'blocked' => $canTrade && $row['setup']->entry ? $this->trader->gate($portfolio, $row['asset'], $row['setup'], $openCycles) : null,
             ])->all(),
             'cycles' => $portfolio->microCycles()->with('asset')->latest('id')->limit(30)->get()->map(fn (MicroCycle $cycle) => [
                 'id' => $cycle->id,

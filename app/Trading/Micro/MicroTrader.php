@@ -12,6 +12,7 @@ use App\Models\Position;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Live\LiveLimits;
 use App\Trading\OrderExecutor;
+use App\Trading\Risk\RiskGuard;
 use App\Trading\TradingHalt;
 use Illuminate\Support\Facades\Cache;
 
@@ -34,6 +35,7 @@ class MicroTrader
         private readonly OrderExecutor $executor,
         private readonly LiveLimits $live,
         private readonly TradingHalt $halt,
+        private readonly RiskGuard $risk,
     ) {}
 
     /**
@@ -58,23 +60,40 @@ class MicroTrader
         $open = $portfolio->microCycles()->where('status', 'open')->count();
         $opened = 0;
 
+        $blocks = [];
+
         foreach ($this->ranker->rank($portfolio, $gross) as $row) {
             if ($portfolio->micro_daily_operations !== null && $this->openedToday($portfolio) >= $portfolio->micro_daily_operations) {
                 break;
             }
 
-            if ($open >= (int) config('trading.micro.max_open_cycles') || ! $row['setup']->entry) {
+            if (! $row['setup']->entry) {
                 continue;
             }
 
-            if ($this->busy($portfolio, $row['asset'])) {
+            $reason = $this->gate($portfolio, $row['asset'], $row['setup'], $open);
+
+            if ($reason !== null) {
+                $blocks[] = $row['asset']->symbol.': '.$reason;
+
                 continue;
             }
+
+            Cache::forget($this->blockKey($portfolio));
 
             if ($this->open($portfolio, $row['asset'], $row['setup'], $gross)) {
                 $open++;
                 $opened++;
+            } elseif (($failure = Cache::get($this->blockKey($portfolio))) !== null) {
+                $blocks[] = $failure;
             }
+        }
+
+        // Só o motivo da última rodada: ciclo aberto ou nenhum par liberado limpam o aviso velho.
+        if ($blocks === []) {
+            Cache::forget($this->blockKey($portfolio));
+        } else {
+            Cache::put($this->blockKey($portfolio), implode(' · ', array_unique($blocks)), now()->addHour());
         }
 
         return $opened;
@@ -223,44 +242,69 @@ class MicroTrader
     }
 
     /**
-     * One cycle per pair at a time, and a pause after a stop on that pair.
+     * Why the pair cannot get a new cycle right now, or null when it can.
+     * The same checks the real run applies after the chart says "enter", so
+     * `micro:run --explain` and the card can show them.
      */
-    private function busy(Portfolio $portfolio, Asset $asset): bool
+    public function gate(Portfolio $portfolio, Asset $asset, MicroSetup $setup, int $openCycles): ?string
     {
-        if ($portfolio->openPositions()->where('asset_id', $asset->id)->exists()) {
-            return true;
+        if ($openCycles >= (int) config('trading.micro.max_open_cycles')) {
+            return 'já há '.$openCycles.' ciclos abertos (máximo '.(int) config('trading.micro.max_open_cycles').').';
         }
 
-        return $portfolio->microCycles()
-            ->where('asset_id', $asset->id)
-            ->where('status', 'closed')
-            ->where('exit_reason', 'stop')
-            ->where('closed_at', '>=', now()->subMinutes((int) config('trading.micro.cooldown_minutes')))
-            ->exists();
+        $position = $portfolio->openPositions()->where('asset_id', $asset->id)->first();
+
+        if ($position !== null) {
+            $isCycle = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->exists();
+
+            return $isCycle
+                ? 'já tem um ciclo em andamento neste par.'
+                : 'a carteira já tem posição aberta neste par (ex.: saldo da conta Binance); o modo não compra por cima.';
+        }
+
+        $cooldown = (int) config('trading.micro.cooldown_minutes');
+
+        if ($portfolio->microCycles()->where('asset_id', $asset->id)->where('status', 'closed')->where('exit_reason', 'stop')->where('closed_at', '>=', now()->subMinutes($cooldown))->exists()) {
+            return 'pausa de '.$cooldown.' minutos depois de um stop neste par.';
+        }
+
+        // On a real portfolio the pair's own minimum order may be above the 5 USDT floor.
+        if ($portfolio->isLive() && $portfolio->micro_order_value < (float) $asset->min_notional) {
+            return 'o mínimo do par é '.(float) $asset->min_notional.' USDT e o aporte é '.$portfolio->micro_order_value.'.';
+        }
+
+        $decision = $this->risk->check($portfolio, $this->buyRequest($portfolio, $asset, $setup, $this->costs->grossMarginPct($portfolio->micro_net_margin_pct)));
+
+        if (! $decision->allowed) {
+            return 'guarda de risco: '.$decision->summary();
+        }
+
+        $value = ($decision->order->qty ?? 0) * $setup->price;
+
+        if ($value < self::minOrderValue($portfolio) * 0.99) {
+            return sprintf('a guarda de risco reduziria a ordem para %.2f USDT, abaixo do mínimo de %.2f.%s', $value, self::minOrderValue($portfolio), $decision->summary() === '' ? '' : ' '.$decision->summary());
+        }
+
+        return null;
+    }
+
+    private function buyRequest(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): OrderRequest
+    {
+        return new OrderRequest(
+            asset: $asset,
+            side: OrderSide::Buy,
+            qty: $portfolio->micro_order_value / $setup->price,
+            stopPrice: $setup->price * (1 - $grossPct / 100 * (float) config('trading.micro.stop_ratio')),
+            clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHi'),
+        );
     }
 
     private function open(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): bool
     {
-        // On a real portfolio the pair's own minimum order may be above the 5 USDT floor.
-        if ($portfolio->isLive() && $portfolio->micro_order_value < (float) $asset->min_notional) {
-            Cache::put($this->blockKey($portfolio), $asset->symbol.': o mínimo do par é '.(float) $asset->min_notional.' e o aporte é '.$portfolio->micro_order_value.'.', now()->addHour());
-
-            return false;
-        }
-
-        $qty = $portfolio->micro_order_value / $setup->price;
-        $stop = $setup->price * (1 - $grossPct / 100 * (float) config('trading.micro.stop_ratio'));
-
-        $outcome = $this->executor->placeDirect($portfolio, new OrderRequest(
-            asset: $asset,
-            side: OrderSide::Buy,
-            qty: $qty,
-            stopPrice: $stop,
-            clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHi'),
-        ), self::ACTOR, 'micro');
+        $outcome = $this->executor->placeDirect($portfolio, $this->buyRequest($portfolio, $asset, $setup, $grossPct), self::ACTOR, 'micro');
 
         if (is_string($outcome) || $outcome->status !== OrderStatus::Filled) {
-            Cache::put($this->blockKey($portfolio), $asset->symbol.': '.(is_string($outcome) ? $outcome : 'Corretora recusou: '.$outcome->reject_reason), now()->addHour());
+            Cache::put($this->blockKey($portfolio), $asset->symbol.': '.(is_string($outcome) ? $outcome : 'corretora recusou: '.$outcome->reject_reason), now()->addHour());
 
             return false;
         }
