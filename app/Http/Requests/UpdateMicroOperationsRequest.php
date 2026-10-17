@@ -34,6 +34,7 @@ class UpdateMicroOperationsRequest extends FormRequest
             'micro_enabled' => ['required', 'boolean'],
             'micro_order_value' => ['required', 'numeric', 'min:'.$min, 'max:1000000'],
             'micro_daily_operations' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'micro_wallet_pct' => ['nullable', 'integer', 'min:1', 'max:100'],
             'micro_net_margin_pct' => ['required', 'numeric', 'min:0.05', 'max:5'],
             'micro_daily_target' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'micro_daily_loss_limit' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
