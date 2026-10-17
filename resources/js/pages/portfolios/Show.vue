@@ -1,23 +1,16 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
-import { computed } from 'vue';
-import SignalDecisionController from '@/actions/App/Http/Controllers/SignalDecisionController';
+import { echoIsConfigured, useEcho } from '@laravel/echo-vue';
+import { Form, Head, Link, router } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount } from 'vue';
 import Heading from '@/components/Heading.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
-import SignalCalculation from '@/components/portfolio/SignalCalculation.vue';
+import SignalCard from '@/components/portfolio/SignalCard.vue';
 import PerformancePanel from '@/components/portfolio/PerformancePanel.vue';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    actionLabels,
-    agentLabels,
-    marketLabels,
-    money,
-    percent,
-    stageLabels,
-} from '@/lib/trading';
+import { marketLabels, money, percent } from '@/lib/trading';
 import { index, update } from '@/routes/portfolios';
+import { signals as portfolioSignals } from '@/routes/portfolios';
 import type {
     AgentActivity,
     AgentScoreRow,
@@ -33,6 +26,7 @@ const props = defineProps<{
     portfolio: PortfolioSummary;
     positions: PositionRow[];
     signals: SignalRow[];
+    signals_total: number;
     performance: Performance;
     agent_scores: AgentScoreRow[];
     tax_months: TaxMonth[];
@@ -50,12 +44,37 @@ const result = computed(
     () => props.portfolio.equity / props.portfolio.initial_cash - 1,
 );
 
-const stageVariant = (stage: string) =>
-    stage === 'approved'
-        ? 'default'
-        : stage === 'rejected'
-          ? 'destructive'
-          : 'secondary';
+// Os cards de sinais acompanham o ciclo dos agentes (canal privado da carteira):
+// um sinal novo, o consenso decidido e a ordem concluída recarregam só a lista.
+const reloadingEvents = [
+    'cycle.started',
+    'consensus.decided',
+    'order.finished',
+];
+let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+
+if (echoIsConfigured()) {
+    useEcho<{ type: string }>(
+        `portfolios.${props.portfolio.id}.agents`,
+        '.agent.activity',
+        (event) => {
+            if (!reloadingEvents.includes(event.type)) {
+                return;
+            }
+
+            clearTimeout(reloadTimer);
+            reloadTimer = setTimeout(
+                () =>
+                    router.reload({
+                        only: ['signals', 'signals_total'],
+                    }),
+                600,
+            );
+        },
+    );
+}
+
+onBeforeUnmount(() => clearTimeout(reloadTimer));
 </script>
 
 <template>
@@ -214,7 +233,7 @@ const stageVariant = (stage: string) =>
             <Heading
                 variant="small"
                 title="Sinais"
-                description="Cada sinal mostra o voto final de cada agente. Sinais aprovados esperam sua confirmação."
+                description="O sinal mais recente de cada ativo. Abra o card para ver os votos e o cálculo do score. Sinais aprovados esperam sua confirmação."
             />
 
             <p
@@ -225,116 +244,23 @@ const stageVariant = (stage: string) =>
                 notícia relevante dispara uma rodada de agentes.
             </p>
 
-            <div class="mt-2 space-y-4">
-                <article
-                    v-for="signal in signals"
+            <div class="mt-2 space-y-3">
+                <SignalCard
+                    v-for="(signal, index) in signals"
                     :key="signal.id"
-                    class="rounded-2xl border bg-card p-4"
-                >
-                    <header class="flex flex-wrap items-center gap-2">
-                        <span class="font-medium">{{ signal.symbol }}</span>
-                        <Badge :variant="stageVariant(signal.stage)">
-                            {{ stageLabels[signal.stage] ?? signal.stage }}
-                        </Badge>
-                        <span
-                            v-if="signal.side"
-                            class="text-sm text-muted-foreground"
-                        >
-                            {{ actionLabels[signal.side] }} · score
-                            {{ signal.score?.toFixed(2) }}
-                        </span>
-                        <span class="ml-auto text-xs text-muted-foreground">
-                            {{
-                                new Date(signal.created_at).toLocaleString(
-                                    'pt-BR',
-                                )
-                            }}
-                            · custo US$ {{ signal.cost.toFixed(4) }}
-                        </span>
-                    </header>
-
-                    <p
-                        v-if="signal.reason"
-                        class="mt-1 text-sm text-muted-foreground"
-                    >
-                        {{ signal.reason }}
-                    </p>
-
-                    <p
-                        v-if="signal.entry_price"
-                        class="mt-1 text-sm tabular-nums"
-                    >
-                        Entrada
-                        {{ money(signal.entry_price, portfolio.market) }} · stop
-                        {{ money(signal.stop_price, portfolio.market) }} · alvo
-                        {{ money(signal.target_price, portfolio.market) }}
-                    </p>
-
-                    <SignalCalculation
-                        v-if="signal.calculation"
-                        :calculation="signal.calculation"
-                        :reason="signal.reason"
-                    />
-
-                    <ul
-                        v-if="signal.votes.length"
-                        class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
-                    >
-                        <li
-                            v-for="vote in signal.votes"
-                            :key="vote.agent"
-                            class="rounded-lg bg-muted/40 p-3 text-sm"
-                        >
-                            <p class="font-medium">
-                                {{ agentLabels[vote.agent] ?? vote.agent }}:
-                                <template v-if="vote.abstained">
-                                    Absteve-se
-                                </template>
-                                <template v-else>
-                                    {{ actionLabels[vote.action] }}
-                                    {{ Math.round(vote.confidence * 100) }}%
-                                </template>
-                                <span v-if="vote.veto" class="text-destructive">
-                                    · veto
-                                </span>
-                            </p>
-                            <p class="text-muted-foreground">
-                                {{ vote.reasons.join(' ') }}
-                            </p>
-                        </li>
-                    </ul>
-
-                    <div
-                        v-if="signal.stage === 'approved'"
-                        class="mt-3 flex gap-2"
-                    >
-                        <Form
-                            v-bind="
-                                SignalDecisionController.confirm.form(signal.id)
-                            "
-                            v-slot="{ processing }"
-                        >
-                            <Button size="sm" :disabled="processing">
-                                Confirmar e executar
-                            </Button>
-                        </Form>
-                        <Form
-                            v-bind="
-                                SignalDecisionController.reject.form(signal.id)
-                            "
-                            v-slot="{ processing }"
-                        >
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                :disabled="processing"
-                            >
-                                Descartar
-                            </Button>
-                        </Form>
-                    </div>
-                </article>
+                    :signal="signal"
+                    :market="portfolio.market"
+                    :default-open="index === 0"
+                />
             </div>
+
+            <Link
+                v-if="signals_total > signals.length"
+                :href="portfolioSignals(portfolio.id)"
+                class="mt-4 inline-block text-sm underline underline-offset-4"
+            >
+                Ver todos os sinais ({{ signals_total }})
+            </Link>
         </section>
     </div>
 </template>
