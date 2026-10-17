@@ -19,6 +19,7 @@ final readonly class MicroSetup
         public float $distanceToSupportPct,
         public float $roomToResistancePct,
         public bool $entry,
+        public float $reachPct,
         public array $reasons,
     ) {}
 
@@ -35,6 +36,7 @@ final readonly class MicroSetup
             'resistance' => $this->resistance,
             'distance_to_support_pct' => round($this->distanceToSupportPct, 4),
             'room_to_resistance_pct' => round($this->roomToResistancePct, 4),
+            'reach_pct' => round($this->reachPct, 4),
             'entry' => $this->entry,
             'reasons' => $this->reasons,
         ];

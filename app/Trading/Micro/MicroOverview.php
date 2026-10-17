@@ -5,6 +5,7 @@ namespace App\Trading\Micro;
 use App\Enums\Market;
 use App\Models\MicroCycle;
 use App\Models\Portfolio;
+use Illuminate\Support\Carbon;
 
 /**
  * What the portfolio page shows about the mode: settings, costs, today's
@@ -28,9 +29,27 @@ class MicroOverview
         }
 
         $gross = $this->costs->grossMarginPct($portfolio->micro_net_margin_pct);
+        $evaluation = $this->ranker->evaluate($portfolio, $gross);
+        $lastRun = $this->trader->lastRun($portfolio);
         $today = $portfolio->microCycles()->where('status', 'closed')->where('closed_at', '>=', now()->startOfDay())->get();
 
+        $reachable = $evaluation['ready']->take((int) config('trading.micro.ranking_size'))->max(fn (array $row) => $row['setup']->reachPct) ?? 0;
+        $maxMove = $reachable * (float) config('trading.micro.reach_factor');
+        $roundTrip = $this->costs->roundTripPct();
+
         return [
+            'margin_warning' => $evaluation['ready']->isNotEmpty() && $gross > $maxMove
+                ? sprintf(
+                    'Com %.2f%% líquido o alvo bruto é %.2f%%, mas os pares em foco andam no máximo cerca de %.2f%% em %d minutos. %s',
+                    $portfolio->micro_net_margin_pct,
+                    $gross,
+                    $maxMove,
+                    (int) config('trading.micro.max_hold_minutes'),
+                    $maxMove > $roundTrip + 0.05
+                        ? sprintf('Tente margem líquida de até %.2f%%.', floor(($maxMove - $roundTrip) * 100) / 100)
+                        : 'Nem o custo da ida e volta cabe nesse movimento: escolha pares mais voláteis.',
+                )
+                : null,
             'enabled' => $portfolio->micro_enabled,
             'order_value' => $portfolio->micro_order_value,
             'net_margin_pct' => $portfolio->micro_net_margin_pct,
@@ -42,6 +61,9 @@ class MicroOverview
             'daily_loss_limit' => $portfolio->micro_daily_loss_limit,
             'state' => $this->trader->state($portfolio),
             'last_block' => $this->trader->lastBlock($portfolio),
+            'last_run' => $lastRun,
+            // Ligado e sem execução no último 3 minutos: o agendador (mymoney-schedule) não está rodando.
+            'scheduler_stale' => $portfolio->micro_enabled && ($lastRun === null || Carbon::parse($lastRun)->lt(now()->subMinutes(3))),
             'today' => [
                 'opened' => $this->trader->openedToday($portfolio),
                 'cycles' => $today->count(),
@@ -49,9 +71,11 @@ class MicroOverview
                 'net_pnl' => round($today->sum('net_pnl'), 4),
                 'fees' => round($today->sum('fees'), 4),
             ],
-            'focus' => $this->ranker->rank($portfolio, $gross)->map(fn (array $row) => [
+            'skipped' => $evaluation['skipped'],
+            'focus' => $evaluation['ready']->take((int) config('trading.micro.ranking_size'))->map(fn (array $row) => [
                 'symbol' => $row['asset']->symbol,
                 'atr_pct' => round($row['setup']->atrPct, 4),
+                'reach_pct' => round($row['setup']->reachPct * (float) config('trading.micro.reach_factor'), 4),
                 'entry' => $row['setup']->entry,
                 'reason' => $row['setup']->reasons[0] ?? '',
             ])->all(),

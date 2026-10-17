@@ -18,7 +18,7 @@ class MicroAnalysisTest extends TestCase
 
         for ($i = 0; $i < 120; $i++) {
             $close = $i < 95 ? 100.0 : 100.0 + ($end - 100.0) * ($i - 94) / 25;
-            $candles[] = ['high' => $close + 0.01 + ($i === 80 ? 0.9 : 0), 'low' => $close - 0.01, 'close' => $close];
+            $candles[] = ['high' => $close + 0.05 + ($i === 80 ? 0.9 : 0), 'low' => $close - 0.05, 'close' => $close];
         }
 
         return $candles;
@@ -30,7 +30,7 @@ class MicroAnalysisTest extends TestCase
 
         $this->assertTrue($setup->uptrend);
         $this->assertTrue($setup->entry);
-        $this->assertEqualsWithDelta(0.16, $setup->distanceToSupportPct, 0.02);
+        $this->assertEqualsWithDelta(0.2, $setup->distanceToSupportPct, 0.02);
         $this->assertGreaterThan(0.5, $setup->roomToResistancePct);
     }
 
@@ -60,6 +60,32 @@ class MicroAnalysisTest extends TestCase
 
         $this->assertFalse($setup->entry);
         $this->assertStringContainsString('Longe do suporte', implode(' ', $setup->reasons));
+    }
+
+    public function test_a_pullback_inside_the_uptrend_enters_even_far_from_the_support()
+    {
+        $candles = [];
+
+        for ($i = 0; $i < 120; $i++) {
+            $close = 100.0 + $i * 0.02;
+            $candles[] = ['high' => $close + 0.05 + ($i === 110 ? 1.5 : 0), 'low' => $close - 0.05, 'close' => $close];
+        }
+
+        $setup = (new MicroAnalysis)->read($candles, 0.5);
+
+        $this->assertGreaterThan(0.5, $setup->distanceToSupportPct);
+        $this->assertTrue($setup->entry);
+        $this->assertStringContainsString('recuo dentro da tendência', implode(' ', $setup->reasons));
+    }
+
+    public function test_no_entry_when_the_target_is_beyond_what_the_pair_moves_in_the_holding_time()
+    {
+        $quiet = array_map(fn (array $c) => ['high' => $c['close'] + 0.005 + ($c['high'] - $c['close'] > 0.5 ? 0.9 : 0), 'low' => $c['close'] - 0.005, 'close' => $c['close']], $this->climb());
+
+        $setup = (new MicroAnalysis)->read($quiet, 0.8);
+
+        $this->assertFalse($setup->entry);
+        $this->assertStringContainsString('grande demais para este par', implode(' ', $setup->reasons));
     }
 
     public function test_too_few_candles_yield_no_reading()

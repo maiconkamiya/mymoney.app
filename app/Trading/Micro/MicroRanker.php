@@ -21,11 +21,22 @@ class MicroRanker
      */
     public function rank(Portfolio $portfolio, float $grossMarginPct): Collection
     {
-        $limit = (int) config('trading.micro.ranking_size');
-        $maxAge = (int) config('trading.micro.max_candle_age_seconds');
+        return $this->evaluate($portfolio, $grossMarginPct)['ready']->take((int) config('trading.micro.ranking_size'))->values();
+    }
 
-        return $this->assets($portfolio)
-            ->map(function (Asset $asset) use ($grossMarginPct, $maxAge) {
+    /**
+     * Reads every asset the portfolio tracks. `ready` has the ones with a chart
+     * reading, most volatile first; `skipped` says why the others have none.
+     *
+     * @return array{ready: Collection<int, array{asset: Asset, setup: MicroSetup}>, skipped: list<array{symbol: string, reason: string}>}
+     */
+    public function evaluate(Portfolio $portfolio, float $grossMarginPct): array
+    {
+        $maxAge = (int) config('trading.micro.max_candle_age_seconds');
+        $skipped = [];
+
+        $ready = $this->assets($portfolio)
+            ->map(function (Asset $asset) use ($grossMarginPct, $maxAge, &$skipped) {
                 $candles = Candle::query()
                     ->where('asset_id', $asset->id)
                     ->where('timeframe', '1m')
@@ -33,7 +44,15 @@ class MicroRanker
                     ->orderBy('open_at')
                     ->get();
 
-                if ($candles->isEmpty() || $candles->last()->open_at->copy()->addMinute()->diffInSeconds(now(), false) > $maxAge) {
+                if ($candles->isEmpty()) {
+                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => 'Sem candles de 1 minuto nas últimas horas (coletor da Binance parado?).'];
+
+                    return null;
+                }
+
+                if ($candles->last()->open_at->copy()->addMinute()->diffInSeconds(now(), false) > $maxAge) {
+                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => 'Candles atrasados: o último tem mais de '.$maxAge.' segundos.'];
+
                     return null;
                 }
 
@@ -45,12 +64,19 @@ class MicroRanker
 
                 $setup = $this->analysis->read($rows, $grossMarginPct);
 
-                return $setup === null ? null : ['asset' => $asset, 'setup' => $setup];
+                if ($setup === null) {
+                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => 'Poucos candles para ler o gráfico (precisa de 40 minutos).'];
+
+                    return null;
+                }
+
+                return ['asset' => $asset, 'setup' => $setup];
             })
             ->filter()
             ->sortByDesc(fn (array $row) => $row['setup']->atrPct)
-            ->take($limit)
             ->values();
+
+        return ['ready' => $ready, 'skipped' => $skipped];
     }
 
     /**

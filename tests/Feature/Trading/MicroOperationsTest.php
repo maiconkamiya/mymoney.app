@@ -16,6 +16,7 @@ use App\Trading\Micro\MicroCosts;
 use App\Trading\Micro\MicroTrader;
 use App\Trading\PositionExits;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -48,8 +49,8 @@ class MicroOperationsTest extends TestCase
                 'timeframe' => '1m',
                 'open_at' => now()->startOfMinute()->subMinutes(119 - $i),
                 'open' => $close,
-                'high' => $close + 0.01 + ($i === 80 ? 0.9 : 0),
-                'low' => $close - 0.01,
+                'high' => $close + 0.05 + ($i === 80 ? 0.9 : 0),
+                'low' => $close - 0.05,
                 'close' => $close,
                 'volume' => 1,
             ];
@@ -185,6 +186,55 @@ class MicroOperationsTest extends TestCase
         $this->assertSame('operations_done', app(MicroTrader::class)->state($portfolio)['code']);
         $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
         $this->assertSame(1, MicroCycle::count());
+    }
+
+    public function test_explain_says_why_each_asset_does_or_does_not_enter_and_sends_nothing()
+    {
+        $flat = Asset::factory()->create(['symbol' => 'XRPUSDT']);
+        Asset::factory()->create(['symbol' => 'NOCANDLES']);
+        $this->candles($this->asset);
+        $this->candles($flat, 101.0);
+        $this->micro();
+
+        Artisan::call('micro:run', ['--explain' => true]);
+        $output = Artisan::output();
+
+        foreach (['Operando', 'DOGEUSDT', 'ENTRA', 'XRPUSDT', 'Longe do suporte', 'Sem candles de 1 minuto'] as $text) {
+            $this->assertStringContainsString($text, $output);
+        }
+
+        $this->assertSame(0, Order::count());
+    }
+
+    public function test_the_overview_shows_the_last_run_and_flags_a_stopped_scheduler()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        $owner = $portfolio->user;
+
+        $this->actingAs($owner)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
+            ->where('micro.scheduler_stale', true)
+            ->where('micro.last_run', null));
+
+        app(MicroTrader::class)->run($portfolio);
+
+        $this->actingAs($owner)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
+            ->where('micro.scheduler_stale', false)
+            ->has('micro.last_run'));
+    }
+
+    public function test_the_overview_warns_when_the_margin_is_beyond_what_the_pairs_move()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_net_margin_pct' => 3]);
+
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
+            ->where('micro.margin_warning', fn ($text) => str_contains($text, 'Tente margem líquida de até')));
+
+        $ok = $this->micro(['micro_net_margin_pct' => 0.2]);
+
+        $this->actingAs($ok->user)->get(route('portfolios.show', $ok))->assertInertia(fn (Assert $page) => $page
+            ->where('micro.margin_warning', null));
     }
 
     public function test_only_looks_at_the_assets_the_portfolio_tracks()
