@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.16] - 2026-10-17
+
+### Alterado
+
+- **Confirmação de e-mail desligada na instalação local.** Quem roda o MyMoney.App na própria máquina (com `APP_ENV=local`) não precisa mais confirmar o e-mail depois de criar a conta: o cadastro já entra direto no painel. Em produção a confirmação continua exigida. Para forçar um dos dois comportamentos, use `AUTH_EMAIL_VERIFICATION=true` ou `false` no `.env`.
+
 ## [0.3.12] - 2026-10-16
 
 ### Adicionado

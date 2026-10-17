@@ -45,6 +45,12 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         });
     }
 
+    /** Com a confirmação de e-mail desligada (`auth.email_verification`), todo e-mail vale como confirmado. */
+    public function hasVerifiedEmail(): bool
+    {
+        return ! config('auth.email_verification', true) || ! is_null($this->email_verified_at);
+    }
+
     /** `true` quando a versão do sistema é posterior à última que esta pessoa viu. */
     public function temNovidadeNaoVista(VersaoDoSistema $versaoDoSistema): bool
     {
