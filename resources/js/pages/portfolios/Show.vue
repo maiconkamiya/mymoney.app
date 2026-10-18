@@ -13,6 +13,7 @@ import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import EditInitialCash from '@/components/portfolio/EditInitialCash.vue';
+import BinanceTotal from '@/components/portfolio/BinanceTotal.vue';
 import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
@@ -192,6 +193,11 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                         >
                             {{ money(equity, portfolio.market) }}
                         </p>
+                        <BinanceTotal
+                            v-if="account_sync"
+                            :equity="equity"
+                            :sync="account_sync"
+                        />
                     </div>
                     <div class="rounded-2xl border bg-card p-4">
                         <p class="text-sm text-muted-foreground">Caixa</p>
@@ -206,7 +212,11 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                         <p class="text-sm text-muted-foreground">
                             Resultado sobre
                             {{
-                                money(portfolio.initial_cash, portfolio.market)
+                                money(
+                                    Math.round(portfolio.initial_cash * 100) /
+                                        100,
+                                    portfolio.market,
+                                )
                             }}
                         </p>
                         <div class="mt-2">
@@ -525,9 +535,9 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                 :errors="account_sync.order_errors"
                             />
                             <p class="text-xs">
-                                Só a carteira Spot é lida. Saldos em Earn,
-                                Funding, Margin ou Futuros da Binance não
-                                aparecem aqui.
+                                O app opera só a carteira Spot. Saldos em Earn,
+                                Funding, Margin ou Futuros entram apenas no
+                                total da conta Binance, abaixo do patrimônio.
                             </p>
                         </div>
                     </div>

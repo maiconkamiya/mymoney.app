@@ -4,6 +4,18 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.62] - 2026-10-18
+
+### Adicionado
+
+- **Total na conta Binance abaixo do Patrimônio.** Na carteira real, o card "Patrimônio" mostra quanto a conta Binance tem no total, somando todas as carteiras dela (Spot, Fundos, Earn, Margem, Futuros, robôs), o mesmo que o saldo estimado da Binance. Em "Por que é diferente?" aparece de onde vem a diferença: poeira abaixo de 1 USDT, moedas que o app não negocia, cada outra carteira e a variação de cotação desde a última sincronização. O patrimônio do app continua sendo o que ele opera na Spot.
+- **Alterar o valor investido na carteira real.** O botão "Alterar valor investido" corrige a base do "Resultado", que antes ficava com o saldo da primeira sincronização (por exemplo 1,02 USDT, antes do aporte). Caixa, posições e histórico continuam vindo da Binance, e a mudança fica registrada com o valor antigo e o novo.
+
+### Corrigido
+
+- **A base do resultado aparece com 2 casas** em vez de 8 (1,02 em vez de 1,0199052).
+- **A perda do dia passa a contar a partir do patrimônio da noite anterior.** Antes, até o registro diário das 23h55, ela era medida contra o saldo inicial da carteira. Na carteira real, o valor investido também não entra mais no pico de patrimônio usado pela guarda de risco.
+
 ## [0.3.61] - 2026-10-18
 
 ### Adicionado

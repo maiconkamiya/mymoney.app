@@ -143,6 +143,8 @@ export type AccountSync = {
     dust: AccountHolding[];
     dust_total: number;
     not_mirrored: AccountHolding[];
+    not_mirrored_total: number;
+    wallets: Record<string, number> | null;
     orders: BrokerOrder[];
     order_errors: Record<string, string>;
 };

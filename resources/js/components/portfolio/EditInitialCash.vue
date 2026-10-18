@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Form } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import InitialCashController from '@/actions/App/Http/Controllers/PortfolioInitialCashController';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { money } from '@/lib/trading';
 
-defineProps<{
+const props = defineProps<{
     portfolio: {
         id: number;
         mode: string;
@@ -25,17 +26,20 @@ defineProps<{
         initial_cash: number;
     };
 }>();
+
+// Na carteira real o caixa vem da corretora: só a base do resultado muda.
+const live = computed(() => props.portfolio.mode === 'live');
 </script>
 
 <template>
-    <Dialog v-if="portfolio.mode === 'paper'">
+    <Dialog>
         <DialogTrigger as-child>
             <Button
                 variant="outline"
                 size="sm"
                 data-test="edit-initial-cash-button"
             >
-                Alterar saldo inicial
+                {{ live ? 'Alterar valor investido' : 'Alterar saldo inicial' }}
             </Button>
         </DialogTrigger>
         <DialogContent>
@@ -49,8 +53,23 @@ defineProps<{
                 v-slot="{ errors, processing }"
             >
                 <DialogHeader class="space-y-3">
-                    <DialogTitle>Alterar o saldo inicial</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle>{{
+                        live
+                            ? 'Alterar o valor investido'
+                            : 'Alterar o saldo inicial'
+                    }}</DialogTitle>
+                    <DialogDescription v-if="live">
+                        Hoje é
+                        {{
+                            money(
+                                Math.round(portfolio.initial_cash * 100) / 100,
+                                portfolio.market,
+                            )
+                        }}. É a base do "Resultado": informe quanto você colocou
+                        na conta. O caixa, as posições e o histórico continuam
+                        vindo da Binance e não mudam.
+                    </DialogDescription>
+                    <DialogDescription v-else>
                         Hoje é
                         {{ money(portfolio.initial_cash, portfolio.market) }}. O
                         caixa muda pela diferença e o histórico de patrimônio
@@ -61,14 +80,18 @@ defineProps<{
                 </DialogHeader>
 
                 <div class="grid gap-2">
-                    <Label for="initial_cash">Novo saldo inicial</Label>
+                    <Label for="initial_cash">{{
+                        live ? 'Valor investido' : 'Novo saldo inicial'
+                    }}</Label>
                     <Input
                         id="initial_cash"
                         name="initial_cash"
                         type="number"
-                        min="100"
+                        :min="live ? 0.01 : 100"
                         step="0.01"
-                        :default-value="portfolio.initial_cash"
+                        :default-value="
+                            Math.round(portfolio.initial_cash * 100) / 100
+                        "
                         required
                     />
                     <InputError :message="errors.initial_cash" />

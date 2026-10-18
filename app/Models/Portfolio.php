@@ -36,7 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable $ends_at
  * @property bool $auto_execute
  * @property CarbonImmutable|null $synced_at
- * @property array{holdings?: list<array{coin: string, qty: float, price: float|null, value: float|null, status: string, reason: string|null}>, orders?: list<array<string, mixed>>, order_errors?: array<string, string>}|null $sync_report
+ * @property array{holdings?: list<array{coin: string, qty: float, price: float|null, value: float|null, status: string, reason: string|null}>, orders?: list<array<string, mixed>>, order_errors?: array<string, string>, wallets?: array<string, float>|null}|null $sync_report
  * @property CarbonImmutable|null $live_auto_confirmed_at
  * @property CarbonImmutable|null $orders_blocked_at
  * @property string|null $orders_blocked_reason
