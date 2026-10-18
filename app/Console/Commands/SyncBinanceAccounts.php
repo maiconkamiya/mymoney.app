@@ -12,7 +12,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('binance:sync')]
-#[Description('Sincroniza saldos e posições das contas Binance com as carteiras dos donos, cada uma com a própria chave')]
+#[Description('Sincroniza saldos, posições e ordens das contas Binance com as carteiras dos donos, cada uma com a própria chave')]
 class SyncBinanceAccounts extends Command
 {
     public function handle(BinanceAccountSync $sync): int
@@ -27,7 +27,7 @@ class SyncBinanceAccounts extends Command
             ->each(function (Portfolio $portfolio) use ($sync, &$failed) {
                 try {
                     $result = $sync->sync($portfolio);
-                    $this->info("Carteira {$portfolio->id}: {$result['positions']} ativo(s), caixa {$result['cash']} USDT.");
+                    $this->info("Carteira {$portfolio->id}: {$result['positions']} ativo(s), caixa {$result['cash']} USDT, {$result['orders']} ordem(ns) lida(s), {$result['settled']} venda(s) registrada(s).");
                 } catch (LiveTradingException $e) {
                     $failed++;
                     $this->error("Carteira {$portfolio->id}: {$e->getMessage()}");

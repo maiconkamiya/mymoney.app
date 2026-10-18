@@ -15,6 +15,8 @@ use App\Models\Portfolio;
 use App\Models\Position;
 use App\Models\RiskProfile;
 use App\Trading\Contracts\PriceFeed;
+use App\Trading\OrderExecutor;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -24,6 +26,9 @@ use Throwable;
  * free USDT becomes the cash and every coin with a USDT pair becomes an open position (dust and unpriced coins are
  * listed in the sync report instead),
  * so the agents see (and size orders against) what the account really holds.
+ * Before reading balances it books the app's resting sells that Binance already
+ * executed, and it keeps the last orders of each pair of the portfolio (from the
+ * app or placed by hand) for the owner to see.
  * It only reads: orders still go through the Broker and the live guard rails.
  */
 class BinanceAccountSync
@@ -33,9 +38,16 @@ class BinanceAccountSync
     /** Positions worth less than this (in USDT) are dust and not tracked. */
     public const DUST = 1.0;
 
+    /** Orders kept per pair, newest first. */
+    public const ORDERS_PER_PAIR = 20;
+
+    /** Pairs read per sync: each read weighs 20 on the account's request limit. */
+    public const MAX_ORDER_PAIRS = 25;
+
     public function __construct(
         private readonly BinanceAccountReader $reader,
         private readonly PriceFeed $prices,
+        private readonly OrderExecutor $executor,
     ) {}
 
     /**
@@ -73,7 +85,7 @@ class BinanceAccountSync
     }
 
     /**
-     * @return array{cash: float, positions: int, ignored: list<string>}
+     * @return array{cash: float, positions: int, ignored: list<string>, orders: int, settled: int}
      *
      * @throws LiveTradingException
      */
@@ -89,7 +101,11 @@ class BinanceAccountSync
             throw new LiveTradingException('Chave não verificada ou com permissão de saque.');
         }
 
-        $balances = $this->reader->balances(new BinanceClient($credential));
+        // A sale that executed on Binance closes its position with the real result before the balances say it is gone.
+        $settled = $this->executor->refreshPortfolio($portfolio, 'sync');
+
+        $client = new BinanceClient($credential);
+        $balances = $this->reader->balances($client);
         $cash = $balances[self::QUOTE] ?? 0.0;
         $tickers = $this->tickers();
         $assets = Asset::query()->where('market', Market::Crypto)->get()->keyBy('symbol');
@@ -129,7 +145,9 @@ class BinanceAccountSync
             }
         }
 
-        DB::transaction(function () use ($portfolio, $cash, $held, $holdings) {
+        [$orders, $orderErrors] = $this->recentOrders($client, $portfolio, array_values(array_map(fn (array $row) => $row[0]->symbol, $held)));
+
+        DB::transaction(function () use ($portfolio, $cash, $held, $holdings, $orders, $orderErrors) {
             // The scheduled sync and the "Sincronizar" button can run together: one at a time per portfolio.
             Portfolio::query()->whereKey($portfolio->id)->lockForUpdate()->first();
 
@@ -158,7 +176,7 @@ class BinanceAccountSync
                 'exit_reason' => 'conta',
             ]));
 
-            $portfolio->update(['cash' => $cash, 'synced_at' => now(), 'sync_report' => ['holdings' => $holdings]]);
+            $portfolio->update(['cash' => $cash, 'synced_at' => now(), 'sync_report' => ['holdings' => $holdings, 'orders' => $orders, 'order_errors' => $orderErrors]]);
         });
 
         if ($portfolio->initial_cash <= 0) {
@@ -168,7 +186,100 @@ class BinanceAccountSync
 
         $ignored = array_values(array_map(fn (array $row) => $row['coin'], array_filter($holdings, fn (array $row) => $row['status'] !== 'posicao')));
 
-        return ['cash' => $cash, 'positions' => count($held), 'ignored' => $ignored];
+        return ['cash' => $cash, 'positions' => count($held), 'ignored' => $ignored, 'orders' => count($orders), 'settled' => $settled];
+    }
+
+    /**
+     * The last orders on Binance of every pair of the portfolio: what it holds,
+     * what it tracks and what the app traded in the last week. A pair that
+     * fails is reported and skipped, so the balances still sync.
+     *
+     * @param  list<string>  $heldSymbols
+     * @return array{0: list<array<string, mixed>>, 1: array<string, string>}
+     */
+    private function recentOrders(BinanceClient $client, Portfolio $portfolio, array $heldSymbols): array
+    {
+        $local = Order::query()
+            ->where('portfolio_id', $portfolio->id)
+            ->whereNotNull('external_id')
+            ->where('created_at', '>=', now()->subDays(7))
+            ->with('asset')
+            ->get();
+
+        $symbols = collect($heldSymbols)
+            ->merge($portfolio->openPositions()->with('asset')->get()->map(fn (Position $position) => $position->asset->symbol))
+            ->merge($portfolio->assets()->pluck('assets.symbol'))
+            ->merge($local->map(fn (Order $order) => $order->asset->symbol))
+            ->filter(fn (string $symbol) => str_ends_with($symbol, self::QUOTE))
+            ->unique()
+            ->sort()
+            ->take(self::MAX_ORDER_PAIRS)
+            ->values();
+
+        $known = Order::query()
+            ->where('portfolio_id', $portfolio->id)
+            ->whereNotNull('external_id')
+            ->whereIn('asset_id', Asset::query()->whereIn('symbol', $symbols)->select('id'))
+            ->pluck('id', 'external_id');
+
+        $orders = [];
+        $errors = [];
+
+        foreach ($symbols as $symbol) {
+            try {
+                $rows = $this->reader->orders($client, $symbol, self::ORDERS_PER_PAIR);
+            } catch (Throwable $e) {
+                $errors[$symbol] = $e->getMessage();
+
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                $orders[] = $this->orderRow($symbol, $row, $known->all());
+            }
+        }
+
+        usort($orders, fn (array $a, array $b) => strcmp((string) $b['time'], (string) $a['time']));
+
+        return [$orders, $errors];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  array<string, int>  $known  app order id by external id
+     * @return array<string, mixed>
+     */
+    private function orderRow(string $symbol, array $row, array $known): array
+    {
+        $externalId = $symbol.':'.$row['orderId'];
+        $executed = (float) ($row['executedQty'] ?? 0);
+        $quote = (float) ($row['cummulativeQuoteQty'] ?? 0);
+        $limit = (float) ($row['price'] ?? 0);
+        $clientId = (string) ($row['clientOrderId'] ?? '');
+        $appOrderId = $known[$externalId] ?? null;
+
+        return [
+            'id' => $externalId,
+            'symbol' => $symbol,
+            'side' => strtolower((string) ($row['side'] ?? '')),
+            'type' => strtolower((string) ($row['type'] ?? '')),
+            'status' => match ($row['status'] ?? '') {
+                'FILLED' => 'filled',
+                'PARTIALLY_FILLED' => 'partially_filled',
+                'CANCELED', 'PENDING_CANCEL' => 'cancelled',
+                'EXPIRED', 'EXPIRED_IN_MATCH' => 'expired',
+                'REJECTED' => 'rejected',
+                default => 'pending',
+            },
+            'price' => $limit > 0 ? $limit : null,
+            'avg_price' => $executed > 0 ? round($quote / $executed, 8) : null,
+            'qty' => (float) ($row['origQty'] ?? 0),
+            'executed_qty' => $executed,
+            'value' => round($quote, 8),
+            'time' => isset($row['time']) ? Carbon::createFromTimestampMs((int) $row['time'])->toIso8601String() : null,
+            'app_order_id' => $appOrderId,
+            'from_app' => $appOrderId !== null || preg_match('/^(signal|position|micro)-/', $clientId) === 1,
+        ];
     }
 
     /**

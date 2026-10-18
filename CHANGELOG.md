@@ -4,6 +4,13 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.61] - 2026-10-18
+
+### Adicionado
+
+- **Sincronizar a carteira também traz as ordens da Binance.** O botão "Sincronizar agora" e a sincronização automática de 5 em 5 minutos leem as últimas 20 ordens de cada par da carteira (ativos na conta, ativos acompanhados e pares negociados pelo app na última semana). A seção "Posições abertas" mostra a lista "Ordens na Binance" com lado, tipo, quantidade executada, preço, valor, data e estado (aberta, executada, parcial, cancelada, expirada ou recusada), diz se a ordem é do app ou foi feita fora dele e permite filtrar por par. Se a Binance recusar a leitura de um par, o motivo aparece e os saldos sincronizam do mesmo jeito.
+- **Venda registrada que a Binance executou entra na sincronização.** Antes de ler os saldos, a sincronização confere todas as vendas limitadas do app ainda abertas: a executada fecha a posição com o resultado real e a cancelada sai da lista, também com a parada geral ligada.
+
 ## [0.3.60] - 2026-10-18
 
 ### Corrigido
