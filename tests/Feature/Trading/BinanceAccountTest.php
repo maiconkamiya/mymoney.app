@@ -2,16 +2,21 @@
 
 namespace Tests\Feature\Trading;
 
+use App\Enums\OrderSide;
+use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
 use App\Models\Asset;
 use App\Models\BrokerCredential;
+use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\User;
 use App\Trading\Brokers\BinanceBroker;
 use App\Trading\Live\BinanceAccountSync;
 use App\Trading\Live\BinanceClient;
 use App\Trading\Live\LiveTradingException;
+use App\Trading\TradingHalt;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -54,7 +59,34 @@ class BinanceAccountTest extends TestCase
         $this->balances = $balances;
         Http::fake([
             '*/api/v3/time' => fn () => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
-            '*/api/v3/account*' => fn () => Http::response(['balances' => $this->balances])]);
+            '*/api/v3/account*' => fn () => Http::response(['balances' => $this->balances]),
+            '*/api/v3/allOrders*' => function ($request) {
+                parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+                $orders = $this->remoteOrders[$query['symbol'] ?? ''] ?? [];
+
+                return $orders === 'invalido' ? Http::response(['code' => -1121, 'msg' => 'Invalid symbol.'], 400) : Http::response($orders);
+            }]);
+    }
+
+    /** @var array<string, list<array<string, mixed>>|string> /api/v3/allOrders answer per pair */
+    private array $remoteOrders = [];
+
+    /** @return array<string, mixed> one order as /api/v3/allOrders lists it */
+    private function remoteOrder(string $symbol, int $id, string $side, string $status, array $extra = []): array
+    {
+        return $extra + [
+            'symbol' => $symbol,
+            'orderId' => $id,
+            'clientOrderId' => 'web_'.$id,
+            'price' => '61000.00',
+            'origQty' => '0.01',
+            'executedQty' => $status === 'FILLED' ? '0.01' : '0',
+            'cummulativeQuoteQty' => $status === 'FILLED' ? '610' : '0',
+            'status' => $status,
+            'type' => 'LIMIT',
+            'side' => $side,
+            'time' => 1_760_800_000_000 + $id * 60_000,
+        ];
     }
 
     public function test_sync_mirrors_cash_and_tracked_assets_and_skips_dust()
@@ -121,6 +153,92 @@ class BinanceAccountTest extends TestCase
                 ->has('positions', 2)
                 ->where('account_sync.dust.0.coin', 'SHIB')
                 ->has('account_sync.not_mirrored', 2));
+    }
+
+    public function test_sync_brings_the_last_orders_of_each_pair_with_their_state()
+    {
+        $eth = Asset::factory()->create(['symbol' => 'ETHUSDT']);
+        $user = User::factory()->create();
+        $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential($user));
+        $portfolio->assets()->attach($eth->id);
+        $mine = Order::create([
+            'portfolio_id' => $portfolio->id, 'asset_id' => $this->btc->id, 'broker' => 'binance', 'external_id' => 'BTCUSDT:23',
+            'side' => OrderSide::Buy, 'type' => OrderType::Market, 'qty' => 0.01, 'status' => OrderStatus::Filled,
+        ]);
+        $this->fakeAccount([['asset' => 'BTC', 'free' => '0.01', 'locked' => '0']]);
+        $btcOrders = array_map(fn (int $id) => $this->remoteOrder('BTCUSDT', $id, $id % 2 ? 'BUY' : 'SELL', 'CANCELED'), range(1, 25));
+        $btcOrders[22] = $this->remoteOrder('BTCUSDT', 23, 'BUY', 'FILLED', ['clientOrderId' => 'signal-9', 'type' => 'MARKET', 'price' => '0']);
+        $btcOrders[24] = $this->remoteOrder('BTCUSDT', 25, 'SELL', 'NEW');
+        $this->remoteOrders = ['BTCUSDT' => $btcOrders, 'ETHUSDT' => 'invalido'];
+
+        $result = app(BinanceAccountSync::class)->sync($portfolio);
+        $report = $portfolio->fresh()->sync_report;
+        $orders = collect($report['orders'])->keyBy('id');
+
+        $this->assertSame(20, $result['orders']);
+        $this->assertSame(1, $result['positions']);
+        $this->assertSame('pending', $orders['BTCUSDT:25']['status']);
+        $this->assertSame('sell', $orders['BTCUSDT:25']['side']);
+        $this->assertFalse($orders['BTCUSDT:25']['from_app']);
+        $this->assertFalse($orders->has('BTCUSDT:5'), 'Só as 20 mais novas do par.');
+        $this->assertSame('BTCUSDT:25', $report['orders'][0]['id']);
+        $this->assertSame('filled', $orders['BTCUSDT:23']['status']);
+        $this->assertTrue($orders['BTCUSDT:23']['from_app']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/api/v3/allOrders') && str_contains($request->url(), 'limit=20'));
+        $this->assertArrayHasKey('ETHUSDT', $report['order_errors']);
+
+        $this->actingAs($user)->get(route('portfolios.show', $portfolio))
+            ->assertInertia(fn ($page) => $page
+                ->has('account_sync.orders', 20)
+                ->where('account_sync.orders.0.id', 'BTCUSDT:25')
+                ->has('account_sync.order_errors.ETHUSDT'));
+        $this->assertSame($mine->id, collect($portfolio->fresh()->sync_report['orders'])->firstWhere('id', 'BTCUSDT:23')['app_order_id'] ?? null);
+    }
+
+    public function test_sync_books_a_resting_sell_that_binance_executed_even_during_the_halt()
+    {
+        $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential(User::factory()->create()));
+        $this->fakeAccount([['asset' => 'BTC', 'free' => '0.01', 'locked' => '0']]);
+        app(BinanceAccountSync::class)->sync($portfolio);
+        $position = $portfolio->openPositions()->sole();
+        $position->update(['avg_price' => 60_000]);
+        $sell = Order::create([
+            'portfolio_id' => $portfolio->id, 'asset_id' => $this->btc->id, 'position_id' => $position->id, 'broker' => 'binance',
+            'external_id' => 'BTCUSDT:77', 'side' => OrderSide::Sell, 'type' => OrderType::Limit, 'qty' => 0.01, 'price' => 61_000,
+            'status' => OrderStatus::Pending, 'reason' => 'micro',
+        ]);
+        app(TradingHalt::class)->halt('teste', 'Parada para o teste.');
+        $this->fakeAccount([['asset' => 'USDT', 'free' => '610', 'locked' => '0']]);
+        Http::fake(['*/api/v3/order?*' => Http::response($this->remoteOrder('BTCUSDT', 77, 'SELL', 'FILLED', ['fills' => []]))]);
+
+        $result = app(BinanceAccountSync::class)->sync($portfolio);
+
+        $this->assertSame(1, $result['settled']);
+        $this->assertSame(OrderStatus::Filled, $sell->fresh()->status);
+        $this->assertEqualsWithDelta(0.01, (float) $sell->fills()->sum('qty'), 1e-9);
+        $position->refresh();
+        $this->assertNotNull($position->closed_at);
+        $this->assertSame('micro', $position->exit_reason);
+        $this->assertEqualsWithDelta(10, $position->realized_pnl, 1e-6);
+        $this->assertEqualsWithDelta(610, $portfolio->fresh()->cash, 1e-6);
+    }
+
+    public function test_sync_reads_only_the_owners_orders_with_the_owners_key()
+    {
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+        $theirs = app(BinanceAccountSync::class)->portfolioFor($this->credential($owner));
+        $mine = app(BinanceAccountSync::class)->portfolioFor($this->credential($intruder));
+        $theirs->update(['sync_report' => ['holdings' => [], 'orders' => [$this->remoteOrder('BTCUSDT', 1, 'BUY', 'FILLED')], 'order_errors' => []]]);
+        $this->fakeAccount([['asset' => 'BTC', 'free' => '0.01', 'locked' => '0']]);
+
+        $this->actingAs($intruder)->post(route('binance.sync'))->assertRedirect();
+        $this->actingAs($intruder)->get(route('portfolios.show', $theirs))->assertForbidden();
+
+        Http::assertNotSent(fn ($request) => $request->hasHeader('X-MBX-APIKEY', 'key-'.$owner->id));
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/api/v3/allOrders') && $request->hasHeader('X-MBX-APIKEY', 'key-'.$intruder->id));
+        $this->assertCount(1, $theirs->fresh()->sync_report['orders']);
+        $this->assertSame([], $mine->fresh()->sync_report['orders']);
     }
 
     public function test_other_user_cannot_see_the_synced_portfolio_or_trigger_its_sync()

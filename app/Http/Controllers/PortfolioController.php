@@ -202,6 +202,8 @@ class PortfolioController extends Controller
                 'dust' => $holdings->where('status', 'poeira')->values(),
                 'dust_total' => round($holdings->where('status', 'poeira')->sum('value'), 2),
                 'not_mirrored' => $holdings->whereIn('status', ['sem_cotacao', 'sem_par_usdt'])->values(),
+                'orders' => $portfolio->sync_report['orders'] ?? [],
+                'order_errors' => (object) ($portfolio->sync_report['order_errors'] ?? []),
             ] : null,
             'signals' => $latestSignals,
             'signals_total' => fn () => $portfolio->signals()->count(),

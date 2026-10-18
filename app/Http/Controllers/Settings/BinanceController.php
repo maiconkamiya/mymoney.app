@@ -100,7 +100,7 @@ class BinanceController extends Controller
 
         try {
             $result = $sync->sync($portfolio);
-            Inertia::flash('toast', ['type' => 'success', 'message' => "Carteira sincronizada: {$result['positions']} ativo(s)."]);
+            Inertia::flash('toast', ['type' => 'success', 'message' => "Carteira sincronizada: {$result['positions']} ativo(s), {$result['orders']} ordem(ns) da Binance."]);
         } catch (LiveTradingException $e) {
             return back()->withErrors(['sync' => $e->getMessage()]);
         }
