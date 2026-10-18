@@ -12,6 +12,8 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 #[Signature('market:stream-binance {--max-seconds=0 : Encerra depois desse tempo (0 = roda para sempre)}')]
@@ -71,14 +73,22 @@ class StreamBinanceTrades extends Command
                     $candle = $aggregator->ingestTrade($assets[$symbol], $trade['price'], $trade['volume'], Carbon::createFromTimestampMs($trade['at']));
                     $failures = 0;
 
-                    CotacaoAtualizada::dispatch($symbol, $trade['price'], [
-                        'open_at' => $candle->open_at->toIso8601String(),
-                        'open' => (float) $candle->open,
-                        'high' => (float) $candle->high,
-                        'low' => (float) $candle->low,
-                        'close' => (float) $candle->close,
-                        'volume' => (float) $candle->volume,
-                    ]);
+                    // Reverb fora do ar não pode parar a gravação das velas.
+                    try {
+                        CotacaoAtualizada::dispatch($symbol, $trade['price'], [
+                            'open_at' => $candle->open_at->toIso8601String(),
+                            'open' => (float) $candle->open,
+                            'high' => (float) $candle->high,
+                            'low' => (float) $candle->low,
+                            'close' => (float) $candle->close,
+                            'volume' => (float) $candle->volume,
+                        ]);
+                    } catch (Throwable $e) {
+                        // Um aviso por minuto, não um por ativo por segundo.
+                        if (Cache::add('stream-binance:broadcast-warned', true, 60)) {
+                            Log::warning('Cotação não transmitida', ['symbol' => $symbol, 'error' => $e->getMessage()]);
+                        }
+                    }
                 }
 
                 $pending = [];

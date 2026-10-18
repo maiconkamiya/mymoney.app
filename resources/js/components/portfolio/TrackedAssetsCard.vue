@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { update } from '@/actions/App/Http/Controllers/PortfolioAssetsController';
 import { Button } from '@/components/ui/button';
 import { index as assetsIndex } from '@/routes/assets';
@@ -15,6 +15,16 @@ const props = defineProps<{
 
 const selected = ref<number[]>([...props.tracked]);
 const saving = ref(false);
+
+// Mudou em outra aba ou pelo servidor: acompanha, a menos que haja uma edição por salvar aqui.
+watch(
+    () => props.tracked,
+    (now, before) => {
+        if ([...selected.value].sort().join() === [...before].sort().join()) {
+            selected.value = [...now];
+        }
+    },
+);
 
 const dirty = computed(
     () =>

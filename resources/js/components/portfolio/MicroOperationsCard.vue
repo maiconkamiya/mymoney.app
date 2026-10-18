@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Form, router } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { echoIsConfigured } from '@laravel/echo-vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { liquidate as liquidateAction } from '@/actions/App/Http/Controllers/MicroOperationsController';
 import InputError from '@/components/InputError.vue';
+import { useMarketPrices } from '@/composables/useMarketPrices';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +19,39 @@ const props = defineProps<{
 }>();
 
 const toggling = ref<number | null>(null);
+
+// O motor avisa a cada minuto; se os avisos param, o relógio da tela mostra o alerta sem F5.
+const clock = ref(Date.now());
+let ticker: ReturnType<typeof setInterval> | undefined;
+onMounted(
+    () => (ticker = setInterval(() => (clock.value = Date.now()), 30_000)),
+);
+onBeforeUnmount(() => clearInterval(ticker));
+
+// Conta pelo relógio do navegador desde a última foto recebida (o do WSL pode estar adiantado).
+const receivedAt = ref(Date.now());
+watch(
+    () => props.micro,
+    () => (receivedAt.value = Date.now()),
+);
+
+const schedulerStale = computed(
+    () =>
+        props.micro.scheduler_stale ||
+        (echoIsConfigured() &&
+            props.micro.enabled &&
+            clock.value - receivedAt.value > 3 * 60_000),
+);
+
+// O preço "agora" do liquidar com lucro anda com o canal `mercado`, sem esperar o minuto do motor.
+const marketPrices = useMarketPrices();
+const liquidation = computed(() =>
+    props.micro.liquidation.map((row) => ({
+        ...row,
+        price:
+            row.qty > 0 ? (marketPrices[row.symbol] ?? row.price) : row.price,
+    })),
+);
 
 function toggleLiquidation(assetId: number, liquidate: boolean) {
     toggling.value = assetId;
@@ -251,7 +286,7 @@ const time = (iso: string) =>
         </Form>
 
         <p
-            v-if="micro.scheduler_stale"
+            v-if="schedulerStale"
             class="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm"
             data-test="micro-scheduler-stale"
         >
@@ -330,7 +365,7 @@ const time = (iso: string) =>
             </p>
             <ul class="grid gap-2 text-sm">
                 <li
-                    v-for="row in micro.liquidation"
+                    v-for="row in liquidation"
                     :key="row.asset_id"
                     class="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"
                     :data-test="`micro-liquidation-${row.symbol}`"

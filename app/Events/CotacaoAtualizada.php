@@ -3,13 +3,14 @@
 namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 
 /**
  * Último preço e candle de 1 minuto de um ativo, transmitido no canal público "mercado".
+ * Sai direto do coletor, sem passar pela fila: lá ele esperaria as rodadas de agentes.
  */
-class CotacaoAtualizada implements ShouldBroadcast
+class CotacaoAtualizada implements ShouldBroadcastNow
 {
     use Dispatchable;
 

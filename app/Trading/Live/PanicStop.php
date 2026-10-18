@@ -2,11 +2,13 @@
 
 namespace App\Trading\Live;
 
+use App\Events\PortfolioChanged;
 use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Portfolio;
 use App\Trading\BrokerManager;
 use App\Trading\Brokers\BinanceBroker;
+use App\Trading\PortfolioChangeBroadcaster;
 use Throwable;
 
 /**
@@ -76,5 +78,8 @@ class PanicStop
             ->whereIn('external_id', $externalIds)
             ->where('status', 'pending')
             ->update(['status' => 'cancelled', 'reject_reason' => 'Cancelada por "Parar tudo".']);
+
+        // Update em massa não passa pelos eventos do modelo.
+        PortfolioChangeBroadcaster::notify($portfolio->id, [PortfolioChanged::SCOPE_ORDERS, PortfolioChanged::SCOPE_MICRO]);
     }
 }
