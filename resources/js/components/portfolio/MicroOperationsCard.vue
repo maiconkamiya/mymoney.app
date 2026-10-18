@@ -27,6 +27,7 @@ import { micro as microRoute } from '@/routes/portfolios';
 import type {
     MicroLiquidationRow,
     MicroOverview,
+    MicroRuleOption,
     PortfolioSummary,
 } from '@/types';
 
@@ -36,6 +37,36 @@ const props = defineProps<{
 }>();
 
 const toggling = ref<number | null>(null);
+
+// Regra de entrada: o card mostra o último micro:backtest de cada uma.
+const chosenRule = ref(props.micro.rule);
+watch(
+    () => props.micro.rule,
+    (rule) => (chosenRule.value = rule),
+);
+const chosenRuleOption = computed(
+    () =>
+        props.micro.rules.find((rule) => rule.value === chosenRule.value) ??
+        null,
+);
+
+function backtestText(rule: MicroRuleOption) {
+    const backtest = rule.backtest;
+
+    if (backtest === null) {
+        return 'Ainda sem backtest. Rode php artisan micro:backtest --save.';
+    }
+
+    const mean =
+        backtest.mean_pct === null
+            ? 'sem média'
+            : `${backtest.mean_pct.toFixed(3).replace('.', ',')}% por operação`;
+    const date = new Date(backtest.at).toLocaleDateString('pt-BR');
+
+    return backtest.passed
+        ? `Passou no backtest de ${date} (${backtest.days} dias): ${backtest.trades} entradas na validação, ${mean} líquido.`
+        : `Não passou no backtest de ${date} (${backtest.days} dias): ${backtest.failures.join('; ')}.`;
+}
 
 // O motor avisa a cada minuto; se os avisos param, o relógio da tela mostra o alerta sem F5.
 const clock = ref(Date.now());
@@ -327,6 +358,45 @@ const time = (iso: string) =>
                     :default-value="micro.daily_loss_limit ?? ''"
                 />
                 <InputError :message="errors.micro_daily_loss_limit" />
+            </div>
+
+            <div
+                class="grid gap-2 @sm:col-span-2 @3xl:col-span-5"
+                data-test="micro-rule"
+            >
+                <Label for="micro_rule">Regra de entrada</Label>
+                <select
+                    id="micro_rule"
+                    v-model="chosenRule"
+                    name="micro_rule"
+                    class="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs @sm:max-w-sm"
+                >
+                    <option
+                        v-for="rule in micro.rules"
+                        :key="rule.value"
+                        :value="rule.value"
+                    >
+                        {{ rule.label }}
+                    </option>
+                </select>
+                <p
+                    v-if="chosenRuleOption"
+                    class="text-xs text-muted-foreground"
+                    data-test="micro-rule-backtest"
+                >
+                    <template v-if="chosenRuleOption.value === 'scalp'">
+                        Leitura das velas de 1 minuto, com alvo pela margem
+                        líquida acima.
+                    </template>
+                    <template v-else>
+                        Compra no recuo de uma alta de 1 hora; alvo e stop pela
+                        volatilidade de 15 minutos (a margem líquida acima não
+                        vale aqui) e até 4 horas por ciclo. Na carteira real só
+                        pode ser escolhida depois de passar no backtest.
+                    </template>
+                    {{ backtestText(chosenRuleOption) }}
+                </p>
+                <InputError :message="errors.micro_rule" />
             </div>
 
             <div

@@ -14,6 +14,7 @@ Schedule::command('market:sync-b3')->everyMinute()->weekdays()->withoutOverlappi
 Schedule::command('market:sync-b3 --fundamentals')->dailyAt('07:00')->weekdays()->when(fn () => (bool) config('trading.b3_sync'));
 Schedule::command('positions:check-exits')->everyMinute()->withoutOverlapping();
 Schedule::command('micro:run')->everyMinute()->withoutOverlapping();
+Schedule::command('micro:backtest --save')->weeklyOn(0, '05:00')->withoutOverlapping()->runInBackground();
 $scanMinutes = (int) config('trading.scan_interval_minutes');
 Schedule::command('signals:scan')->cron($scanMinutes >= 60 ? '0 * * * *' : '*/'.$scanMinutes.' * * * *')->withoutOverlapping();
 Schedule::command('binance:sync')->everyFiveMinutes()->withoutOverlapping();

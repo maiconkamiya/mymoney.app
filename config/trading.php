@@ -214,6 +214,25 @@ return [
         'reach_factor' => 2.0,
         'stop_ratio' => 1.0,
         'max_candle_age_seconds' => 150,
+
+        // Regra "Tendência com recuo": EMA21 de 1 h subindo, EMA9 acima da EMA21 em 15 min, entrada
+        // até `pullback_atr` ATR de 15 min da EMA21 de 15 min com a vela de 5 min virando para cima.
+        // Stop a `stop_atr` ATR de 15 min; alvo `reward_risk` vezes o risco e no mínimo
+        // `min_target_costs` vezes o custo da ida e volta.
+        'trend' => [
+            'lookback_minutes' => 1500,
+            'max_hold_minutes' => 240,
+            'pullback_atr' => 0.5,
+            'stop_atr' => 1.5,
+            'reward_risk' => 1.5,
+            'min_target_costs' => 4.0,
+        ],
+
+        // micro:backtest: parte final do período usada só para validar, e o que a validação exige.
+        'backtest' => [
+            'validation_share' => 0.3,
+            'min_trades' => (int) env('TRADING_MICRO_BACKTEST_MIN_TRADES', 100),
+        ],
     ],
 
     'binance' => [
