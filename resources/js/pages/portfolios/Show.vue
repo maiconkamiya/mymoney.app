@@ -16,6 +16,7 @@ import EditInitialCash from '@/components/portfolio/EditInitialCash.vue';
 import BinanceTotal from '@/components/portfolio/BinanceTotal.vue';
 import AccountLeftovers from '@/components/portfolio/AccountLeftovers.vue';
 import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
+import ClonePortfolio from '@/components/portfolio/ClonePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
 import TokenUsageCard from '@/components/portfolio/TokenUsageCard.vue';
@@ -660,6 +661,15 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                             </Button>
                         </Form>
                     </section>
+                </SidebarSection>
+
+                <SidebarSection
+                    title="Clonar como simulada"
+                    hint="Testar sem dinheiro"
+                    :open="section.open.value === 'clone'"
+                    @toggle="section.toggle('clone')"
+                >
+                    <ClonePortfolio :portfolio="portfolio" :equity="equity" />
                 </SidebarSection>
 
                 <SidebarSection
