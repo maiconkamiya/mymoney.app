@@ -37,7 +37,11 @@ function save() {
     router.put(
         update.url(props.portfolioId),
         { asset_ids: selected.value },
-        { preserveScroll: true, onFinish: () => (saving.value = false) },
+        {
+            preserveScroll: true,
+            only: ['tracked_asset_ids', 'micro'],
+            onFinish: () => (saving.value = false),
+        },
     );
 }
 </script>

@@ -30,7 +30,7 @@ function filter() {
             ativo: ativo.value || undefined,
             resultado: resultado.value || undefined,
         },
-        { preserveScroll: true, replace: true },
+        { preserveScroll: true, preserveState: true, replace: true },
     );
 }
 
