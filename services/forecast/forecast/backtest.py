@@ -6,7 +6,9 @@ da última vela de treino olha `horizon` velas à frente e, sem a folga, vazaria
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -31,15 +33,27 @@ def _sorted_dataset(dataset: pd.DataFrame) -> pd.DataFrame:
     return dataset.sort_values("open_at").reset_index(drop=True)
 
 
-def walk_forward(dataset: pd.DataFrame, config: BacktestConfig) -> dict:
-    """`dataset` tem as colunas FEATURES, `label`, `fwd_return` e `open_at`."""
+def walk_forward(
+    dataset: pd.DataFrame,
+    config: BacktestConfig,
+    features: list[str] | None = None,
+    make_classifier: Callable[[], Any] = new_classifier,
+    trade_filter: Callable[[pd.DataFrame], np.ndarray] | None = None,
+) -> dict:
+    """`dataset` tem as colunas FEATURES, `label`, `fwd_return` e `open_at`.
+
+    `features`, `make_classifier` e `trade_filter` existem para os experimentos
+    (`forecast.experiments`); o treino de produção usa os padrões. `trade_filter` recebe o trecho
+    de teste e devolve, por linha, se a operação é permitida.
+    """
+    features = features or FEATURES
     data = _sorted_dataset(dataset.dropna(subset=["label", "fwd_return"]))
     n = len(data)
     if n < config.min_train + config.folds * 50:
         return {"ok": False, "reason": f"poucos dados para validar ({n} linhas)", "rows": n}
 
     test_size = (n - config.min_train) // config.folds
-    probs, labels, returns = [], [], []
+    probs, labels, returns, allowed, fold_sizes = [], [], [], [], []
     train_labels_mean = []
 
     for fold in range(config.folds):
@@ -49,8 +63,10 @@ def walk_forward(dataset: pd.DataFrame, config: BacktestConfig) -> dict:
         test = data.iloc[test_start:test_end]
         if train["label"].nunique() < 2 or test.empty:
             continue
-        clf = new_classifier().fit(train[FEATURES], train["label"])
-        probs.append(clf.predict_proba(test[FEATURES])[:, 1])
+        clf = make_classifier().fit(train[features], train["label"])
+        probs.append(clf.predict_proba(test[features])[:, 1])
+        fold_sizes.append(len(test))
+        allowed.append(trade_filter(test) if trade_filter else np.ones(len(test), dtype=bool))
         labels.append(test["label"].to_numpy())
         returns.append(test["fwd_return"].to_numpy())
         train_labels_mean.append(np.full(len(test), train["label"].mean()))
@@ -62,6 +78,7 @@ def walk_forward(dataset: pd.DataFrame, config: BacktestConfig) -> dict:
     y = np.concatenate(labels)
     r = np.concatenate(returns)
     base = np.concatenate(train_labels_mean)
+    ok = np.concatenate(allowed)
 
     accuracy = float(((p > 0.5) == (y == 1)).mean())
     # Linha de base: sempre apostar na classe majoritária do treino.
@@ -70,10 +87,21 @@ def walk_forward(dataset: pd.DataFrame, config: BacktestConfig) -> dict:
     brier_base = float(((base - y) ** 2).mean())
 
     long_, short_ = p >= config.threshold, p <= 1 - config.threshold
-    traded = long_ | short_
+    traded = (long_ | short_) & ok
     side = np.where(long_, 1.0, np.where(short_, -1.0, 0.0))
     net = side[traded] * r[traded] - config.fee_bps / 10_000
     trades = int(traded.sum())
+
+    fold_net = []
+    start = 0
+    for size in fold_sizes:
+        sel = traded[start : start + size]
+        fold_net.append(
+            round(float((side[start : start + size][sel] * r[start : start + size][sel] - config.fee_bps / 10_000).mean()), 6)
+            if sel.any()
+            else None
+        )
+        start += size
 
     metrics = {
         "ok": True,
@@ -87,6 +115,7 @@ def walk_forward(dataset: pd.DataFrame, config: BacktestConfig) -> dict:
         "hit_rate": round(float((net > 0).mean()), 4) if trades else None,
         "avg_net_return": round(float(net.mean()), 6) if trades else None,
         "total_net_return": round(float(net.sum()), 4) if trades else None,
+        "fold_avg_net_return": fold_net,
         "fee_bps": config.fee_bps,
         "threshold": config.threshold,
         "horizon": config.horizon,
