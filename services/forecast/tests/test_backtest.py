@@ -1,3 +1,5 @@
+import pandas as pd
+
 from forecast.backtest import BacktestConfig, walk_forward
 from forecast.data import load_dataset
 from tests.conftest import synthetic_candles
@@ -44,3 +46,24 @@ def test_experiments_table_runs_every_variation(candles_csv):
     table = format_table(rows)
     assert "base" in table and "completa" in table
     assert all(len(m["fold_avg_net_return"]) == 4 for _, m in rows if m["ok"])
+
+
+def test_experiments_survive_features_empty_in_the_first_window(tmp_path):
+    from forecast.experiments import Variation, run_variation
+    from tests.conftest import synthetic_candles
+
+    # Vários ativos começando juntos: na primeira janela as variáveis de 240 velas ainda estão vazias.
+    frames = []
+    for i, symbol in enumerate(("AAAUSDT", "BBBUSDT", "CCCUSDT", "DDDUSDT")):
+        frame = synthetic_candles(900, seed=i + 1)
+        frame.insert(0, "timeframe", "1m")
+        frame.insert(0, "symbol", symbol)
+        frames.append(frame)
+    path = tmp_path / "candles.csv"
+    pd.concat(frames).to_csv(path, index=False)
+
+    for variation in (
+        Variation("extras", horizon=5, extra_features=True),
+        Variation("extras calibrado", horizon=5, extra_features=True, calibrate=True),
+    ):
+        assert run_variation(variation, path, None, 0.0, 4, {})["ok"]
