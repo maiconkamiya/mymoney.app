@@ -6,6 +6,7 @@ use App\Enums\Market;
 use App\Http\Requests\UpdateMicroOperationsRequest;
 use App\Models\AuditLog;
 use App\Models\Portfolio;
+use App\Trading\Micro\MicroTrader;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -73,6 +74,37 @@ class MicroOperationsController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => $request->boolean('liquidate')
             ? 'O ativo será vendido assim que der lucro líquido, e o modo não compra mais ele.'
             : 'Liquidação cancelada: o ativo volta a poder ser comprado pelo modo.']);
+
+        return back();
+    }
+
+    /**
+     * "Liquidar agora": sells one open position at market, even at a loss.
+     */
+    public function liquidateNow(Request $request, Portfolio $portfolio, MicroTrader $trader): RedirectResponse
+    {
+        abort_unless($portfolio->user_id === $request->user()->id, 403);
+        abort_unless($portfolio->market === Market::Crypto, 422);
+
+        $data = $request->validate([
+            'asset_id' => ['required', 'integer', Rule::exists('assets', 'id')->where('market', Market::Crypto->value)],
+        ]);
+
+        $position = $portfolio->openPositions()->where('asset_id', $data['asset_id'])->with(['asset', 'portfolio'])->first();
+        $actor = 'user:'.$request->user()->id;
+
+        $outcome = $position === null ? 'Não há posição aberta deste ativo.' : $trader->liquidateNow($portfolio, $position, $actor);
+
+        AuditLog::record($actor, 'portfolio.micro_liquidate_now', $portfolio, [
+            'asset_id' => (int) $data['asset_id'],
+            'sold' => ! is_string($outcome),
+            'detail' => is_string($outcome) ? $outcome : null,
+            'live' => $portfolio->isLive(),
+        ]);
+
+        Inertia::flash('toast', is_string($outcome)
+            ? ['type' => 'error', 'message' => 'Venda não feita: '.$outcome]
+            : ['type' => 'success', 'message' => sprintf('%s vendido a mercado a %s.', $position?->asset->symbol, rtrim(rtrim(number_format((float) $outcome->price, 8, ',', '.'), '0'), ','))]);
 
         return back();
     }

@@ -6,6 +6,7 @@ use App\Enums\Market;
 use App\Models\Asset;
 use App\Models\MicroCycle;
 use App\Models\Portfolio;
+use App\Models\Position;
 use App\Trading\OrderExecutor;
 use Illuminate\Support\Carbon;
 
@@ -20,6 +21,7 @@ class MicroOverview
         private readonly MicroRanker $ranker,
         private readonly MicroCosts $costs,
         private readonly OrderExecutor $executor,
+        private readonly MicroTargetOdds $odds,
     ) {}
 
     /**
@@ -80,6 +82,8 @@ class MicroOverview
             ],
             'skipped' => $evaluation['skipped'],
             'liquidation' => $this->liquidation($portfolio),
+            // Taxa da venda a mercado, para a confirmação do "Liquidar agora" estimar o resultado.
+            'sell_fee_rate' => (float) config('trading.costs.crypto.fee_rate'),
             'liquidation_blocked' => $portfolio->isLive() && ! $portfolio->autoExecutesLive()
                 ? 'Na carteira real a venda só sai com a execução automática confirmada (CONFIRMO) e sem "Parar tudo".'
                 : null,
@@ -121,28 +125,44 @@ class MicroOverview
      */
     private function liquidation(Portfolio $portfolio): array
     {
-        $marked = $portfolio->micro_liquidate_asset_ids ?? [];
+        $markedIds = $portfolio->micro_liquidate_asset_ids ?? [];
         $rows = [];
+        $hold = (int) config('trading.micro.max_hold_minutes');
 
         foreach ($portfolio->openPositions()->with('asset')->orderBy('id')->get() as $position) {
             $row = $this->trader->liquidation($portfolio, $position);
+            $marked = in_array($position->asset_id, $markedIds, true);
+            $resting = $this->executor->restingSells($position)->first()?->price;
+            $target = $resting !== null ? (float) $resting : ($marked ? $row['sell_from'] : $this->trader->plannedSellPrice($portfolio, $position));
             $rows[$position->asset_id] = [
                 'asset_id' => $position->asset_id,
                 'symbol' => $position->asset->symbol,
-                'marked' => in_array($position->asset_id, $marked, true),
+                'marked' => $marked,
                 'qty' => round($position->qty, 8),
                 'cost' => round($row['cost'], 8),
                 'sell_from' => round($row['sell_from'], 8),
                 'price' => $row['price'] === null ? null : round($row['price'], 8),
-                'resting_sell_price' => $this->executor->restingSells($position)->first()?->price,
+                'resting_sell_price' => $resting,
                 'sell_failure' => $this->trader->sellFailure($position),
+                'odds' => $row['price'] === null ? null : ['target' => round($target, 8)] + $this->odds->estimate($position->asset, $row['price'], $target, $this->minutesLeft($portfolio, $position, $hold)),
             ];
         }
 
-        foreach (Asset::query()->whereIn('id', array_diff($marked, array_keys($rows)))->orderBy('symbol')->get() as $asset) {
-            $rows[$asset->id] = ['asset_id' => $asset->id, 'symbol' => $asset->symbol, 'marked' => true, 'qty' => 0.0, 'cost' => null, 'sell_from' => null, 'price' => null, 'resting_sell_price' => null, 'sell_failure' => null];
+        foreach (Asset::query()->whereIn('id', array_diff($markedIds, array_keys($rows)))->orderBy('symbol')->get() as $asset) {
+            $rows[$asset->id] = ['asset_id' => $asset->id, 'symbol' => $asset->symbol, 'marked' => true, 'qty' => 0.0, 'cost' => null, 'sell_from' => null, 'price' => null, 'resting_sell_price' => null, 'sell_failure' => null, 'odds' => null];
         }
 
         return array_values($rows);
+    }
+
+    /**
+     * The window the odds look at: what is left of the open cycle's time
+     * limit, or the same limit for a position with no cycle.
+     */
+    private function minutesLeft(Portfolio $portfolio, Position $position, int $hold): int
+    {
+        $opened = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->value('opened_at');
+
+        return $opened === null ? $hold : max(1, $hold - (int) Carbon::parse($opened)->diffInMinutes(now()));
     }
 }

@@ -309,6 +309,7 @@ export type MicroOverview = {
     cycles: MicroCycleRow[];
     liquidation: MicroLiquidationRow[];
     liquidation_blocked: string | null;
+    sell_fee_rate: number;
 };
 
 export type MicroLiquidationRow = {
@@ -321,6 +322,18 @@ export type MicroLiquidationRow = {
     price: number | null;
     resting_sell_price: number | null;
     sell_failure: { reason: string; at: string; retry_at: string } | null;
+    odds: MicroTargetOdds | null;
+};
+
+/** Frequência, nos últimos 30 dias, de o par subir até o valor da venda dentro da janela. */
+export type MicroTargetOdds = {
+    target: number;
+    pct: number | null;
+    distance_pct: number;
+    distance_atr: number | null;
+    minutes: number;
+    samples: number;
+    reason: string;
 };
 
 export type AssetRow = {
