@@ -29,3 +29,18 @@ def test_too_little_data_is_not_validated(tmp_path):
     frame.to_csv(path, index=False)
     metrics = walk_forward(load_dataset(path, None, horizon=5), BacktestConfig(horizon=5))
     assert metrics["ok"] is False
+
+
+def test_experiments_table_runs_every_variation(candles_csv):
+    from forecast.experiments import Variation, format_table, run_variation
+
+    rows = []
+    for variation in (
+        Variation("base"),
+        Variation("completa", horizon=5, extra_features=True, calibrate=True, volatility_filter=True),
+    ):
+        rows.append((variation, run_variation(variation, candles_csv, None, 0.0, 4, {})))
+
+    table = format_table(rows)
+    assert "base" in table and "completa" in table
+    assert all(len(m["fold_avg_net_return"]) == 4 for _, m in rows if m["ok"])

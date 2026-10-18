@@ -4,12 +4,18 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.54] - 2026-10-18
+## [0.3.55] - 2026-10-18
 
 ### Adicionado
 
 - **Chance de alcançar o alvo em cada posição das micro operações.** Cada posição aberta no card mostra "Chance de alcançar o alvo de X em N min", quanto falta em % e em faixas médias de 1 minuto, e o motivo. A conta usa as velas de 1 minuto dos últimos 30 dias do próprio par: quantas vezes, partindo de momentos com volatilidade parecida com a de agora, o preço subiu a mesma distância dentro do tempo que resta do ciclo (ou 60 minutos para posição sem ciclo). É uma frequência do passado, não uma previsão, e não usa IA. Atualiza a cada minuto sem recarregar a página.
 - **Botão "Liquidar agora".** Vende a posição inteira a mercado pelo preço de agora, mesmo com prejuízo. Antes de vender, a tela mostra quanto você recebe e o resultado estimado com a taxa. A venda registrada na corretora é cancelada antes, a guarda de risco e o "Parar tudo" continuam valendo, e a saída aparece no histórico como "Liquidado à mão". Vale para posição com ou sem ciclo.
+
+## [0.3.54] - 2026-10-18
+
+### Adicionado
+
+- **Comparação de variações do modelo de previsão.** Novo modo do treino (`php artisan forecast:train --experiments`) que testa, no mesmo backtest e com os mesmos critérios, o modelo com probabilidades calibradas, com variáveis extras, com filtro de volatilidade e com horizontes de 30, 60 e 240 minutos. Mostra uma tabela com acerto, erro de probabilidade, número de operações e retorno líquido por janela, e diz se alguma variação passou. Não grava modelo nem muda o que o Quantitativo vota hoje.
 
 ## [0.3.53] - 2026-10-18
 
