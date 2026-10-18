@@ -4,7 +4,7 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.50] - 2026-10-18
+## [0.3.49] - 2026-10-18
 
 ### Corrigido
 
