@@ -1,7 +1,7 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
     "name": "mymoney",
-    "version": "0.3.71",
+    "version": "0.3.72",
     "private": true,
     "type": "module",
     "scripts": {
@@ -12,7 +12,7 @@
         "check:fix": "vp check --fix",
         "types:check": "vue-tsc --noEmit",
         "test:versoes": "node --test \"tools/versoes/*.test.mjs\"",
-        "test:js": "node --experimental-strip-types --test resources/js/lib/novidadesTexto.test.ts",
+        "test:js": "node --experimental-strip-types --test resources/js/lib/novidadesTexto.test.ts resources/js/lib/fimNegociacao.test.ts",
         "versoes": "node tools/versoes/cli.mjs",
         "release": "node tools/versoes/release.mjs"
     },

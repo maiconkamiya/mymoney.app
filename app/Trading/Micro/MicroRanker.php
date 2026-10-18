@@ -97,6 +97,7 @@ class MicroRanker
             ->where('market', Market::Crypto)
             ->where('active', true)
             ->where('is_benchmark', false)
+            ->tradable()
             ->orderBy('symbol')
             ->get();
     }

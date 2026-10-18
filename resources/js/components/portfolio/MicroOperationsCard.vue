@@ -174,6 +174,7 @@ const exitLabels: Record<string, string> = {
     stop: 'Stop',
     micro_time: 'Tempo limite',
     period_end: 'Fim do período',
+    delisting: 'Fim de negociação',
     sold: 'Vendida',
     micro_liquidate: 'Liquidado com lucro',
     micro_manual: 'Liquidado à mão',

@@ -29,6 +29,7 @@ import SidebarSection from '@/components/portfolio/SidebarSection.vue';
 import { useOpenSection } from '@/composables/useOpenSection';
 import { Button } from '@/components/ui/button';
 import { marketLabels, money, percent } from '@/lib/trading';
+import { avisoFimNegociacao, dataCurta } from '@/lib/fimNegociacao';
 import { index, update } from '@/routes/portfolios';
 import { signals as portfolioSignals } from '@/routes/portfolios';
 import { edit as systemSettings } from '@/routes/system-settings';
@@ -412,6 +413,16 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                     >
                                         <td class="px-4 py-2 font-medium">
                                             {{ position.symbol }}
+                                            <span
+                                                v-if="position.trading_ends_on"
+                                                class="ml-1 text-xs font-normal whitespace-nowrap text-amber-400"
+                                            >
+                                                {{
+                                                    position.trading_ended
+                                                        ? 'Encerrada'
+                                                        : `Até ${dataCurta(position.trading_ends_on).slice(0, 5)}`
+                                                }}
+                                            </span>
                                         </td>
                                         <td
                                             class="px-4 py-2 text-right tabular-nums"
@@ -485,6 +496,47 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                 </tbody>
                             </table>
                         </div>
+                        <ul
+                            v-if="
+                                positions.some(
+                                    (position) => position.trading_ends_on,
+                                )
+                            "
+                            class="mt-3 space-y-2 text-xs"
+                        >
+                            <li
+                                v-for="position in positions.filter(
+                                    (row) => row.trading_ends_on,
+                                )"
+                                :key="position.id"
+                                class="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2"
+                                :data-test="`position-${position.symbol}-trading-end`"
+                            >
+                                <p
+                                    class="text-amber-400"
+                                    data-test="position-trading-end"
+                                >
+                                    <span class="font-medium">{{
+                                        position.symbol
+                                    }}</span>
+                                    ·
+                                    {{
+                                        avisoFimNegociacao(
+                                            position.trading_ends_on,
+                                            position.trading_ended,
+                                        )
+                                    }}
+                                </p>
+                                <p
+                                    v-if="position.delisting_block"
+                                    class="mt-1 text-destructive"
+                                    data-test="position-delisting-block"
+                                >
+                                    A venda não saiu:
+                                    {{ position.delisting_block }}
+                                </p>
+                            </li>
+                        </ul>
 
                         <div
                             v-if="account_sync"

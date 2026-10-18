@@ -8,13 +8,17 @@ use App\Models\AuditLog;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Trading\Contracts\PriceFeed;
+use Illuminate\Support\Facades\Cache;
 
 /**
- * Closes open positions that hit their stop or target, and finishes
- * portfolios whose period is over.
+ * Closes open positions that hit their stop or target or whose pair the
+ * exchange stopped trading, and finishes portfolios whose period is over.
  */
 class PositionExits
 {
+    /** Exit reason of a position sold because the exchange stopped trading the pair. */
+    public const DELISTING = 'delisting';
+
     public function __construct(
         private readonly PriceFeed $prices,
         private readonly OrderExecutor $executor,
@@ -39,6 +43,14 @@ class PositionExits
 
                 if ($position->refresh()->closed_at !== null) {
                     $closed++;
+
+                    continue;
+                }
+
+                if ($position->asset->tradingEnded()) {
+                    if ($this->liquidateDelisted($position)) {
+                        $closed++;
+                    }
 
                     continue;
                 }
@@ -98,6 +110,43 @@ class PositionExits
         }
 
         return $finished;
+    }
+
+    /**
+     * The exchange stops trading the pair on its end date: the whole position is
+     * sold at market (a resting limit sale is cancelled first). When it cannot
+     * be sold, for example under the pair's minimum, the reason stays on the
+     * portfolio so the owner sees it, and the next minute tries again.
+     */
+    private function liquidateDelisted(Position $position): bool
+    {
+        $blocked = null;
+        $order = $this->executor->closePosition($position, self::DELISTING, 'exits', $blocked);
+
+        if ($order?->status === OrderStatus::Filled) {
+            Cache::forget(self::delistingKey($position));
+
+            return true;
+        }
+
+        Cache::put(self::delistingKey($position), $blocked ?? 'Corretora recusou: '.($order->reject_reason ?? 'sem motivo informado'), now()->addDay());
+
+        return false;
+    }
+
+    /**
+     * Why the position of a pair whose trading ended is still open, or null.
+     */
+    public static function delistingBlock(Position $position): ?string
+    {
+        $reason = Cache::get(self::delistingKey($position));
+
+        return is_string($reason) ? $reason : null;
+    }
+
+    private static function delistingKey(Position $position): string
+    {
+        return 'delisting:blocked:'.$position->id;
     }
 
     private function exitReason(Position $position): ?string

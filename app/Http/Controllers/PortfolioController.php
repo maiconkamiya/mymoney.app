@@ -23,6 +23,7 @@ use App\Trading\Live\LiveLimits;
 use App\Trading\Micro\MicroOverview;
 use App\Trading\PortfolioCharts;
 use App\Trading\PortfolioValuation;
+use App\Trading\PositionExits;
 use App\Trading\SignalPresenter;
 use App\Trading\TradingHalt;
 use Illuminate\Http\RedirectResponse;
@@ -196,6 +197,9 @@ class PortfolioController extends Controller
                     'stop_price' => $position->stop_price,
                     'last_price' => $last,
                     'value' => $last === null ? null : round($position->qty * $last, 8),
+                    'trading_ends_on' => $position->asset->trading_ends_on?->toDateString(),
+                    'trading_ended' => $position->asset->tradingEnded(),
+                    'delisting_block' => $position->asset->tradingEnded() ? PositionExits::delistingBlock($position) : null,
                 ];
             }),
             'account_sync' => fn () => $portfolio->broker === 'binance' && $portfolio->mode === PortfolioMode::Live ? [
@@ -230,7 +234,14 @@ class PortfolioController extends Controller
                 ->where('active', true)
                 ->where('is_benchmark', false)
                 ->orderBy('symbol')
-                ->get(['id', 'symbol', 'name']),
+                ->get(['id', 'symbol', 'name', 'trading_ends_on'])
+                ->map(fn (Asset $asset) => [
+                    'id' => $asset->id,
+                    'symbol' => $asset->symbol,
+                    'name' => $asset->name,
+                    'trading_ends_on' => $asset->trading_ends_on?->toDateString(),
+                    'trading_ended' => $asset->tradingEnded(),
+                ]),
             'tracked_asset_ids' => fn () => $portfolio->assets()->where('assets.active', true)->pluck('assets.id')->values(),
         ]);
     }

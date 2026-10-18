@@ -35,6 +35,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('ativos', [AssetController::class, 'index'])->name('assets.index');
     Route::get('ativos/busca', [AssetController::class, 'search'])->middleware('throttle:30,1')->name('assets.search');
     Route::post('ativos', [AssetController::class, 'store'])->middleware('throttle:20,1')->name('assets.store');
+    Route::put('ativos/{asset}/fim-negociacao', [AssetController::class, 'updateTradingEnd'])->name('assets.trading-end');
     Route::delete('ativos/{asset}', [AssetController::class, 'destroy'])->name('assets.destroy');
     Route::post('ativos/oportunidades/{opportunity}/acompanhar', [OpportunityController::class, 'track'])->middleware('throttle:20,1')->name('opportunities.track');
     Route::post('ativos/oportunidades/{opportunity}/agentes', [OpportunityController::class, 'swarm'])->middleware('throttle:10,1')->name('opportunities.swarm');

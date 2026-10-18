@@ -112,7 +112,7 @@ class SignalScanner
 
     private function tradable(Asset $asset): bool
     {
-        if (! $this->hours->isOpen($asset->market)) {
+        if ($asset->tradingEnded() || ! $this->hours->isOpen($asset->market)) {
             return false;
         }
 

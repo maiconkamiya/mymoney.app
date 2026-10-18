@@ -3,6 +3,7 @@ import { router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import { update } from '@/actions/App/Http/Controllers/PortfolioAssetsController';
 import { Button } from '@/components/ui/button';
+import { avisoFimNegociacao, dataCurta } from '@/lib/fimNegociacao';
 import { index as assetsIndex } from '@/routes/assets';
 import type { AvailableAsset } from '@/types';
 import { Link } from '@inertiajs/vue3';
@@ -104,6 +105,23 @@ function save() {
             >
                 <input v-model="selected" type="checkbox" :value="asset.id" />
                 {{ asset.symbol }}
+                <span
+                    v-if="asset.trading_ends_on"
+                    class="ml-auto text-xs text-amber-400"
+                    :title="
+                        avisoFimNegociacao(
+                            asset.trading_ends_on,
+                            asset.trading_ended,
+                        ) ?? undefined
+                    "
+                    data-test="tracked-trading-end"
+                >
+                    {{
+                        asset.trading_ended
+                            ? 'Encerrado'
+                            : `Até ${dataCurta(asset.trading_ends_on).slice(0, 5)}`
+                    }}
+                </span>
             </label>
         </div>
     </section>

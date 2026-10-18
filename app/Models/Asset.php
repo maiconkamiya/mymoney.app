@@ -6,6 +6,8 @@ use App\Enums\Market;
 use Carbon\CarbonImmutable;
 use Database\Factories\AssetFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,12 +28,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $active
  * @property bool $is_benchmark
  * @property bool $discovered
+ * @property CarbonImmutable|null $trading_ends_on
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read Collection<int, Candle> $candles
  * @property-read Collection<int, NewsItem> $news
  */
-#[Fillable(['symbol', 'market', 'name', 'quote_currency', 'lot_size', 'tick_size', 'min_qty', 'min_notional', 'sector', 'active', 'is_benchmark', 'discovered'])]
+#[Fillable(['symbol', 'market', 'name', 'quote_currency', 'lot_size', 'tick_size', 'min_qty', 'min_notional', 'sector', 'active', 'is_benchmark', 'discovered', 'trading_ends_on'])]
 class Asset extends Model
 {
     /** @use HasFactory<AssetFactory> */
@@ -51,6 +54,7 @@ class Asset extends Model
             'active' => 'boolean',
             'is_benchmark' => 'boolean',
             'discovered' => 'boolean',
+            'trading_ends_on' => 'immutable_date',
         ];
     }
 
@@ -73,5 +77,25 @@ class Asset extends Model
             ->using(NewsAsset::class)
             ->withPivot(['sentiment', 'relevance', 'is_new_fact', 'analysis'])
             ->withTimestamps();
+    }
+
+    /**
+     * Whether the exchange no longer trades the pair: from 00:00 UTC of the end
+     * date, because Binance suspends the pair on the announced day.
+     */
+    public function tradingEnded(): bool
+    {
+        return $this->trading_ends_on !== null && now('UTC')->toDateString() >= $this->trading_ends_on->toDateString();
+    }
+
+    /**
+     * Assets the app may still buy and send to the agents.
+     *
+     * @param  Builder<Asset>  $query
+     */
+    #[Scope]
+    protected function tradable(Builder $query): void
+    {
+        $query->where(fn (Builder $q) => $q->whereNull('trading_ends_on')->orWhereDate('trading_ends_on', '>', now('UTC')->toDateString()));
     }
 }

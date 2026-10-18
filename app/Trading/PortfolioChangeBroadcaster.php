@@ -59,6 +59,11 @@ class PortfolioChangeBroadcaster
             if ($asset->wasChanged(['active', 'discovered', 'is_benchmark', 'symbol', 'name'])) {
                 self::notifyMarket($asset->market, [PortfolioChanged::SCOPE_ASSETS]);
             }
+
+            // A data de fim de negociação muda o aviso das posições e dos pares do micro.
+            if ($asset->wasChanged('trading_ends_on')) {
+                self::notifyMarket($asset->market, [PortfolioChanged::SCOPE_ASSETS, PortfolioChanged::SCOPE_POSITIONS, PortfolioChanged::SCOPE_MICRO]);
+            }
         });
         Asset::deleted(fn (Asset $asset) => self::notifyMarket($asset->market, [PortfolioChanged::SCOPE_ASSETS]));
     }
