@@ -89,15 +89,60 @@ class SaldoInicialTest extends TestCase
         $this->assertEquals(10000, $portfolio->fresh()->initial_cash);
     }
 
-    public function test_carteira_real_nao_tem_saldo_inicial_editavel()
+    public function test_carteira_real_muda_so_o_valor_investido()
+    {
+        $user = User::factory()->create();
+        $portfolio = Portfolio::factory()->for($user)->create(['mode' => PortfolioMode::Live, 'broker' => 'binance', 'initial_cash' => 1.0199052, 'cash' => 18.5]);
+        $snapshot = PortfolioSnapshot::create(['portfolio_id' => $portfolio->id, 'taken_at' => now()->subDay(), 'equity' => 19.7, 'cash' => 18.5, 'exposure' => 1.2, 'drawdown' => 0]);
+
+        $this->actingAs($user)
+            ->patch(route('portfolios.initial-cash', $portfolio), ['initial_cash' => 20])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $portfolio->refresh();
+        $this->assertEquals(20, $portfolio->initial_cash);
+        $this->assertEquals(18.5, $portfolio->cash);
+        $this->assertEquals(19.7, $snapshot->fresh()->equity);
+        $log = AuditLog::where('action', 'portfolio.initial_cash')->sole();
+        $this->assertSame('user:'.$user->id, $log->actor);
+        $this->assertEqualsWithDelta(1.0199052, $log->payload['old'], 1e-9);
+        $this->assertEquals(20, $log->payload['new']);
+        $this->assertEquals(0, $log->payload['cash_delta']);
+    }
+
+    public function test_valor_investido_da_carteira_real_nao_infla_o_pico_nem_a_perda_do_dia()
+    {
+        $user = User::factory()->create();
+        $portfolio = Portfolio::factory()->for($user)->create(['mode' => PortfolioMode::Live, 'broker' => 'binance', 'initial_cash' => 30, 'cash' => 20]);
+        PortfolioSnapshot::create(['portfolio_id' => $portfolio->id, 'taken_at' => now()->subDay()->setTime(23, 55), 'equity' => 21, 'cash' => 20, 'exposure' => 1, 'drawdown' => 0]);
+        $valuation = app(PortfolioValuation::class);
+
+        $this->assertEquals(21, $valuation->peakEquity($portfolio));
+        $this->assertEquals(21, $valuation->startOfDayEquity($portfolio));
+    }
+
+    public function test_carteira_real_recusa_valor_investido_zero()
     {
         $user = User::factory()->create();
         $portfolio = Portfolio::factory()->for($user)->create(['mode' => PortfolioMode::Live, 'broker' => 'binance']);
 
         $this->actingAs($user)
-            ->patch(route('portfolios.initial-cash', $portfolio), ['initial_cash' => 5000])
+            ->patch(route('portfolios.initial-cash', $portfolio), ['initial_cash' => 0])
             ->assertSessionHasErrors('initial_cash');
 
         $this->assertEquals(10000, $portfolio->fresh()->initial_cash);
+    }
+
+    public function test_outro_usuario_recebe_403_na_carteira_real()
+    {
+        $portfolio = Portfolio::factory()->create(['mode' => PortfolioMode::Live, 'broker' => 'binance']);
+
+        $this->actingAs(User::factory()->create())
+            ->patch(route('portfolios.initial-cash', $portfolio), ['initial_cash' => 20])
+            ->assertForbidden();
+
+        $this->assertEquals(10000, $portfolio->fresh()->initial_cash);
+        $this->assertSame(0, AuditLog::count());
     }
 }

@@ -25,20 +25,35 @@ class PortfolioValuation
     }
 
     /**
-     * Equity at the start of today (first snapshot of the day, or the initial cash).
+     * Equity at the start of today: the first snapshot of the day, else the last one before it
+     * (the daily snapshot is taken at 23:55), else the initial cash.
      */
     public function startOfDayEquity(Portfolio $portfolio): float
     {
         $snapshot = $portfolio->snapshots()
             ->where('taken_at', '>=', now()->startOfDay())
             ->oldest('taken_at')
-            ->first();
+            ->first()
+            ?? $portfolio->snapshots()
+                ->where('taken_at', '<', now()->startOfDay())
+                ->latest('taken_at')
+                ->first();
 
         return $snapshot->equity ?? $portfolio->initial_cash;
     }
 
+    /**
+     * Highest equity seen. A real portfolio's initial cash is only the base of the result (the
+     * owner can edit it), so once it has snapshots the peak comes from them alone.
+     */
     public function peakEquity(Portfolio $portfolio): float
     {
-        return max((float) $portfolio->snapshots()->max('equity'), $portfolio->initial_cash);
+        $peak = $portfolio->snapshots()->max('equity');
+
+        if ($peak !== null && $portfolio->isLive()) {
+            return (float) $peak;
+        }
+
+        return max((float) $peak, $portfolio->initial_cash);
     }
 }
