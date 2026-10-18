@@ -4,6 +4,14 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.67] - 2026-10-18
+
+### Alterado
+
+- **Gráficos novos, feitos com o ApexCharts.** Os gráficos de "Ativos em tempo real" e de "Desempenho" na carteira, e o gráfico do mercado no Painel e na página inicial, ganharam o mesmo visual, com dica ao passar o mouse mostrando a hora e o preço (ou a data e o patrimônio). Seguem o tema claro ou escuro e continuam se atualizando sozinhos, sem recarregar a página.
+- **Linha ou velas nos ativos da carteira.** Um seletor "Linha | Velas" em "Ativos em tempo real" troca todos os gráficos entre a linha de fechamento e as velas de 1 minuto; a escolha fica lembrada no navegador.
+- **Preço médio, stop, alvo (ou venda) e teto sempre à vista.** O gráfico ajusta a escala para que essas linhas nunca fiquem fora dele, e os rótulos ganharam fundo para não serem cortados pela linha do preço.
+
 ## [0.3.66] - 2026-10-18
 
 ### Adicionado
