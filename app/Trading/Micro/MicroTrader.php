@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\MarketData\BinanceSymbols;
 use App\Models\Asset;
 use App\Models\AuditLog;
+use App\Models\MicroCycle;
 use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
@@ -35,6 +36,7 @@ class MicroTrader
     public function __construct(
         private readonly MicroRanker $ranker,
         private readonly MicroCosts $costs,
+        private readonly MicroRules $rules,
         private readonly OrderExecutor $executor,
         private readonly LiveLimits $live,
         private readonly TradingHalt $halt,
@@ -545,11 +547,13 @@ class MicroTrader
      */
     private function expire(Portfolio $portfolio): void
     {
+        // Each cycle keeps the time limit of the rule that opened it.
         $cycles = $portfolio->microCycles()
             ->where('status', 'open')
-            ->where('opened_at', '<=', now()->subMinutes((int) config('trading.micro.max_hold_minutes')))
+            ->where('opened_at', '<=', now()->subMinutes(min((int) config('trading.micro.max_hold_minutes'), (int) config('trading.micro.trend.max_hold_minutes'))))
             ->with('position.asset')
-            ->get();
+            ->get()
+            ->filter(fn (MicroCycle $cycle) => $cycle->opened_at->lte(now()->subMinutes($cycle->max_hold_minutes ?? (int) config('trading.micro.max_hold_minutes'))));
 
         foreach ($cycles as $cycle) {
             if ($cycle->position !== null && $cycle->position->closed_at === null) {
@@ -704,7 +708,7 @@ class MicroTrader
             asset: $asset,
             side: OrderSide::Buy,
             qty: $this->entryQty($portfolio, $asset, $setup->price),
-            stopPrice: $setup->price * (1 - $grossPct / 100 * (float) config('trading.micro.stop_ratio')),
+            stopPrice: $setup->price * (1 - $this->rules->exits($setup, $grossPct)['stop_pct'] / 100),
             clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHi'),
         );
     }
@@ -726,9 +730,10 @@ class MicroTrader
             return false;
         }
 
+        $exits = $this->rules->exits($setup, $grossPct);
         $entry = $outcome->price ?? $setup->price;
-        $target = $entry * (1 + $grossPct / 100);
-        $stop = $entry * (1 - $grossPct / 100 * (float) config('trading.micro.stop_ratio'));
+        $target = $entry * (1 + $exits['target_pct'] / 100);
+        $stop = $entry * (1 - $exits['stop_pct'] / 100);
 
         $position->update(['target_price' => $target, 'stop_price' => $stop]);
 
@@ -741,7 +746,9 @@ class MicroTrader
             'target_price' => $target,
             'stop_price' => $stop,
             'fees' => $outcome->fees,
-            'gross_margin_pct' => $grossPct,
+            'gross_margin_pct' => $exits['target_pct'],
+            'rule' => $portfolio->micro_rule,
+            'max_hold_minutes' => $exits['max_hold_minutes'],
             'analysis' => $setup->toArray(),
             'opened_at' => now(),
         ]);

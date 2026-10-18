@@ -3,6 +3,7 @@
 namespace App\Trading\Micro;
 
 use App\Enums\Market;
+use App\Enums\MicroRule;
 use App\Models\Asset;
 use App\Models\Candle;
 use App\Models\Portfolio;
@@ -14,7 +15,7 @@ use Illuminate\Support\Collection;
  */
 class MicroRanker
 {
-    public function __construct(private readonly MicroAnalysis $analysis) {}
+    public function __construct(private readonly MicroRules $rules) {}
 
     /**
      * @return Collection<int, array{asset: Asset, setup: MicroSetup}> most volatile first
@@ -33,14 +34,16 @@ class MicroRanker
     public function evaluate(Portfolio $portfolio, float $grossMarginPct): array
     {
         $maxAge = (int) config('trading.micro.max_candle_age_seconds');
+        $rule = $portfolio->micro_rule;
+        $lookback = $this->rules->lookbackMinutes($rule);
         $skipped = [];
 
         $ready = $this->assets($portfolio)
-            ->map(function (Asset $asset) use ($grossMarginPct, $maxAge, &$skipped) {
+            ->map(function (Asset $asset) use ($grossMarginPct, $maxAge, $rule, $lookback, &$skipped) {
                 $candles = Candle::query()
                     ->where('asset_id', $asset->id)
                     ->where('timeframe', '1m')
-                    ->where('open_at', '>=', now()->subMinutes((int) config('trading.micro.lookback_minutes')))
+                    ->where('open_at', '>=', now()->subMinutes($lookback))
                     ->orderBy('open_at')
                     ->get();
 
@@ -62,10 +65,12 @@ class MicroRanker
                     $rows[] = ['high' => (float) $candle->high, 'low' => (float) $candle->low, 'close' => (float) $candle->close];
                 }
 
-                $setup = $this->analysis->read($rows, $grossMarginPct);
+                $setup = $this->rules->read($rule, $rows, $grossMarginPct);
 
                 if ($setup === null) {
-                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => 'Poucos candles para ler o gráfico (precisa de 40 minutos).'];
+                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => $rule === MicroRule::Scalp
+                        ? 'Poucos candles para ler o gráfico (precisa de 40 minutos).'
+                        : 'Poucos candles para ler o gráfico (a regra de tendência precisa de 22 horas de velas de 1 minuto).'];
 
                     return null;
                 }

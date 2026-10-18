@@ -4,6 +4,13 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.70] - 2026-10-18
+
+### Adicionado
+
+- **Teste das micro operações com o histórico.** O comando `php artisan micro:backtest` refaz, minuto a minuto, o que o motor teria feito nas velas guardadas (30 dias por padrão), com taxa e deslize, e diz por par quantas entradas teriam saído, quantas no alvo, no stop e no tempo, e o resultado líquido médio por operação. A regra só passa se ganhar na parte final do período (que ela não "viu" antes), ganhar de entradas sorteadas e ficar positiva em pelo menos 3 de 4 janelas. O teste roda sozinho todo domingo às 05:00 e guarda o resultado.
+- **Nova regra de entrada "Tendência com recuo".** No card Micro operações, o campo "Regra de entrada" escolhe entre a regra atual (velas de 1 minuto) e a nova, que só compra no recuo de uma alta de 1 hora, com alvo e stop pela volatilidade de 15 minutos e até 4 horas por ciclo. O card mostra o último teste de cada regra. Na carteira real a regra nova só pode ser escolhida depois de passar no teste; na simulada pode ser escolhida a qualquer momento. A regra atual continua como está.
+
 ## [0.3.69] - 2026-10-18
 
 ### Alterado

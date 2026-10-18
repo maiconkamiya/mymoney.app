@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Market;
+use App\Enums\MicroRule;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
 use Carbon\CarbonImmutable;
@@ -47,6 +48,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property float|null $micro_daily_target
  * @property int|null $micro_daily_operations
  * @property int $micro_wallet_pct
+ * @property MicroRule $micro_rule
  * @property float|null $micro_daily_loss_limit
  * @property list<int>|null $micro_liquidate_asset_ids
  * @property bool $explorer_auto_swarm
@@ -62,11 +64,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  * @property-read Collection<int, MicroCycle> $microCycles
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit', 'micro_daily_operations', 'micro_wallet_pct', 'micro_liquidate_asset_ids', 'explorer_auto_swarm'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'explorer_auto_swarm'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
     use HasFactory;
+
+    /**
+     * Same default as the column, so a model created in memory already has its rule.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'micro_rule' => 'scalp',
+    ];
 
     /**
      * @return array<string, string>
@@ -93,6 +104,7 @@ class Portfolio extends Model
             'micro_daily_target' => 'float',
             'micro_daily_operations' => 'integer',
             'micro_wallet_pct' => 'integer',
+            'micro_rule' => MicroRule::class,
             'micro_daily_loss_limit' => 'float',
             'micro_liquidate_asset_ids' => 'array',
             'explorer_auto_swarm' => 'boolean',

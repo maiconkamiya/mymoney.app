@@ -312,8 +312,26 @@ export type MicroCycleRow = {
     closed_at: string | null;
 };
 
+export type MicroBacktestSummary = {
+    passed: boolean;
+    trades: number;
+    mean_pct: number | null;
+    win_rate: number | null;
+    failures: string[];
+    days: number;
+    at: string;
+};
+
+export type MicroRuleOption = {
+    value: 'scalp' | 'trend_pullback';
+    label: string;
+    backtest: MicroBacktestSummary | null;
+};
+
 export type MicroOverview = {
     enabled: boolean;
+    rule: MicroRuleOption['value'];
+    rules: MicroRuleOption[];
     order_value: number;
     net_margin_pct: number;
     gross_margin_pct: number;
