@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import InfoTip from '@/components/portfolio/InfoTip.vue';
 import type { AccountSync } from '@/types/trading';
 
 const props = defineProps<{
@@ -81,7 +82,7 @@ const priceGap = computed(() => {
 <template>
     <div
         v-if="total !== null || parts.length > 0"
-        class="mt-2 text-xs text-muted-foreground"
+        class="mt-2 flex items-center gap-1 text-xs text-muted-foreground"
         data-test="binance-total"
     >
         <p v-if="total !== null">
@@ -92,22 +93,20 @@ const priceGap = computed(() => {
         </p>
         <p v-else>
             Fora do patrimônio do app:
-            {{ usdt(parts.reduce((sum, row) => sum + row.value, 0)) }}. As
-            outras carteiras da Binance não puderam ser lidas.
+            {{ usdt(parts.reduce((sum, row) => sum + row.value, 0)) }}
         </p>
-        <details class="mt-1">
-            <summary class="cursor-pointer select-none">
-                Por que é diferente?
-            </summary>
-            <p class="mt-1">
+        <InfoTip label="Por que o total da Binance é diferente">
+            <p>
                 O patrimônio do app é o que ele opera: USDT e moedas acima de 1
                 USDT com par em USDT da carteira Spot, incluindo o que está
                 travado em ordens abertas.
             </p>
-            <ul class="mt-1 space-y-0.5">
+            <ul class="mt-2 space-y-0.5">
                 <li class="flex justify-between gap-3">
                     <span>Patrimônio no app</span>
-                    <span class="tabular-nums">{{ usdt(equity) }}</span>
+                    <span class="whitespace-nowrap tabular-nums">{{
+                        usdt(equity)
+                    }}</span>
                 </li>
                 <li
                     v-for="row in parts"
@@ -115,20 +114,27 @@ const priceGap = computed(() => {
                     class="flex justify-between gap-3"
                 >
                     <span>{{ row.label }}</span>
-                    <span class="tabular-nums">{{ usdt(row.value) }}</span>
+                    <span class="whitespace-nowrap tabular-nums">{{
+                        usdt(row.value)
+                    }}</span>
                 </li>
                 <li
                     v-if="Math.abs(priceGap) >= 0.01"
                     class="flex justify-between gap-3"
                 >
                     <span>Diferença de cotação desde a sincronização</span>
-                    <span class="tabular-nums">{{ usdt(priceGap) }}</span>
+                    <span class="whitespace-nowrap tabular-nums">{{
+                        usdt(priceGap)
+                    }}</span>
                 </li>
             </ul>
-            <p class="mt-1">
-                Se a Binance mostrar o saldo em BRL ou BTC, troque para USD para
-                comparar.
+            <p v-if="total === null" class="mt-2">
+                As outras carteiras da Binance não puderam ser lidas.
             </p>
-        </details>
+            <p class="mt-2">
+                Se a Binance mostrar o saldo em BRL ou BTC, troque para USD para
+                comparar. A lista das moedas em poeira fica em Posições abertas.
+            </p>
+        </InfoTip>
     </div>
 </template>

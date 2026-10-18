@@ -4,6 +4,13 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.68] - 2026-10-18
+
+### Alterado
+
+- **Poeira e moedas fora do app viram uma linha com tooltip.** Na seção "Posições abertas" da carteira real, a lista de moedas em poeira e das moedas sem cotação (como BRL e ETHW) sai do texto corrido: aparece só "Poeira: N ativo(s), X USDT" e "Fora do app: N ativo(s)", e a lista completa abre no ícone de informação.
+- **O detalhe do total da conta Binance também abre em tooltip**, no ícone ao lado de "Total na conta Binance". No computador abre ao passar o mouse; no celular, com um toque. Listas longas rolam dentro do tooltip.
+
 ## [0.3.67] - 2026-10-18
 
 ### Alterado
