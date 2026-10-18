@@ -186,6 +186,14 @@ class Portfolio extends Model
     }
 
     /**
+     * Whether a micro cycle is running on the asset in this portfolio.
+     */
+    public function hasOpenMicroCycle(int $assetId): bool
+    {
+        return $this->microCycles()->where('asset_id', $assetId)->where('status', 'open')->exists();
+    }
+
+    /**
      * Whether the owner marked the asset to be sold with profit and no longer bought.
      */
     public function liquidates(int $assetId): bool

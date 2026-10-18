@@ -4,11 +4,17 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.76] - 2026-10-18
+## [0.3.77] - 2026-10-18
 
 ### Adicionado
 
 - **Clonar a carteira como simulada.** Na lateral da carteira, a seção "Clonar como simulada" cria uma carteira simulada com os mesmos ativos acompanhados e o mesmo card Micro operações (aporte, operações por dia, margem, meta e perda do dia, regra de entrada), começando com o patrimônio de agora em caixa. As micro operações já nascem ligadas e os sinais dos agentes esperam a sua confirmação. Posições, ordens, histórico, credencial da Binance e a execução real ficam na carteira de origem: nenhuma ordem da simulada vai à corretora. Ao confirmar, a tela abre a carteira nova sem recarregar.
+
+## [0.3.76] - 2026-10-18
+
+### Corrigido
+
+- **O enxame não vende mais a posição de uma micro operação em andamento.** Enquanto um ciclo das micro operações está aberto num par, os agentes não analisam esse par na carteira, e quem decide a venda é o alvo, o stop e o tempo do ciclo. Hoje o enxame chegou a vender uma micro operação 2 segundos depois da compra. Se uma venda for aprovada pelos agentes nesse meio tempo, ela aparece no card de Sinais como rejeitada com o motivo "Ciclo micro aberto" e nada é vendido. Fim de negociação, "Parar tudo" e os botões "Liquidar com lucro" e "Liquidar agora" continuam vendendo. Também poupa tokens. Dá para voltar ao comportamento antigo em Configurações > Custos e serviços, chave "Enxame espera o ciclo micro", que começa **ligada**.
 
 ## [0.3.75] - 2026-10-18
 

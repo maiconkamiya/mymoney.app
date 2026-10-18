@@ -23,6 +23,8 @@ use Illuminate\Support\Facades\Cache;
  */
 class SignalPipeline
 {
+    public const MICRO_CYCLE_OPEN = 'Ciclo micro aberto: a venda fica com o alvo, o stop e o tempo do ciclo.';
+
     public function __construct(
         private readonly LlmClient $llm,
         private readonly ScenarioBuilder $scenarios,
@@ -110,6 +112,14 @@ class SignalPipeline
 
         if ($result->approved && $result->side === OrderSide::Sell && ! $signal->portfolio->openPositions()->where('asset_id', $signal->asset_id)->exists()) {
             $signal->moveTo(SignalStage::Rejected, 'Venda aprovada, mas não há posição aberta para vender.');
+            $this->broadcaster->consensusDecided($signal);
+
+            return $result;
+        }
+
+        // The cycle opened while the agents voted: its target, stop and time decide the sale.
+        if ($result->approved && $result->side === OrderSide::Sell && SignalScanner::waitsMicroCycle($signal->portfolio, $signal->asset_id)) {
+            $signal->moveTo(SignalStage::Rejected, self::MICRO_CYCLE_OPEN);
             $this->broadcaster->consensusDecided($signal);
 
             return $result;

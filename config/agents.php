@@ -59,6 +59,14 @@ return [
     'compact_json' => (bool) env('AGENTS_COMPACT_JSON', false),
 
     /*
+    | While a micro cycle is open on a pair, the swarm leaves that pair alone in
+    | that portfolio: no signal is opened (no tokens) and a sell approved while
+    | the cycle runs is rejected. The cycle's target, stop and time decide.
+    */
+
+    'wait_micro_cycle' => (bool) env('AGENTS_WAIT_MICRO_CYCLE', true),
+
+    /*
     | US dollars per million tokens, used to record the cost of each vote.
     */
 
