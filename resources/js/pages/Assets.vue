@@ -7,8 +7,15 @@ import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { avisoFimNegociacao, dataCurta } from '@/lib/fimNegociacao';
 import { marketLabels } from '@/lib/trading';
-import { destroy, index, search, store } from '@/routes/assets';
+import {
+    destroy,
+    index,
+    search,
+    store,
+    tradingEnd,
+} from '@/routes/assets';
 import type {
     AssetRow,
     AssetSearchResult,
@@ -25,6 +32,7 @@ defineOptions({
 const props = defineProps<{
     assets: AssetRow[];
     explorer: ExplorerData;
+    can_edit_trading_end: boolean;
 }>();
 
 const market = ref<Market>('crypto');
@@ -130,6 +138,42 @@ function remove(asset: AssetRow) {
         preserveScroll: true,
         onError: (e) => (errors.value = e),
     });
+}
+
+// Data de fim de negociação em edição por linha; some ao salvar.
+const endDrafts = ref<Record<number, string>>({});
+const savingEnd = ref<number | null>(null);
+
+const endDraft = (asset: AssetRow) =>
+    endDrafts.value[asset.id] ?? asset.trading_ends_on ?? '';
+
+function saveTradingEnd(asset: AssetRow, value: string | null) {
+    if (
+        value !== null &&
+        !confirm(
+            `A partir de ${dataCurta(value)} (00:00 UTC) o app para de comprar ${asset.symbol} e vende a mercado o que houver em todas as carteiras. Confirmar?`,
+        )
+    ) {
+        return;
+    }
+
+    savingEnd.value = asset.id;
+    errors.value = {};
+    router.put(
+        tradingEnd.url(asset.id),
+        { trading_ends_on: value },
+        {
+            preserveScroll: true,
+            only: ['assets'],
+            onError: (e) => (errors.value = e),
+            onSuccess: () => {
+                const rest = { ...endDrafts.value };
+                delete rest[asset.id];
+                endDrafts.value = rest;
+            },
+            onFinish: () => (savingEnd.value = null),
+        },
+    );
 }
 
 const typed = computed(() => query.value.trim().toUpperCase());
@@ -266,7 +310,30 @@ const grouped = computed(() =>
                 Nenhum ativo cadastrado neste mercado.
             </div>
 
-            <div v-else class="overflow-x-auto rounded-2xl border bg-card">
+            <p
+                v-if="group.rows.length > 0"
+                class="text-sm text-muted-foreground"
+                data-test="trading-end-help"
+            >
+                Fim da negociação: use quando a
+                {{ group.market === 'crypto' ? 'Binance' : 'bolsa' }} anunciar
+                que vai deixar de negociar o ativo. Vale para todas as
+                carteiras. À 00:00 UTC do dia escolhido, que é quando a
+                corretora costuma suspender o par, o app para de comprar e de
+                mandar o ativo aos agentes, cancela a venda limitada pendente e
+                vende a mercado o que houver. Saldo abaixo do mínimo da
+                corretora (5 USDT) não sai pela API: a carteira mostra o motivo.
+                {{
+                    can_edit_trading_end
+                        ? ''
+                        : 'Só o administrador do sistema define a data.'
+                }}
+            </p>
+
+            <div
+                v-if="group.rows.length > 0"
+                class="overflow-x-auto rounded-2xl border bg-card"
+            >
                 <table class="w-full text-sm">
                     <thead class="bg-muted/50 text-left text-muted-foreground">
                         <tr>
@@ -282,6 +349,9 @@ const grouped = computed(() =>
                                 class="px-4 py-2 text-right font-medium"
                             >
                                 Ordem mínima
+                            </th>
+                            <th class="px-4 py-2 font-medium">
+                                Fim da negociação
                             </th>
                             <th class="px-4 py-2" />
                         </tr>
@@ -310,6 +380,33 @@ const grouped = computed(() =>
                                 >
                                     Achado
                                 </Badge>
+                                <Badge
+                                    v-if="asset.trading_ends_on"
+                                    :variant="
+                                        asset.trading_ended
+                                            ? 'destructive'
+                                            : 'outline'
+                                    "
+                                    class="ml-2"
+                                    :class="
+                                        asset.trading_ended
+                                            ? ''
+                                            : 'border-amber-500/40 text-amber-400'
+                                    "
+                                    :title="
+                                        avisoFimNegociacao(
+                                            asset.trading_ends_on,
+                                            asset.trading_ended,
+                                        ) ?? undefined
+                                    "
+                                    data-test="asset-trading-end"
+                                >
+                                    {{
+                                        asset.trading_ended
+                                            ? 'Negociação encerrada'
+                                            : `Encerra em ${dataCurta(asset.trading_ends_on)}`
+                                    }}
+                                </Badge>
                             </td>
                             <td class="px-4 py-2 text-right tabular-nums">
                                 {{ Number(asset.lot_size) }}
@@ -326,6 +423,68 @@ const grouped = computed(() =>
                                         ? `${Number(asset.min_notional)} USDT`
                                         : '-'
                                 }}
+                            </td>
+                            <td class="px-4 py-2">
+                                <div
+                                    v-if="can_edit_trading_end"
+                                    class="flex flex-wrap items-center gap-2"
+                                >
+                                    <Input
+                                        type="date"
+                                        class="h-8 w-40"
+                                        :model-value="endDraft(asset)"
+                                        :aria-label="`Fim da negociação de ${asset.symbol}`"
+                                        :data-test="`trading-end-${asset.symbol}`"
+                                        @update:model-value="
+                                            (v) =>
+                                                (endDrafts[asset.id] =
+                                                    String(v))
+                                        "
+                                    />
+                                    <Button
+                                        v-if="
+                                            endDraft(asset) &&
+                                            endDraft(asset) !==
+                                                (asset.trading_ends_on ?? '')
+                                        "
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        :disabled="savingEnd !== null"
+                                        @click="
+                                            saveTradingEnd(
+                                                asset,
+                                                endDraft(asset),
+                                            )
+                                        "
+                                    >
+                                        {{
+                                            savingEnd === asset.id
+                                                ? 'Salvando...'
+                                                : 'Salvar'
+                                        }}
+                                    </Button>
+                                    <Button
+                                        v-if="asset.trading_ends_on"
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        :disabled="savingEnd !== null"
+                                        @click="saveTradingEnd(asset, null)"
+                                    >
+                                        Tirar data
+                                    </Button>
+                                </div>
+                                <span
+                                    v-else
+                                    class="text-muted-foreground tabular-nums"
+                                >
+                                    {{
+                                        asset.trading_ends_on
+                                            ? dataCurta(asset.trading_ends_on)
+                                            : '-'
+                                    }}
+                                </span>
                             </td>
                             <td class="px-4 py-2 text-right">
                                 <Button

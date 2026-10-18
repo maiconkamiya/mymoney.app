@@ -29,6 +29,7 @@ import SidebarSection from '@/components/portfolio/SidebarSection.vue';
 import { useOpenSection } from '@/composables/useOpenSection';
 import { Button } from '@/components/ui/button';
 import { marketLabels, money, percent } from '@/lib/trading';
+import { avisoFimNegociacao } from '@/lib/fimNegociacao';
 import { index, update } from '@/routes/portfolios';
 import { signals as portfolioSignals } from '@/routes/portfolios';
 import type {
@@ -386,6 +387,26 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                     >
                                         <td class="px-4 py-2 font-medium">
                                             {{ position.symbol }}
+                                            <p
+                                                v-if="position.trading_ends_on"
+                                                class="mt-1 max-w-xs text-xs font-normal text-amber-400"
+                                                data-test="position-trading-end"
+                                            >
+                                                {{
+                                                    avisoFimNegociacao(
+                                                        position.trading_ends_on,
+                                                        position.trading_ended,
+                                                    )
+                                                }}
+                                            </p>
+                                            <p
+                                                v-if="position.delisting_block"
+                                                class="mt-1 max-w-xs text-xs font-normal text-destructive"
+                                                data-test="position-delisting-block"
+                                            >
+                                                A venda não saiu:
+                                                {{ position.delisting_block }}
+                                            </p>
                                         </td>
                                         <td
                                             class="px-4 py-2 text-right tabular-nums"

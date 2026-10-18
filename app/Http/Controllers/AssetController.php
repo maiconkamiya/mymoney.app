@@ -6,9 +6,11 @@ use App\Enums\Market;
 use App\MarketData\BinanceSymbols;
 use App\MarketData\BrapiB3;
 use App\Models\Asset;
+use App\Models\AuditLog;
 use App\Models\Opportunity;
 use App\Models\OpportunityScan;
 use App\Models\Portfolio;
+use App\Settings\SystemSettings;
 use App\Trading\Assets\AssetRegistry;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -21,7 +23,7 @@ use Inertia\Response;
 
 class AssetController extends Controller
 {
-    public function index(Request $request, AssetRegistry $registry): Response
+    public function index(Request $request, AssetRegistry $registry, SystemSettings $settings): Response
     {
         $assets = Asset::query()
             ->where('active', true)
@@ -39,11 +41,14 @@ class AssetController extends Controller
                 'min_qty' => $asset->min_qty,
                 'min_notional' => $asset->min_notional,
                 'discovered' => $asset->discovered,
+                'trading_ends_on' => $asset->trading_ends_on?->toDateString(),
+                'trading_ended' => $asset->tradingEnded(),
                 'blockers' => $registry->blockers($asset),
             ]);
 
         return Inertia::render('Assets', [
             'assets' => $assets,
+            'can_edit_trading_end' => $settings->canEdit($request->user()),
             'explorer' => fn () => $this->explorer($request),
         ]);
     }
@@ -150,6 +155,31 @@ class AssetController extends Controller
         $asset = $registry->add(Market::from($data['market']), $data['symbol'], 'user:'.$request->user()->id);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$asset->symbol} cadastrado. O coletor e o scanner passam a cobri-lo em até 1 minuto."]);
+
+        return back();
+    }
+
+    /**
+     * Define ou limpa a data em que a corretora deixa de negociar o par. Ela vende
+     * as posições de todas as contas nesse dia, por isso só o administrador muda.
+     */
+    public function updateTradingEnd(Request $request, Asset $asset, SystemSettings $settings): RedirectResponse
+    {
+        abort_unless($settings->canEdit($request->user()), 403);
+
+        $data = $request->validate([
+            'trading_ends_on' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        $before = $asset->trading_ends_on?->toDateString();
+        $asset->update(['trading_ends_on' => $data['trading_ends_on'] ?? null]);
+        $after = $asset->trading_ends_on?->toDateString();
+
+        AuditLog::record('user:'.$request->user()->id, 'asset.trading_end_updated', $asset, ['symbol' => $asset->symbol, 'from' => $before, 'to' => $after]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => $after === null
+            ? "{$asset->symbol} sem data de fim de negociação."
+            : "{$asset->symbol} encerra em ".$asset->trading_ends_on?->format('d/m/Y').'. Nesse dia o app para de comprar e vende o que houver nas carteiras.']);
 
         return back();
     }

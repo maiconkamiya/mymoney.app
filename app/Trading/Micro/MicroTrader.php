@@ -438,6 +438,10 @@ class MicroTrader
             return $block;
         }
 
+        if ($position->asset->tradingEnded()) {
+            return 'Fim de negociação do par: o app vende a posição a mercado.';
+        }
+
         if ($position->signal_id !== null) {
             return 'Posição aberta por sinal dos agentes: sai pelo stop e pelo alvo do sinal.';
         }
@@ -567,6 +571,10 @@ class MicroTrader
      */
     public function gate(Portfolio $portfolio, Asset $asset, MicroSetup $setup, int $openCycles): ?string
     {
+        if ($asset->tradingEnded()) {
+            return 'negociação encerrada em '.$asset->trading_ends_on?->format('d/m/Y').': o modo não compra mais este par.';
+        }
+
         if ($portfolio->liquidates($asset->id)) {
             return 'marcado para liquidar com lucro: o modo não compra mais este par.';
         }

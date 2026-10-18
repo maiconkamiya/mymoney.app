@@ -64,7 +64,7 @@ class OpportunitySwarm
 
             $asset = $this->asset($opportunity);
 
-            if ($asset === null) {
+            if ($asset === null || $asset->tradingEnded()) {
                 continue;
             }
 
@@ -103,6 +103,11 @@ class OpportunitySwarm
     public function manual(Opportunity $opportunity, Portfolio $portfolio, string $actor): Asset
     {
         $asset = $this->registry->discover($opportunity->symbol, $actor);
+
+        if ($asset->tradingEnded()) {
+            throw ValidationException::withMessages(['opportunity' => "A negociação de {$asset->symbol} foi encerrada: o par não vai mais aos agentes."]);
+        }
+
         $asset->touch();
 
         ExplorerSwarmJob::dispatch($portfolio->id, $asset->id, $this->reason($opportunity));

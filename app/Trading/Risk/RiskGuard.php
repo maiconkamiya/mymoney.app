@@ -89,6 +89,11 @@ class RiskGuard
                 : new RiskDecision(true, abs($qty - $order->qty) > 1e-12 ? $order->withQty($qty) : $order);
         }
 
+        // The exchange stops trading the pair on its end date: nothing more is bought, only sold.
+        if ($asset->tradingEnded()) {
+            return RiskDecision::block('Negociação de '.$asset->symbol.' encerrada em '.$asset->trading_ends_on?->format('d/m/Y').': o app só vende.');
+        }
+
         if ($profile->require_stop && $order->stopPrice === null) {
             return RiskDecision::block('Toda compra precisa de stop.');
         }

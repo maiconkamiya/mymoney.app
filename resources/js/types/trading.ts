@@ -102,6 +102,9 @@ export type PositionRow = {
     stop_price: number | null;
     last_price: number | null;
     value: number | null;
+    trading_ends_on: string | null;
+    trading_ended: boolean;
+    delisting_block: string | null;
 };
 
 export type AccountHolding = {
@@ -394,6 +397,8 @@ export type AssetRow = {
     min_qty: string | null;
     min_notional: string | null;
     discovered: boolean;
+    trading_ends_on: string | null;
+    trading_ended: boolean;
     blockers: string[];
 };
 
@@ -450,6 +455,8 @@ export type AvailableAsset = {
     id: number;
     symbol: string;
     name: string | null;
+    trading_ends_on: string | null;
+    trading_ended: boolean;
 };
 
 export type TokenPeriod = {
