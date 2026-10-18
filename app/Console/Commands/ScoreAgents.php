@@ -3,7 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Enums\Market;
+use App\Events\PortfolioChanged;
 use App\Reports\AgentScoreboard;
+use App\Trading\PortfolioChangeBroadcaster;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -16,6 +18,7 @@ class ScoreAgents extends Command
     {
         foreach (Market::cases() as $market) {
             $scoreboard->refresh($market);
+            PortfolioChangeBroadcaster::notifyMarket($market, [PortfolioChanged::SCOPE_AGENTS]);
         }
 
         $this->info('Placar dos agentes atualizado.');

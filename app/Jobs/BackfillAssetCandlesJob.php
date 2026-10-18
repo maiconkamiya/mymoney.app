@@ -7,6 +7,7 @@ use App\MarketData\BinanceKlines;
 use App\MarketData\BrapiB3;
 use App\MarketData\CandleAggregator;
 use App\Models\Asset;
+use App\Trading\PortfolioChangeBroadcaster;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -37,5 +38,8 @@ class BackfillAssetCandlesJob implements ShouldQueue
         foreach ($candles as $candle) {
             $aggregator->upsertKline($asset, $candle);
         }
+
+        // A tela abriu o gráfico vazio enquanto o job esperava na fila.
+        PortfolioChangeBroadcaster::notifyCandles($asset);
     }
 }

@@ -235,6 +235,7 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     :portfolio-id="portfolio.id"
                     :market="portfolio.market"
                     :initial="charts"
+                    :tracked="tracked_asset_ids"
                 />
 
                 <AgentSwarmCard

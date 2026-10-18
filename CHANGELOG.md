@@ -4,6 +4,14 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.63] - 2026-10-18
+
+### Corrigido
+
+- **Ativo marcado em "Ativos acompanhados" aparece nos gráficos sem F5.** Ao salvar, o card "Ativos em tempo real" busca a lista nova na hora, passa a receber as cotações do par novo e troca a série curta pelo histórico assim que as velas dele terminam de baixar.
+- **A lista de ativos para marcar se atualiza sozinha.** Par cadastrado ou removido na tela Ativos, ou acompanhado pelo explorador, entra e sai da lista de todas as carteiras do mercado sem recarregar a tela, e os gráficos das carteiras que acompanham todos os ativos também mudam.
+- **O placar dos agentes se atualiza na tela** quando a taxa de acerto e o peso são recalculados, sem recarregar.
+
 ## [0.3.62] - 2026-10-18
 
 ### Adicionado

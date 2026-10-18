@@ -6,6 +6,7 @@ use App\Enums\Market;
 use App\MarketData\BinanceKlines;
 use App\Models\Asset;
 use App\Models\Candle;
+use App\Trading\PortfolioChangeBroadcaster;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -39,6 +40,11 @@ class BackfillBinanceCandles extends Command
             try {
                 $total = $this->backfill($binance, $asset, $days);
                 $this->info("{$asset->symbol}: {$total} candles gravados.");
+
+                if ($symbol !== null) {
+                    // Par recém-acompanhado: o gráfico da carteira troca a série curta pelo histórico.
+                    PortfolioChangeBroadcaster::notifyCandles($asset);
+                }
             } catch (Throwable $e) {
                 $failed = true;
                 $this->error("{$asset->symbol}: {$e->getMessage()}");

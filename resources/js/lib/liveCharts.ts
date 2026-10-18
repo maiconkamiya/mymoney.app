@@ -59,6 +59,31 @@ export function applyKline(series: ChartCandle[], k: Kline): ChartCandle[] {
     return next.slice(-MAX_CANDLES);
 }
 
+/**
+ * Junta a série do servidor com a do navegador: o histórico vem do servidor
+ * (que pode ter acabado de baixar as velas de um par novo) e os minutos que o
+ * navegador já viu depois do último candle do servidor ficam por cima.
+ */
+export function mergeSeries(
+    server: ChartCandle[],
+    local: ChartCandle[] | undefined,
+): ChartCandle[] {
+    if (!local?.length) {
+        return server;
+    }
+
+    if (server.length === 0) {
+        return local;
+    }
+
+    const lastServer = server[server.length - 1][0];
+    const newer = local.filter((candle) => candle[0] > lastServer);
+    const sameMinute = local.find((candle) => candle[0] === lastServer);
+    const base = sameMinute ? [...server.slice(0, -1), sameMinute] : server;
+
+    return [...base, ...newer].slice(-MAX_CANDLES);
+}
+
 /** Variação percentual do primeiro fechamento da janela até o último. */
 export function windowChange(series: ChartCandle[]): number {
     if (series.length < 2) {
