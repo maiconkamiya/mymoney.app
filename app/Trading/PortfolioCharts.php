@@ -2,14 +2,19 @@
 
 namespace App\Trading;
 
+use App\Enums\OrderSide;
+use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Models\Asset;
 use App\Models\Candle;
+use App\Models\Order;
 use App\Models\Portfolio;
 use App\Trading\B3\MarketPhase;
 
 /**
  * Dados dos gráficos da tela da carteira: os ativos que ela opera, com a série
- * de candles de 1 minuto já gravada e as linhas de preço médio e stop.
+ * de candles de 1 minuto já gravada e as linhas de preço médio, stop e alvo
+ * (o preço da venda registrada na corretora, ou o alvo da posição sem ela).
  */
 class PortfolioCharts
 {
@@ -25,6 +30,16 @@ class PortfolioCharts
     public function for(Portfolio $portfolio): array
     {
         $positions = $portfolio->openPositions()->get()->keyBy('asset_id');
+        $resting = Order::query()
+            ->where('portfolio_id', $portfolio->id)
+            ->where('side', OrderSide::Sell)
+            ->where('type', OrderType::Limit)
+            ->where('status', OrderStatus::Pending)
+            ->whereNotNull('price')
+            ->latest('id')
+            ->get()
+            ->unique('asset_id')
+            ->mapWithKeys(fn (Order $order) => [$order->asset_id => (float) $order->price]);
         $signaled = $portfolio->signals()->latest()->limit(50)->pluck('asset_id')->unique();
 
         $assets = Asset::query()
@@ -47,14 +62,14 @@ class PortfolioCharts
         return [
             'market_open' => $phase === MarketPhase::Continuous,
             'phase' => $phase->value,
-            'assets' => array_values($assets->map(fn (Asset $asset) => $this->asset($asset, $positions->get($asset->id)))->all()),
+            'assets' => array_values($assets->map(fn (Asset $asset) => $this->asset($asset, $positions->get($asset->id), $resting->get($asset->id)))->all()),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function asset(Asset $asset, mixed $position): array
+    private function asset(Asset $asset, mixed $position, ?float $restingSell): array
     {
         $series = Candle::query()
             ->where('asset_id', $asset->id)
@@ -83,6 +98,8 @@ class PortfolioCharts
                 'qty' => $position->qty,
                 'avg_price' => $position->avg_price,
                 'stop_price' => $position->stop_price,
+                'target_price' => $restingSell ?? $position->target_price,
+                'sell_registered' => $restingSell !== null,
             ] : null,
         ];
     }

@@ -4,6 +4,16 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.49] - 2026-10-18
+
+### Corrigido
+
+- **Linhas dos gráficos em tempo real acompanham as micro operações.** O preço médio e o stop dos gráficos de "Ativos em tempo real" só mudavam com F5. Agora, quando a micro operação compra, registra a venda, muda o stop ou fecha o ciclo, as linhas se redesenham sozinhas na hora, sem recarregar a página.
+
+### Adicionado
+
+- **Linha do alvo no gráfico.** Cada posição aberta mostra também a linha verde do preço de saída: "venda" com o preço da ordem registrada na Binance, ou "alvo" quando ainda não há ordem registrada.
+
 ## [0.3.48] - 2026-10-18
 
 ### Corrigido

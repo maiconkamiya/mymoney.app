@@ -7,6 +7,8 @@ const props = defineProps<{
     up: boolean;
     avgPrice?: number | null;
     stopPrice?: number | null;
+    targetPrice?: number | null;
+    targetLabel?: string;
     format: (value: number) => string;
 }>();
 
@@ -37,7 +39,7 @@ const geo = computed(() => {
     }
 
     const W = width.value;
-    const refs = [props.avgPrice, props.stopPrice].filter(
+    const refs = [props.avgPrice, props.stopPrice, props.targetPrice].filter(
         (v): v is number => typeof v === 'number',
     );
     const lo = Math.min(...d.map((c) => c[3]), ...refs);
@@ -72,6 +74,8 @@ const geo = computed(() => {
         end: { x: x(d.length - 1), y: y(last[4]) },
         avg: typeof props.avgPrice === 'number' ? y(props.avgPrice) : null,
         stop: typeof props.stopPrice === 'number' ? y(props.stopPrice) : null,
+        target:
+            typeof props.targetPrice === 'number' ? y(props.targetPrice) : null,
     };
 });
 
@@ -138,6 +142,27 @@ const gradientId = `fill-${Math.random().toString(36).slice(2, 8)}`;
                     font-size="11"
                 >
                     stop {{ format(stopPrice as number) }}
+                </text>
+            </g>
+
+            <g v-if="geo.target !== null" data-testid="chart-target">
+                <line
+                    :x1="PAD.left"
+                    :x2="geo.W - PAD.right"
+                    :y1="geo.target"
+                    :y2="geo.target"
+                    stroke="var(--up)"
+                    stroke-dasharray="3 5"
+                    opacity="0.7"
+                />
+                <text
+                    :x="PAD.left + 2"
+                    :y="geo.target - 4"
+                    fill="var(--up)"
+                    font-size="11"
+                >
+                    {{ targetLabel ?? 'alvo' }}
+                    {{ format(targetPrice as number) }}
                 </text>
             </g>
 
