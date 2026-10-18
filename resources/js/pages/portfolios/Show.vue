@@ -14,6 +14,7 @@ import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import EditInitialCash from '@/components/portfolio/EditInitialCash.vue';
 import BinanceTotal from '@/components/portfolio/BinanceTotal.vue';
+import AccountLeftovers from '@/components/portfolio/AccountLeftovers.vue';
 import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
@@ -498,39 +499,7 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                     <InputError :message="errors.sync" />
                                 </Form>
                             </div>
-                            <p v-if="account_sync.dust.length > 0">
-                                Poeira (abaixo de 1 USDT),
-                                {{ account_sync.dust.length }} ativo(s), total
-                                {{ account_sync.dust_total.toFixed(2) }} USDT:
-                                {{
-                                    account_sync.dust
-                                        .map(
-                                            (item) =>
-                                                `${item.coin} ${item.qty}`,
-                                        )
-                                        .join(', ')
-                                }}.
-                            </p>
-                            <ul
-                                v-if="account_sync.not_mirrored.length > 0"
-                                class="list-disc pl-5"
-                            >
-                                <li
-                                    v-for="item in account_sync.not_mirrored"
-                                    :key="item.coin"
-                                >
-                                    {{ item.coin }} ({{ item.qty }}):
-                                    {{
-                                        item.status === 'sem_cotacao'
-                                            ? 'sem cotação. '
-                                            : ''
-                                    }}{{ item.reason }}
-                                    <template v-if="item.value !== null">
-                                        Valor estimado
-                                        {{ item.value.toFixed(2) }} USDT.
-                                    </template>
-                                </li>
-                            </ul>
+                            <AccountLeftovers :sync="account_sync" />
                             <BrokerOrdersList
                                 :orders="account_sync.orders"
                                 :errors="account_sync.order_errors"
