@@ -29,6 +29,29 @@ class BinanceAccountReader
     }
 
     /**
+     * USDT value of each wallet of the account (Spot, Funding, Earn, Margin, Futures, bots), the
+     * same split that Binance's "estimated balance" adds up. Empty wallets are left out.
+     *
+     * @return array<string, float>
+     */
+    public function wallets(BinanceClient $client): array
+    {
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $client->signed('GET', '/sapi/v1/asset/wallet/balance', ['quoteAsset' => 'USDT']);
+        $wallets = [];
+
+        foreach ($rows as $row) {
+            $value = (float) ($row['balance'] ?? 0);
+
+            if ($value > 0 && isset($row['walletName'])) {
+                $wallets[(string) $row['walletName']] = $value;
+            }
+        }
+
+        return $wallets;
+    }
+
+    /**
      * The last `$limit` orders of one pair, newest first, in any state.
      *
      * @return list<array<string, mixed>>

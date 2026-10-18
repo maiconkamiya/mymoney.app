@@ -155,6 +155,56 @@ class BinanceAccountTest extends TestCase
                 ->has('account_sync.not_mirrored', 2));
     }
 
+    public function test_sync_reads_every_wallet_of_the_account_so_the_screen_shows_the_binance_total()
+    {
+        $user = User::factory()->create();
+        $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential($user));
+        $this->fakeAccount([
+            ['asset' => 'USDT', 'free' => '10', 'locked' => '5'],
+            ['asset' => 'SHIB', 'free' => '1000', 'locked' => '0'],
+            ['asset' => 'ABC', 'free' => '5', 'locked' => '0'],
+        ]);
+        Http::fake([
+            '*/sapi/v1/asset/wallet/balance*' => Http::response([
+                ['activate' => true, 'balance' => '15.04', 'walletName' => 'Spot'],
+                ['activate' => true, 'balance' => '3.5', 'walletName' => 'Funding'],
+                ['activate' => true, 'balance' => '0', 'walletName' => 'Cross Margin'],
+                ['activate' => true, 'balance' => '1.25', 'walletName' => 'Earn'],
+            ]),
+            '*/api/v3/ticker/price*' => Http::response([
+                ['symbol' => 'SHIBUSDT', 'price' => '0.00001'],
+                ['symbol' => 'BTCUSDT', 'price' => '60000'],
+                ['symbol' => 'ABCBTC', 'price' => '0.00001'],
+            ]),
+        ]);
+
+        app(BinanceAccountSync::class)->sync($portfolio);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/sapi/v1/asset/wallet/balance') && str_contains($request->url(), 'quoteAsset=USDT') && $request->hasHeader('X-MBX-APIKEY', 'key-'.$user->id));
+        $this->assertEqualsWithDelta(15.0, $portfolio->fresh()->cash, 1e-6);
+
+        $this->actingAs($user)->get(route('portfolios.show', $portfolio))
+            ->assertInertia(fn ($page) => $page
+                ->where('portfolio.equity', 15)
+                ->where('account_sync.wallets', ['Spot' => 15.04, 'Funding' => 3.5, 'Earn' => 1.25])
+                ->where('account_sync.dust_total', 0.01)
+                ->where('account_sync.not_mirrored_total', 3));
+    }
+
+    public function test_sync_still_mirrors_spot_when_the_wallet_endpoint_fails()
+    {
+        $user = User::factory()->create();
+        $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential($user));
+        $this->fakeAccount([['asset' => 'USDT', 'free' => '12', 'locked' => '0']]);
+        Http::fake(['*/sapi/v1/asset/wallet/balance*' => Http::response(['code' => -2015, 'msg' => 'Invalid API-key, IP, or permissions for action.'], 401)]);
+
+        app(BinanceAccountSync::class)->sync($portfolio);
+
+        $this->assertEqualsWithDelta(12.0, $portfolio->fresh()->cash, 1e-6);
+        $this->actingAs($user)->get(route('portfolios.show', $portfolio))
+            ->assertInertia(fn ($page) => $page->where('account_sync.wallets', null));
+    }
+
     public function test_sync_brings_the_last_orders_of_each_pair_with_their_state()
     {
         $eth = Asset::factory()->create(['symbol' => 'ETHUSDT']);

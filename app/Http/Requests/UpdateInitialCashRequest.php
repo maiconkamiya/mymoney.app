@@ -22,7 +22,8 @@ class UpdateInitialCashRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'initial_cash' => ['required', 'numeric', 'min:100', 'max:100000000'],
+            // A carteira real começa com o saldo que a conta tiver, por menor que seja.
+            'initial_cash' => ['required', 'numeric', $this->portfolio()->isLive() ? 'min:0.01' : 'min:100', 'max:100000000'],
         ];
     }
 
@@ -34,13 +35,14 @@ class UpdateInitialCashRequest extends FormRequest
         return [
             'initial_cash.required' => 'Informe o novo saldo inicial.',
             'initial_cash.numeric' => 'O saldo inicial precisa ser um número.',
-            'initial_cash.min' => 'O saldo inicial mínimo é 100.',
+            'initial_cash.min' => $this->portfolio()->isLive() ? 'O valor investido precisa ser maior que zero.' : 'O saldo inicial mínimo é 100.',
             'initial_cash.max' => 'O saldo inicial passa do limite permitido.',
         ];
     }
 
     /**
-     * Real portfolios take the balance from the broker; a reduction cannot push the cash below zero.
+     * A reduction cannot push the cash below zero. Real portfolios only change the base of the
+     * result: their cash comes from the broker.
      *
      * @return list<\Closure(Validator): void>
      */
@@ -51,8 +53,6 @@ class UpdateInitialCashRequest extends FormRequest
                 $portfolio = $this->portfolio();
 
                 if ($portfolio->isLive()) {
-                    $validator->errors()->add('initial_cash', 'Carteira real usa o saldo da corretora: o saldo inicial não pode ser alterado.');
-
                     return;
                 }
 

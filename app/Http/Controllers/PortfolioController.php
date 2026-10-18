@@ -202,6 +202,9 @@ class PortfolioController extends Controller
                 'dust' => $holdings->where('status', 'poeira')->values(),
                 'dust_total' => round($holdings->where('status', 'poeira')->sum('value'), 2),
                 'not_mirrored' => $holdings->whereIn('status', ['sem_cotacao', 'sem_par_usdt'])->values(),
+                'not_mirrored_total' => round($holdings->whereIn('status', ['sem_cotacao', 'sem_par_usdt'])->sum(fn (array $row) => $row['value'] ?? 0), 2),
+                // Valor de cada carteira da conta em USDT, como a Binance soma no saldo estimado (null se a leitura falhou).
+                'wallets' => isset($portfolio->sync_report['wallets']) ? (object) $portfolio->sync_report['wallets'] : null,
                 'orders' => $portfolio->sync_report['orders'] ?? [],
                 'order_errors' => (object) ($portfolio->sync_report['order_errors'] ?? []),
             ] : null,

@@ -14,12 +14,26 @@ class PortfolioInitialCashController extends Controller
     /**
      * O caixa e o histórico de patrimônio andam pela diferença (novo menos antigo), como se
      * o capital tivesse sido esse desde o início; posições, ordens e sinais não são tocados.
+     * Na carteira real só muda a base do resultado (o valor investido): caixa, posições e
+     * histórico vêm da corretora.
      */
     public function __invoke(UpdateInitialCashRequest $request, Portfolio $portfolio): RedirectResponse
     {
         $old = $portfolio->initial_cash;
         $new = round((float) $request->validated('initial_cash'), 2);
         $delta = round($new - $old, 8);
+
+        if ($delta !== 0.0 && $portfolio->isLive()) {
+            DB::transaction(function () use ($request, $portfolio, $old, $new): void {
+                $portfolio->update(['initial_cash' => $new]);
+
+                AuditLog::record('user:'.$request->user()->id, 'portfolio.initial_cash', $portfolio, ['old' => $old, 'new' => $new, 'cash_delta' => 0]);
+            });
+
+            Inertia::flash('toast', ['type' => 'success', 'message' => 'Valor investido alterado.']);
+
+            return back();
+        }
 
         if ($delta !== 0.0) {
             DB::transaction(function () use ($request, $portfolio, $old, $new, $delta): void {

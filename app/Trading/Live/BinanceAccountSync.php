@@ -145,9 +145,16 @@ class BinanceAccountSync
             }
         }
 
+        // Optional: a key or testnet without the wallet endpoint still syncs the Spot balances.
+        try {
+            $wallets = $this->reader->wallets($client);
+        } catch (Throwable) {
+            $wallets = null;
+        }
+
         [$orders, $orderErrors] = $this->recentOrders($client, $portfolio, array_values(array_map(fn (array $row) => $row[0]->symbol, $held)));
 
-        DB::transaction(function () use ($portfolio, $cash, $held, $holdings, $orders, $orderErrors) {
+        DB::transaction(function () use ($portfolio, $cash, $held, $holdings, $orders, $orderErrors, $wallets) {
             // The scheduled sync and the "Sincronizar" button can run together: one at a time per portfolio.
             Portfolio::query()->whereKey($portfolio->id)->lockForUpdate()->first();
 
@@ -176,7 +183,7 @@ class BinanceAccountSync
                 'exit_reason' => 'conta',
             ]));
 
-            $portfolio->update(['cash' => $cash, 'synced_at' => now(), 'sync_report' => ['holdings' => $holdings, 'orders' => $orders, 'order_errors' => $orderErrors]]);
+            $portfolio->update(['cash' => $cash, 'synced_at' => now(), 'sync_report' => ['holdings' => $holdings, 'orders' => $orders, 'order_errors' => $orderErrors, 'wallets' => $wallets]]);
         });
 
         if ($portfolio->initial_cash <= 0) {
