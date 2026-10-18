@@ -36,3 +36,35 @@ def test_news_sentiment_expires_after_window():
     )
     assert news_sentiment_series(times, news, window_hours=48).iloc[0] == 0.0
     assert not np.isnan(news_sentiment_series(times, None).iloc[0])
+
+
+def test_news_sentiment_accepts_mixed_timezone_strings():
+    # O CSV do Laravel pode trazer fusos diferentes; o pandas lê isso como `object`.
+    times = pd.Series(["2026-01-01T10:00:00+00:00", "2026-01-01T12:00:00-03:00", "2026-01-01T16:00:00+00:00"])
+    news = pd.DataFrame(
+        {"fetched_at": ["2026-01-01T11:30:00+00:00"], "sentiment": [0.8], "relevance": [1.0]}
+    )
+    result = news_sentiment_series(times, news)
+    assert result.tolist() == [0.0, 0.8, 0.8]
+
+
+def test_load_dataset_reads_mixed_timezone_csv(tmp_path):
+    from forecast.data import load_dataset
+
+    frame = synthetic_candles(120)
+    frame["symbol"] = "BTCUSDT"
+    frame["timeframe"] = "1m"
+    start = pd.Timestamp("2026-01-01 00:00", tz="UTC")
+    stamps = [(start + pd.Timedelta(minutes=i)).isoformat() for i in range(len(frame))]
+    stamps[5] = (start + pd.Timedelta(minutes=5)).tz_convert("America/Sao_Paulo").isoformat()
+    frame["open_at"] = stamps
+    path = tmp_path / "candles.csv"
+    frame.to_csv(path, index=False)
+    news_path = tmp_path / "news.csv"
+    pd.DataFrame(
+        {"symbol": ["BTCUSDT"], "fetched_at": ["2026-01-01T00:30:00+00:00"], "sentiment": [0.5], "relevance": [1.0]}
+    ).to_csv(news_path, index=False)
+
+    dataset = load_dataset(path, news_path, horizon=5)
+    assert len(dataset) == 120
+    assert dataset["open_at"].dtype.kind == "M"

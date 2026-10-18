@@ -12,16 +12,19 @@ from .features import (
     build_features,
     forward_return,
     news_sentiment_series,
+    to_utc_naive,
 )
 
 
 def load_dataset(candles_csv: Path, news_csv: Path | None, horizon: int, timeframe: str = "1m") -> pd.DataFrame:
-    candles = pd.read_csv(candles_csv, parse_dates=["open_at"])
+    candles = pd.read_csv(candles_csv)
+    candles["open_at"] = to_utc_naive(candles["open_at"])
     candles = candles[candles["timeframe"] == timeframe]
 
     news = None
     if news_csv is not None and Path(news_csv).exists():
-        news = pd.read_csv(news_csv, parse_dates=["fetched_at"])
+        news = pd.read_csv(news_csv)
+        news["fetched_at"] = to_utc_naive(news["fetched_at"])
 
     parts = []
     for symbol, group in candles.groupby("symbol"):

@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.53] - 2026-10-18
+
+### Corrigido
+
+- **O treino do modelo de previsão volta a funcionar.** O treino parava com erro ao ler as datas das velas e das notícias, então o modelo nunca era retreinado pelo comando nem na rotina de domingo. Agora as datas são lidas corretamente, mesmo quando vêm com fusos diferentes.
+
 ## [0.3.52] - 2026-10-18
 
 ### Corrigido
