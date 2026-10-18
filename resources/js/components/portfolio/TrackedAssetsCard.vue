@@ -26,6 +26,14 @@ watch(
     },
 );
 
+// Ativo removido do cadastro (tela Ativos, explorador) sai da marcação aqui também.
+watch(
+    () => props.available.map((asset) => asset.id),
+    (ids) => {
+        selected.value = selected.value.filter((id) => ids.includes(id));
+    },
+);
+
 const dirty = computed(
     () =>
         [...selected.value].sort().join() !== [...props.tracked].sort().join(),

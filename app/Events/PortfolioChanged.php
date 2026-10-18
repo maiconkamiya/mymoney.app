@@ -9,7 +9,7 @@ use Illuminate\Foundation\Events\Dispatchable;
 
 /**
  * Algo mudou na carteira (saldo, posições, ordens, sinais, ciclos de micro
- * operações ou ativos acompanhados). Vai só para o canal privado do dono; a tela recarrega apenas os
+ * operações, ativos acompanhados, velas ou placar dos agentes). Vai só para o canal privado do dono; a tela recarrega apenas os
  * blocos citados em `scopes`, sem polling.
  */
 class PortfolioChanged implements ShouldBroadcastNow
@@ -27,6 +27,12 @@ class PortfolioChanged implements ShouldBroadcastNow
     public const SCOPE_MICRO = 'micro';
 
     public const SCOPE_ASSETS = 'assets';
+
+    /** Velas novas de um ativo (histórico baixado): só o card de gráficos busca de novo. */
+    public const SCOPE_CHARTS = 'charts';
+
+    /** Placar e peso dos agentes recalculados. */
+    public const SCOPE_AGENTS = 'agents';
 
     /**
      * @param  list<string>  $scopes

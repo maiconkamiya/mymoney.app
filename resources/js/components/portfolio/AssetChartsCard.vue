@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { echoIsConfigured, useEcho, useEchoPublic } from '@laravel/echo-vue';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PortfolioChartsController from '@/actions/App/Http/Controllers/PortfolioChartsController';
 import AssetChart from '@/components/portfolio/AssetChart.vue';
 import Heading from '@/components/Heading.vue';
@@ -8,6 +8,7 @@ import {
     applyKline,
     klineFromServer,
     klineStreamUrl,
+    mergeSeries,
     windowChange,
 } from '@/lib/liveCharts';
 import type { Kline, ServerCandle } from '@/lib/liveCharts';
@@ -18,6 +19,8 @@ const props = defineProps<{
     portfolioId: number;
     market: string;
     initial: PortfolioCharts;
+    /** Ativos marcados na carteira: mudou (salvar, outra aba), o card busca a lista nova na hora. */
+    tracked?: number[];
 }>();
 
 /** Rede de segurança: sem o WebSocket (ou na B3), uma foto do servidor a cada tanto. */
@@ -46,6 +49,8 @@ let pendingForce = false;
 let linesTimer: ReturnType<typeof setTimeout> | undefined;
 let lastServerEvent = 0;
 let stopped = false;
+/** Pares do stream aberto pelo navegador; os demais seguem pelo canal `mercado` do servidor. */
+let streamSymbols: string[] = [];
 
 const cards = computed(() =>
     charts.value.assets.map((asset: ChartAsset) => {
@@ -88,8 +93,11 @@ const status = computed(() => {
         : { text: 'Pregão fechado, mostrando a última cotação.', live: false };
 });
 
-/** Escopos do `portfolio.changed` que mexem nas linhas (o teto vem dos sinais) ou na lista de ativos dos gráficos. */
-const LINE_SCOPES = ['positions', 'orders', 'assets', 'signals'];
+/**
+ * Escopos do `portfolio.changed` que mexem nas linhas (o teto vem dos sinais),
+ * na lista de ativos dos gráficos ou nas velas (histórico de um par novo baixado).
+ */
+const LINE_SCOPES = ['positions', 'orders', 'assets', 'signals', 'charts'];
 
 async function refresh(force = false) {
     if (inFlight) {
@@ -127,16 +135,15 @@ async function refresh(force = false) {
         const fresh = (await response.json()) as PortfolioCharts;
         const live = isCrypto && (socketUp.value || serverLive.value);
         charts.value = fresh;
-        // Com o tempo real ligado, a série do navegador já está à frente: só ativos novos pegam a do servidor.
+        // Com o tempo real ligado, os minutos que o navegador já viu ficam por cima do histórico do servidor.
         series.value = Object.fromEntries(
             fresh.assets.map((a) => [
                 a.symbol,
-                live && series.value[a.symbol]?.length
-                    ? series.value[a.symbol]
-                    : a.series,
+                live ? mergeSeries(a.series, series.value[a.symbol]) : a.series,
             ]),
         );
         failed.value = false;
+        resubscribe();
     } catch {
         failed.value = true;
     } finally {
@@ -195,7 +202,7 @@ if (isCrypto && echoIsConfigured()) {
         'mercado',
         '.cotacao.atualizada',
         (event) => {
-            if (socketUp.value) {
+            if (socketUp.value && streamSymbols.includes(event.symbol)) {
                 return;
             }
 
@@ -211,13 +218,10 @@ function connect() {
         return;
     }
 
+    streamSymbols = charts.value.assets.map((a) => a.symbol);
+
     try {
-        socket = new WebSocket(
-            klineStreamUrl(
-                charts.value.assets.map((a) => a.symbol),
-                STREAM_HOST,
-            ),
-        );
+        socket = new WebSocket(klineStreamUrl(streamSymbols, STREAM_HOST));
     } catch {
         return;
     }
@@ -246,6 +250,43 @@ function connect() {
     };
     socket.onerror = () => socket?.close();
 }
+
+/** Lista de pares mudou (ativo marcado ou desmarcado): reabre o stream do navegador com a lista nova. */
+function resubscribe() {
+    const now = charts.value.assets.map((a) => a.symbol);
+
+    if (
+        !isCrypto ||
+        stopped ||
+        (now.length === streamSymbols.length &&
+            now.every((symbol) => streamSymbols.includes(symbol)))
+    ) {
+        return;
+    }
+
+    if (retry) {
+        clearTimeout(retry);
+        retry = null;
+    }
+
+    if (socket) {
+        const old = socket;
+        old.onclose = null;
+        old.onerror = null;
+        old.onmessage = null;
+        old.close();
+        socket = null;
+        socketUp.value = false;
+    }
+
+    streamSymbols = [];
+    connect();
+}
+
+watch(
+    () => [...(props.tracked ?? [])].sort().join(),
+    () => void refresh(true),
+);
 
 const poll = () => void refresh();
 

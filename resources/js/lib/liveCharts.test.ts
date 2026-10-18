@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { applyKline, klineStreamUrl, windowChange } from './liveCharts';
+import {
+    applyKline,
+    klineStreamUrl,
+    mergeSeries,
+    windowChange,
+} from './liveCharts';
 import type { ChartCandle } from '@/types';
 
 const k = (t: number, c: string) => ({ t, o: c, h: c, l: c, c, v: '1' });
@@ -37,5 +42,14 @@ describe('liveCharts', () => {
         expect(klineStreamUrl(['BTCUSDT', 'ETHUSDT'], 'h.io')).toBe(
             'wss://h.io/stream?streams=btcusdt@kline_1m/ethusdt@kline_1m',
         );
+    });
+
+    it('junta o histórico do servidor com os minutos que o navegador já viu', () => {
+        const c = (t: number, v: number): ChartCandle => [t, v, v, v, v, 1];
+        expect(mergeSeries([c(1, 10)], undefined)).toEqual([c(1, 10)]);
+        expect(
+            mergeSeries([c(1, 10), c(2, 11), c(3, 12)], [c(3, 13), c(4, 14)]),
+        ).toEqual([c(1, 10), c(2, 11), c(3, 13), c(4, 14)]);
+        expect(mergeSeries([], [c(5, 1)])).toEqual([c(5, 1)]);
     });
 });

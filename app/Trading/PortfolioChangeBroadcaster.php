@@ -2,7 +2,9 @@
 
 namespace App\Trading;
 
+use App\Enums\Market;
 use App\Events\PortfolioChanged;
+use App\Models\Asset;
 use App\Models\MicroCycle;
 use App\Models\Order;
 use App\Models\Portfolio;
@@ -39,6 +41,36 @@ class PortfolioChangeBroadcaster
         }
 
         PortfolioSnapshot::created(fn (PortfolioSnapshot $model) => self::notify($model->portfolio_id, [PortfolioChanged::SCOPE_BALANCE]));
+
+        // Ativo cadastrado, reativado, removido ou adotado pelo dono muda a lista para marcar
+        // e os gráficos das carteiras que acompanham todos. Taxas de lote e passo não contam.
+        Asset::created(fn (Asset $asset) => self::notifyMarket($asset->market, [PortfolioChanged::SCOPE_ASSETS]));
+        Asset::updated(function (Asset $asset): void {
+            if ($asset->wasChanged(['active', 'discovered', 'is_benchmark', 'symbol', 'name'])) {
+                self::notifyMarket($asset->market, [PortfolioChanged::SCOPE_ASSETS]);
+            }
+        });
+        Asset::deleted(fn (Asset $asset) => self::notifyMarket($asset->market, [PortfolioChanged::SCOPE_ASSETS]));
+    }
+
+    /**
+     * Todas as carteiras de um mercado (o que é comum a elas, como a lista de ativos e o placar dos agentes).
+     *
+     * @param  list<string>  $scopes
+     */
+    public static function notifyMarket(Market $market, array $scopes): void
+    {
+        Portfolio::query()->where('market', $market)->pluck('id')
+            ->each(fn (int $id) => self::notify($id, $scopes));
+    }
+
+    /**
+     * As carteiras que mostram o ativo nos gráficos, quando chegam velas dele fora do coletor.
+     */
+    public static function notifyCandles(Asset $asset): void
+    {
+        Portfolio::query()->tracking($asset)->pluck('id')
+            ->each(fn (int $id) => self::notify($id, [PortfolioChanged::SCOPE_CHARTS]));
     }
 
     /**

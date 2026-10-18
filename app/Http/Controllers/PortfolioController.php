@@ -219,13 +219,13 @@ class PortfolioController extends Controller
             'agent_activity' => fn () => $activity->for($portfolio),
             'charts' => fn () => $charts->for($portfolio),
             'micro' => fn () => $micro->for($portfolio),
-            'available_assets' => Asset::query()
+            'available_assets' => fn () => Asset::query()
                 ->where('market', $portfolio->market)
                 ->where('active', true)
                 ->where('is_benchmark', false)
                 ->orderBy('symbol')
                 ->get(['id', 'symbol', 'name']),
-            'tracked_asset_ids' => fn () => $portfolio->assets()->pluck('assets.id')->values(),
+            'tracked_asset_ids' => fn () => $portfolio->assets()->where('assets.active', true)->pluck('assets.id')->values(),
         ]);
     }
 }
