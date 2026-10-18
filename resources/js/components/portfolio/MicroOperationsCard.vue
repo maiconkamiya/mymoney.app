@@ -388,6 +388,14 @@ const time = (iso: string) =>
                         Leitura das velas de 1 minuto, com alvo pela margem
                         líquida acima.
                     </template>
+                    <template
+                        v-else-if="chosenRuleOption.value === 'scalp_uptrend'"
+                    >
+                        A regra atual, com alvo pela margem líquida acima, e só
+                        entra se o par estiver acima do preço de 24 horas e de 4
+                        horas atrás. Na carteira real só pode ser escolhida
+                        depois de passar no backtest.
+                    </template>
                     <template v-else>
                         Compra no recuo de uma alta de 1 hora; alvo e stop pela
                         volatilidade de 15 minutos (a margem líquida acima não
