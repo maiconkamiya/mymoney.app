@@ -342,18 +342,21 @@ export type MicroOverview = {
         net_pnl: number;
         fees: number;
     };
-    focus: {
-        symbol: string;
-        atr_pct: number;
-        reach_pct: number;
-        entry: boolean;
-        reason: string;
-        blocked: string | null;
-    }[];
+    focus: MicroFocusRow[];
     cycles: MicroCycleRow[];
     liquidation: MicroLiquidationRow[];
     liquidation_blocked: string | null;
     sell_fee_rate: number;
+};
+
+export type MicroFocusRow = {
+    symbol: string;
+    atr_pct: number;
+    reach_pct: number;
+    entry: boolean;
+    reason: string;
+    blocked: string | null;
+    checks?: { key: string; label: string; ok: boolean; detail: string }[];
 };
 
 export type MicroLiquidationRow = {

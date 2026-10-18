@@ -7,6 +7,7 @@ import {
     liquidateNow as liquidateNowAction,
 } from '@/actions/App/Http/Controllers/MicroOperationsController';
 import InputError from '@/components/InputError.vue';
+import MicroFocusPairs from '@/components/portfolio/MicroFocusPairs.vue';
 import { useMarketPrices } from '@/composables/useMarketPrices';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -373,32 +374,7 @@ const time = (iso: string) =>
             Último bloqueio: {{ micro.last_block }}
         </p>
 
-        <div v-if="micro.focus.length" class="flex flex-col gap-2">
-            <h4 class="text-sm font-medium">Pares em foco (mais voláteis)</h4>
-            <ul class="grid gap-1 text-sm">
-                <li
-                    v-for="row in micro.focus"
-                    :key="row.symbol"
-                    class="flex flex-wrap items-center justify-between gap-2"
-                >
-                    <span class="font-medium">{{ row.symbol }}</span>
-                    <span class="text-muted-foreground tabular-nums">
-                        faixa média {{ row.atr_pct.toFixed(3) }}% por minuto ·
-                        alcance {{ row.reach_pct.toFixed(2) }}% em 60 min
-                    </span>
-                    <span class="text-muted-foreground">
-                        {{
-                            row.blocked
-                                ? 'Entrada liberada, mas bloqueada: ' +
-                                  row.blocked
-                                : row.entry
-                                  ? 'Entrada liberada'
-                                  : row.reason
-                        }}
-                    </span>
-                </li>
-            </ul>
-        </div>
+        <MicroFocusPairs v-if="micro.focus.length" :focus="micro.focus" />
 
         <ul
             v-if="micro.skipped.length"

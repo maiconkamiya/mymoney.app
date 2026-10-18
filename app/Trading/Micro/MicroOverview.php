@@ -93,6 +93,7 @@ class MicroOverview
                 'reach_pct' => round($row['setup']->reachPct * (float) config('trading.micro.reach_factor'), 4),
                 'entry' => $row['setup']->entry,
                 'reason' => $row['setup']->reasons[0] ?? '',
+                'checks' => $row['setup']->checks,
                 'blocked' => $canTrade && $row['setup']->entry ? $this->trader->gate($portfolio, $row['asset'], $row['setup'], $openCycles) : null,
             ])->all(),
             'cycles' => $portfolio->microCycles()->with(['asset', 'position'])->latest('id')->limit(30)->get()->map(fn (MicroCycle $cycle) => [

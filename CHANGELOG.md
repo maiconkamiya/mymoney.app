@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.68] - 2026-10-18
+
+### Alterado
+
+- **Pares em foco em cards.** Nas micro operações, cada par em foco virou um card com a faixa média por minuto e o alcance em 60 minutos em destaque, uma barra que compara a volatilidade entre os pares e o estado do par: pronto para entrar, bloqueado (com o motivo), falta 1 condição ou faltam várias. O card lista as quatro condições de entrada (tendência de alta, perto do suporte ou recuo, alvo alcançável e espaço até a resistência), marca as que passam e mostra os números das que barram a entrada. Antes aparecia só o primeiro motivo. Os cards se atualizam sozinhos a cada minuto, sem recarregar a tela.
+
 ## [0.3.67] - 2026-10-18
 
 ### Alterado

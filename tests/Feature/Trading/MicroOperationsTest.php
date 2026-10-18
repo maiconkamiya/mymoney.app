@@ -242,6 +242,29 @@ class MicroOperationsTest extends TestCase
         $this->assertStringContainsString('posição aberta', $focus['blocked']);
     }
 
+    public function test_the_focus_cards_list_each_entry_condition_and_other_users_get_403()
+    {
+        $flat = Asset::factory()->create(['symbol' => 'XRPUSDT']);
+        $this->candles($this->asset);
+        $this->candles($flat, 101.0);
+        $portfolio = $this->micro();
+
+        $this->actingAs(User::factory()->create())->get(route('portfolios.show', $portfolio))->assertForbidden();
+
+        $focus = collect(app(MicroOverview::class)->for($portfolio)['focus'])->keyBy('symbol');
+        $this->assertSame(['trend', 'support', 'reach', 'room'], array_column($focus['DOGEUSDT']['checks'], 'key'));
+        $this->assertTrue($focus['DOGEUSDT']['entry']);
+        $this->assertSame([true, true, true, true], array_column($focus['DOGEUSDT']['checks'], 'ok'));
+
+        $support = collect($focus['XRPUSDT']['checks'])->firstWhere('key', 'support');
+        $this->assertFalse($support['ok']);
+        $this->assertStringContainsString('acima do suporte', $support['detail']);
+        $this->assertStringStartsWith('Longe do suporte', $focus['XRPUSDT']['reason']);
+
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
+            ->has('micro.focus.0.checks', 4));
+    }
+
     public function test_the_risk_guard_reason_is_shown_before_any_order_is_sent()
     {
         $this->candles($this->asset);
