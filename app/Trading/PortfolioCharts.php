@@ -9,18 +9,23 @@ use App\Models\Asset;
 use App\Models\Candle;
 use App\Models\Order;
 use App\Models\Portfolio;
+use App\Models\Signal;
 use App\Trading\B3\MarketPhase;
 
 /**
  * Dados dos gráficos da tela da carteira: os ativos que ela opera, com a série
  * de candles de 1 minuto já gravada e as linhas de preço médio, stop e alvo
- * (o preço da venda registrada na corretora, ou o alvo da posição sem ela).
+ * (o preço da venda registrada na corretora, ou o alvo da posição sem ela),
+ * mais o teto provável da alta lido no último sinal de compra recente.
  */
 class PortfolioCharts
 {
     public const MAX_ASSETS = 8;
 
     public const CANDLES = 90;
+
+    /** Horas em que o teto do último sinal de compra ainda aparece no gráfico. */
+    public const CEILING_HOURS = 2;
 
     public function __construct(private readonly MarketHours $hours) {}
 
@@ -41,6 +46,14 @@ class PortfolioCharts
             ->unique('asset_id')
             ->mapWithKeys(fn (Order $order) => [$order->asset_id => (float) $order->price]);
         $signaled = $portfolio->signals()->latest()->limit(50)->pluck('asset_id')->unique();
+        $ceilings = $portfolio->signals()
+            ->where('side', OrderSide::Buy)
+            ->where('created_at', '>=', now()->subHours(self::CEILING_HOURS))
+            ->latest('id')
+            ->get(['id', 'asset_id', 'scenario'])
+            ->unique('asset_id')
+            ->mapWithKeys(fn (Signal $signal) => [$signal->asset_id => $signal->scenario['chart']['extension']['ceiling'] ?? null])
+            ->filter();
 
         $assets = Asset::query()
             ->where('market', $portfolio->market)
@@ -62,14 +75,14 @@ class PortfolioCharts
         return [
             'market_open' => $phase === MarketPhase::Continuous,
             'phase' => $phase->value,
-            'assets' => array_values($assets->map(fn (Asset $asset) => $this->asset($asset, $positions->get($asset->id), $resting->get($asset->id)))->all()),
+            'assets' => array_values($assets->map(fn (Asset $asset) => $this->asset($asset, $positions->get($asset->id), $resting->get($asset->id), $ceilings->get($asset->id)))->all()),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function asset(Asset $asset, mixed $position, ?float $restingSell): array
+    private function asset(Asset $asset, mixed $position, ?float $restingSell, mixed $ceiling): array
     {
         $series = Candle::query()
             ->where('asset_id', $asset->id)
@@ -94,6 +107,7 @@ class PortfolioCharts
             'name' => $asset->name,
             'quote_currency' => $asset->quote_currency,
             'series' => $series,
+            'ceiling' => is_numeric($ceiling) ? (float) $ceiling : null,
             'position' => $position ? [
                 'qty' => $position->qty,
                 'avg_price' => $position->avg_price,

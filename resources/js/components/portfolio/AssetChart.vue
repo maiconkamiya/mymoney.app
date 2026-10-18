@@ -9,6 +9,7 @@ const props = defineProps<{
     stopPrice?: number | null;
     targetPrice?: number | null;
     targetLabel?: string;
+    ceilingPrice?: number | null;
     format: (value: number) => string;
 }>();
 
@@ -39,9 +40,12 @@ const geo = computed(() => {
     }
 
     const W = width.value;
-    const refs = [props.avgPrice, props.stopPrice, props.targetPrice].filter(
-        (v): v is number => typeof v === 'number',
-    );
+    const refs = [
+        props.avgPrice,
+        props.stopPrice,
+        props.targetPrice,
+        props.ceilingPrice,
+    ].filter((v): v is number => typeof v === 'number');
     const lo = Math.min(...d.map((c) => c[3]), ...refs);
     const hi = Math.max(...d.map((c) => c[2]), ...refs);
     const span = hi - lo || 1;
@@ -76,6 +80,10 @@ const geo = computed(() => {
         stop: typeof props.stopPrice === 'number' ? y(props.stopPrice) : null,
         target:
             typeof props.targetPrice === 'number' ? y(props.targetPrice) : null,
+        ceiling:
+            typeof props.ceilingPrice === 'number'
+                ? y(props.ceilingPrice)
+                : null,
     };
 });
 
@@ -163,6 +171,27 @@ const gradientId = `fill-${Math.random().toString(36).slice(2, 8)}`;
                 >
                     {{ targetLabel ?? 'alvo' }}
                     {{ format(targetPrice as number) }}
+                </text>
+            </g>
+
+            <g v-if="geo.ceiling !== null" data-testid="chart-ceiling">
+                <line
+                    :x1="PAD.left"
+                    :x2="geo.W - PAD.right"
+                    :y1="geo.ceiling"
+                    :y2="geo.ceiling"
+                    stroke="var(--foreground)"
+                    stroke-dasharray="1 4"
+                    opacity="0.5"
+                />
+                <text
+                    :x="geo.W - PAD.right - 2"
+                    :y="geo.ceiling - 4"
+                    fill="var(--muted-foreground)"
+                    font-size="11"
+                    text-anchor="end"
+                >
+                    teto {{ format(ceilingPrice as number) }}
                 </text>
             </g>
 

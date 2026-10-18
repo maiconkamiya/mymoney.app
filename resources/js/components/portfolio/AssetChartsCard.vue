@@ -88,8 +88,8 @@ const status = computed(() => {
         : { text: 'Pregão fechado, mostrando a última cotação.', live: false };
 });
 
-/** Escopos do `portfolio.changed` que mexem nas linhas ou na lista de ativos dos gráficos. */
-const LINE_SCOPES = ['positions', 'orders', 'assets'];
+/** Escopos do `portfolio.changed` que mexem nas linhas (o teto vem dos sinais) ou na lista de ativos dos gráficos. */
+const LINE_SCOPES = ['positions', 'orders', 'assets', 'signals'];
 
 async function refresh(force = false) {
     if (inFlight) {
@@ -365,6 +365,7 @@ onBeforeUnmount(() => {
                         :avg-price="card.asset.position?.avg_price"
                         :stop-price="card.asset.position?.stop_price"
                         :target-price="card.asset.position?.target_price"
+                        :ceiling-price="card.asset.ceiling"
                         :target-label="
                             card.asset.position?.sell_registered
                                 ? 'venda'

@@ -207,4 +207,40 @@ class ChartAnalyzerTest extends TestCase
         $this->assertNull(Indicators::atr([['h' => 2.0, 'l' => 1.0, 'c' => 1.5]], 14));
         $this->assertSame(100.0, Indicators::rsi(range(1, 20), 14));
     }
+
+    public function test_extension_takes_the_nearest_resistance_as_the_probable_ceiling()
+    {
+        $bars = array_merge($this->range(), [[104.0, 104.5, 103.5, 104.0, 100], [104.0, 104.5, 103.5, 104.0, 100], [104.0, 104.5, 103.5, 104.0, 100]]);
+        $extension = (new ChartAnalyzer)->analyze($this->oneMinute($bars), self::START + 100 * 86400)['extension'];
+
+        $this->assertSame('5m', $extension['timeframe']);
+        $this->assertSame('resistencia', $extension['ceiling_source']);
+        $this->assertEqualsWithDelta(111.0, $extension['ceiling'], 0.01);
+        $this->assertEqualsWithDelta((111 - 104) / 104 * 100, $extension['room_pct'], 0.01);
+        $this->assertEqualsWithDelta($extension['room_atr'] / 1.5, $extension['reward_risk'], 0.01);
+    }
+
+    public function test_extension_measures_a_stretched_rise_without_resistance_above()
+    {
+        $bars = [];
+
+        for ($i = 0; $i < 60; $i++) {
+            $close = $i < 40 ? 100.0 : 100 + ($i - 39) * 2;
+            $volume = $i < 55 ? 100 : 40;
+            $bars[] = [$close - 0.2, $close + 0.3, $close - 0.4, $close, $volume];
+        }
+
+        $extension = (new ChartAnalyzer)->analyze($this->oneMinute($bars), self::START + 100 * 86400)['extension'];
+
+        $this->assertSame('atr', $extension['ceiling_source']);
+        $this->assertEqualsWithDelta(2.0, $extension['room_atr'], 0.01);
+        $this->assertGreaterThan(3, $extension['ema21_distance_atr']);
+        $this->assertGreaterThan(5, $extension['move_from_low_atr']);
+        $this->assertTrue($extension['volume_fading']);
+    }
+
+    public function test_unusable_chart_has_no_extension()
+    {
+        $this->assertNull((new ChartAnalyzer)->analyze([], self::START)['extension']);
+    }
 }
