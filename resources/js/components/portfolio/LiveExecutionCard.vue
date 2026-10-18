@@ -99,7 +99,7 @@ const liveFormOptions = {
 
         <div
             v-if="blocked"
-            class="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm @lg:flex-row @lg:items-center @lg:justify-between"
         >
             <span>
                 Novas ordens bloqueadas: {{ portfolio.orders_blocked_reason }}
