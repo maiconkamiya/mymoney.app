@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.54] - 2026-10-18
+
+### Adicionado
+
+- **Comparação de variações do modelo de previsão.** Novo modo do treino (`php artisan forecast:train --experiments`) que testa, no mesmo backtest e com os mesmos critérios, o modelo com probabilidades calibradas, com variáveis extras, com filtro de volatilidade e com horizontes de 30, 60 e 240 minutos. Mostra uma tabela com acerto, erro de probabilidade, número de operações e retorno líquido por janela, e diz se alguma variação passou. Não grava modelo nem muda o que o Quantitativo vota hoje.
+
 ## [0.3.53] - 2026-10-18
 
 ### Corrigido

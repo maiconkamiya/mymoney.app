@@ -129,6 +129,7 @@ openssl rand -hex 32                          # gera o FORECAST_TOKEN
 php artisan config:clear && php artisan optimize && php artisan queue:restart
 php artisan market:backfill-binance --days=30 # histórico público da Binance (a coleta ao vivo só existe desde 2026-10-16)
 php artisan forecast:train                    # treina e roda o backtest walk-forward
+php artisan forecast:train --experiments      # compara variações do modelo no mesmo backtest (não grava modelo; leva vários minutos)
 curl -s http://127.0.0.1:8001/health          # versão do modelo e se está validado
 ```
 
