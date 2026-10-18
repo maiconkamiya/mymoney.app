@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Form } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import PortfolioCloneController from '@/actions/App/Http/Controllers/PortfolioCloneController';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,9 @@ const props = defineProps<{
     equity: number;
 }>();
 
+// Fechado ao sair: a carteira nova abre no mesmo componente de página.
+const open = ref(false);
+
 const isLive = computed(() => props.portfolio.mode === 'live');
 const cloneName = computed(
     () => `${props.portfolio.name} ${isLive.value ? '(simulada)' : '(cópia)'}`,
@@ -30,14 +33,13 @@ const cloneName = computed(
 <template>
     <section class="space-y-3 rounded-2xl border p-4">
         <div>
-            <p class="font-medium">Clonar como simulada</p>
             <p class="text-sm text-muted-foreground">
                 Uma carteira simulada com os mesmos ativos acompanhados e o
                 mesmo card Micro operações, para testar mudanças sem dinheiro.
             </p>
         </div>
 
-        <Dialog>
+        <Dialog v-model:open="open">
             <DialogTrigger as-child>
                 <Button variant="outline" data-test="clone-portfolio-button">
                     Clonar como simulada
@@ -47,6 +49,7 @@ const cloneName = computed(
                 <Form
                     v-bind="PortfolioCloneController.form(portfolio.id)"
                     class="space-y-6"
+                    @success="open = false"
                     v-slot="{ errors, processing }"
                 >
                     <DialogHeader class="space-y-3">
