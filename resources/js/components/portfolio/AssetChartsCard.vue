@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { echoIsConfigured, useEchoPublic } from '@laravel/echo-vue';
+import { echoIsConfigured, useEcho, useEchoPublic } from '@laravel/echo-vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import PortfolioChartsController from '@/actions/App/Http/Controllers/PortfolioChartsController';
 import AssetChart from '@/components/portfolio/AssetChart.vue';
@@ -42,6 +42,8 @@ let clock: ReturnType<typeof setInterval> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let retry: ReturnType<typeof setTimeout> | null = null;
 let inFlight = false;
+let pendingForce = false;
+let linesTimer: ReturnType<typeof setTimeout> | undefined;
 let lastServerEvent = 0;
 let stopped = false;
 
@@ -86,12 +88,23 @@ const status = computed(() => {
         : { text: 'Pregão fechado, mostrando a última cotação.', live: false };
 });
 
-async function refresh() {
+/** Escopos do `portfolio.changed` que mexem nas linhas ou na lista de ativos dos gráficos. */
+const LINE_SCOPES = ['positions', 'orders', 'assets'];
+
+async function refresh(force = false) {
+    if (inFlight) {
+        if (force) {
+            pendingForce = true;
+        }
+
+        return;
+    }
+
     if (
-        inFlight ||
-        document.hidden ||
-        (isCrypto && socketUp.value) ||
-        Date.now() - lastServerEvent < POLL_MS
+        !force &&
+        (document.hidden ||
+            (isCrypto && socketUp.value) ||
+            Date.now() - lastServerEvent < POLL_MS)
     ) {
         return;
     }
@@ -112,16 +125,47 @@ async function refresh() {
         }
 
         const fresh = (await response.json()) as PortfolioCharts;
+        const live = isCrypto && (socketUp.value || serverLive.value);
         charts.value = fresh;
+        // Com o tempo real ligado, a série do navegador já está à frente: só ativos novos pegam a do servidor.
         series.value = Object.fromEntries(
-            fresh.assets.map((a) => [a.symbol, a.series]),
+            fresh.assets.map((a) => [
+                a.symbol,
+                live && series.value[a.symbol]?.length
+                    ? series.value[a.symbol]
+                    : a.series,
+            ]),
         );
         failed.value = false;
     } catch {
         failed.value = true;
     } finally {
         inFlight = false;
+
+        if (pendingForce) {
+            pendingForce = false;
+            void refresh(true);
+        }
     }
+}
+
+/**
+ * Compra, venda registrada, stop e ciclo fechado das micro operações chegam pelo
+ * canal privado da carteira: o card busca de novo as linhas e redesenha sem recarregar a página.
+ */
+if (echoIsConfigured()) {
+    useEcho<{ scopes: string[] }>(
+        `portfolios.${props.portfolioId}`,
+        '.portfolio.changed',
+        (event) => {
+            if (!event.scopes.some((scope) => LINE_SCOPES.includes(scope))) {
+                return;
+            }
+
+            clearTimeout(linesTimer);
+            linesTimer = setTimeout(() => void refresh(true), 400);
+        },
+    );
 }
 
 function applyCandle(symbol: string, kline: Kline) {
@@ -203,13 +247,15 @@ function connect() {
     socket.onerror = () => socket?.close();
 }
 
+const poll = () => void refresh();
+
 onMounted(() => {
     connect();
-    timer = setInterval(refresh, isCrypto ? POLL_MS : POLL_B3_MS);
+    timer = setInterval(poll, isCrypto ? POLL_MS : POLL_B3_MS);
     clock = setInterval(() => {
         serverLive.value = Date.now() - lastServerEvent < POLL_MS;
     }, 5000);
-    document.addEventListener('visibilitychange', refresh);
+    document.addEventListener('visibilitychange', poll);
 });
 
 onBeforeUnmount(() => {
@@ -228,7 +274,9 @@ onBeforeUnmount(() => {
         clearTimeout(retry);
     }
 
-    document.removeEventListener('visibilitychange', refresh);
+    clearTimeout(linesTimer);
+
+    document.removeEventListener('visibilitychange', poll);
 });
 </script>
 
@@ -238,7 +286,7 @@ onBeforeUnmount(() => {
             <Heading
                 variant="small"
                 title="Ativos em tempo real"
-                description="Preço por minuto dos ativos que a carteira opera. Linhas tracejadas marcam o preço médio e o stop das posições abertas."
+                description="Preço por minuto dos ativos que a carteira opera. Linhas tracejadas marcam o preço médio, o stop e o alvo (ou a venda registrada) das posições abertas."
             />
             <p
                 class="flex items-center gap-2 text-xs text-muted-foreground"
@@ -316,6 +364,12 @@ onBeforeUnmount(() => {
                         :up="card.change >= 0"
                         :avg-price="card.asset.position?.avg_price"
                         :stop-price="card.asset.position?.stop_price"
+                        :target-price="card.asset.position?.target_price"
+                        :target-label="
+                            card.asset.position?.sell_registered
+                                ? 'venda'
+                                : 'alvo'
+                        "
                         :format="card.fmt"
                     />
                 </div>
