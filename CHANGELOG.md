@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.78] - 2026-10-18
+
+### Adicionado
+
+- **Regra de entrada "Atual + alta em 24 h e 4 h" nas micro operações.** No card Micro operações, o campo "Regra de entrada" ganha uma terceira opção: a regra atual, com as mesmas saídas, que só compra se o par estiver acima do preço de 24 horas atrás e de 4 horas atrás. Os cards de Pares em foco mostram essa quinta condição com ✓ ou ✗ e a variação de cada período. Na carteira simulada pode ser escolhida já; na carteira real só depois de passar no backtest semanal. As carteiras existentes continuam na regra atual.
+
 ## [0.3.77] - 2026-10-18
 
 ### Corrigido
