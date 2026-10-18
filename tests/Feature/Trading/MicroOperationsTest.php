@@ -546,7 +546,10 @@ class MicroOperationsTest extends TestCase
 
             return match (true) {
                 $path === '/api/v3/time' => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+                $path === '/api/v3/ticker/price' && str_contains($url, 'symbol=BNBUSDT') => Http::response(['symbol' => 'BNBUSDT', 'price' => '600']),
                 $path === '/api/v3/ticker/price' => Http::response([]),
+                // The order query has no fills: the sale's commission, paid in BNB, is in its trades.
+                $path === '/api/v3/myTrades' => Http::response($sellState === 'FILLED' ? [['orderId' => 2, 'price' => '100.75', 'qty' => '0.1997', 'commission' => '0.00003', 'commissionAsset' => 'BNB']] : []),
                 // The buy fee came out in DOGE: 0.1999 bought, 0.19970001 on the account.
                 $path === '/api/v3/account' => Http::response(['balances' => [['asset' => 'DOGE', 'free' => '0.19970001', 'locked' => '0'], ['asset' => 'USDT', 'free' => '30', 'locked' => '0']]]),
                 $request->method() === 'POST' && str_contains($url, 'type=LIMIT') => Http::response(['orderId' => 2, 'status' => 'NEW', 'executedQty' => '0', 'cummulativeQuoteQty' => '0', 'fills' => []]),
@@ -591,6 +594,46 @@ class MicroOperationsTest extends TestCase
         $this->assertSame('closed', $cycle->status);
         $this->assertSame('target', $cycle->exit_reason);
         $this->assertSame([], app(OrderReconciler::class)->reconcile());
+
+        // The sale's fee is the 0.00003 BNB of its trades at 600 USDT, on top of the buy's (#170).
+        $this->assertEqualsWithDelta(0.018, $limit->fresh()->fees, 1e-8);
+        $buyFee = Order::where('side', OrderSide::Buy)->sole()->fees;
+        $this->assertEqualsWithDelta($buyFee + 0.018, $cycle->fees, 1e-8);
+        $this->assertEqualsWithDelta($cycle->qty * ($cycle->exit_price - $cycle->entry_price) - $buyFee - 0.018, $cycle->net_pnl, 1e-8);
+        $this->assertEqualsWithDelta($cycle->net_pnl, app(MicroTrader::class)->pnlToday($portfolio), 1e-8);
+    }
+
+    public function test_the_fee_command_fills_the_old_target_sales_booked_with_no_fee()
+    {
+        $this->candles($this->asset);
+        $sellState = 'NEW';
+        $portfolio = $this->liveMicro($sellState);
+        app(MicroTrader::class)->run($portfolio);
+        $sellState = 'FILLED';
+        app(PositionExits::class)->checkStopsAndTargets();
+        app(MicroTrader::class)->settle($portfolio);
+
+        // As booked before #170: the target sale and its cycle with no sale fee.
+        $limit = Order::where('type', OrderType::Limit)->sole();
+        $cycle = MicroCycle::sole();
+        $buyFee = Order::where('side', OrderSide::Buy)->sole()->fees;
+        $limit->update(['fees' => 0]);
+        $limit->fills()->update(['fee' => 0]);
+        $cycle->update(['fees' => $buyFee, 'net_pnl' => $cycle->net_pnl + 0.018]);
+        $optimistic = $cycle->net_pnl;
+
+        $this->artisan('binance:fill-fees', ['--dry-run' => true])->expectsOutputToContain('1 venda(s) seriam corrigidas.')->assertSuccessful();
+        $this->assertSame(0.0, $limit->fresh()->fees);
+
+        $this->artisan('binance:fill-fees')->expectsOutputToContain('1 venda(s) corrigidas.')->assertSuccessful();
+        $this->assertEqualsWithDelta(0.018, $limit->fresh()->fees, 1e-8);
+        $this->assertEqualsWithDelta(0.018, (float) $limit->fills()->sum('fee'), 1e-8);
+        $this->assertEqualsWithDelta($buyFee + 0.018, $cycle->fresh()->fees, 1e-8);
+        $this->assertEqualsWithDelta($optimistic - 0.018, $cycle->fresh()->net_pnl, 1e-8);
+
+        // Already filled: running it again changes nothing.
+        $this->artisan('binance:fill-fees')->expectsOutputToContain('0 venda(s) corrigidas.')->assertSuccessful();
+        $this->assertEqualsWithDelta($optimistic - 0.018, $cycle->fresh()->net_pnl, 1e-8);
     }
 
     public function test_with_the_general_halt_on_the_orders_are_still_read_and_reconciled()

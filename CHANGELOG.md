@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.76] - 2026-10-18
+
+### Corrigido
+
+- **Taxa da venda no alvo das micro operações.** Quando a venda limitada no alvo executava na Binance, a taxa dela ficava zerada, e o Líquido do histórico, o resultado do dia, a meta e a perda máxima do dia pareciam melhores do que eram. Agora o app lê a taxa que a Binance cobrou, convertida para USDT quando ela vem em BNB ou na própria moeda; se a Binance não informar, conta a taxa padrão de 0,1% em vez de zero. As vendas antigas que ficaram sem taxa são corrigidas uma vez com `php artisan binance:fill-fees` (use `--dry-run` para ver antes o que muda).
+
 ## [0.3.75] - 2026-10-18
 
 ### Corrigido
