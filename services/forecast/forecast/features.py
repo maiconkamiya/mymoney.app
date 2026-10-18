@@ -76,6 +76,11 @@ def forward_return(frame: pd.DataFrame, horizon: int) -> pd.Series:
     return frame["close"].shift(-horizon) / frame["close"] - 1
 
 
+def to_utc_naive(values: pd.Series) -> pd.Series:
+    """Datas em UTC sem fuso, como datetime64[ns]: o CSV do Laravel traz fusos que o pandas pode ler como `object`."""
+    return pd.to_datetime(values, utc=True, format="ISO8601").dt.tz_localize(None)
+
+
 def news_sentiment_series(
     candle_times: pd.Series, news: pd.DataFrame | None, window_hours: int = 48
 ) -> pd.Series:
@@ -87,14 +92,14 @@ def news_sentiment_series(
     if news is None or news.empty:
         return pd.Series(0.0, index=candle_times.index)
 
-    news = news.sort_values("fetched_at")
+    news = news.assign(fetched_at=to_utc_naive(news["fetched_at"])).sort_values("fetched_at")
     times = news["fetched_at"].to_numpy()
     weighted = (news["sentiment"] * news["relevance"]).to_numpy()
     weights = news["relevance"].to_numpy()
     cum_w = np.concatenate([[0.0], np.cumsum(weighted)])
     cum_r = np.concatenate([[0.0], np.cumsum(weights)])
 
-    stamps = candle_times.to_numpy()
+    stamps = to_utc_naive(candle_times).to_numpy()
     hi = np.searchsorted(times, stamps, side="right")
     lo = np.searchsorted(times, stamps - np.timedelta64(window_hours, "h"), side="left")
     lo = np.minimum(lo, hi)
