@@ -206,14 +206,17 @@ class MicroTrader
                 continue;
             }
 
-            $sell = Order::query()
+            // The cycle's own sale: another cycle's resting sell of the same pair may have filled meanwhile.
+            $sales = Order::query()
                 ->where('portfolio_id', $portfolio->id)
                 ->where('asset_id', $cycle->asset_id)
                 ->where('side', OrderSide::Sell)
                 ->where('status', OrderStatus::Filled)
                 ->where('filled_at', '>=', $cycle->opened_at)
-                ->latest('filled_at')
-                ->first();
+                ->latest('filled_at');
+
+            $sell = (clone $sales)->where('position_id', $cycle->position_id)->first()
+                ?? $sales->whereNull('position_id')->first();
 
             $exitPrice = $sell->price ?? $position->avg_price;
             $fees = $cycle->fees + ($sell->fees ?? 0);

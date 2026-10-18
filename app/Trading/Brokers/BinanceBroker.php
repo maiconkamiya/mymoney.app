@@ -149,7 +149,8 @@ class BinanceBroker implements Broker
     {
         [$symbol, $orderId] = $this->split($externalId);
 
-        return $this->toResult($symbol, $this->client()->signed('GET', '/api/v3/order', ['symbol' => $symbol, 'orderId' => $orderId]));
+        // Reading an order moves no money: the reconciler and the resting sells still see it during "Parada geral".
+        return $this->toResult($symbol, $this->readClient()->signed('GET', '/api/v3/order', ['symbol' => $symbol, 'orderId' => $orderId]));
     }
 
     public function getBalances(): array

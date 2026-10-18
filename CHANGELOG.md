@@ -4,6 +4,14 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.51] - 2026-10-18
+
+### Corrigido
+
+- **Venda de um ciclo antigo fechando o ciclo novo das micro operações.** Quando a venda registrada de um ciclo que já tinha sido encerrado executava na Binance, o sistema lançava essa venda no ciclo aberto do mesmo par e fechava esse ciclo como "Alvo", com o preço da venda antiga e um prejuízo que não existiu. Agora cada venda só conta para a posição que a registrou, e o ciclo fecha com a própria venda.
+- **Parada geral acionada sozinha a cada 5 minutos.** A venda que executava sem posição aberta ficava sem a execução registrada, e a conferência com a Binance via divergência e acionava a parada geral de novo. A execução agora é sempre registrada, e a atualização corrige as vendas que ficaram assim. Depois dela, a parada pode ser desligada na tela.
+- **Consulta às ordens durante a parada geral.** Com a parada ligada, o sistema não conseguia nem consultar as ordens na Binance, e as vendas registradas que executavam nesse período não eram lançadas. Consultar continua permitido; só o envio de ordens fica bloqueado.
+
 ## [0.3.50] - 2026-10-18
 
 ### Corrigido

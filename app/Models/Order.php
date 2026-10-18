@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $portfolio_id
  * @property int|null $signal_id
  * @property int $asset_id
+ * @property int|null $position_id
  * @property string $broker
  * @property string|null $external_id
  * @property OrderSide $side
@@ -34,9 +35,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Portfolio $portfolio
  * @property-read Signal $signal
  * @property-read Asset $asset
+ * @property-read Position|null $position
  * @property-read Collection<int, Fill> $fills
  */
-#[Fillable(['portfolio_id', 'signal_id', 'asset_id', 'broker', 'external_id', 'side', 'type', 'qty', 'price', 'stop_price', 'status', 'reason', 'fees', 'reject_reason', 'filled_at'])]
+#[Fillable(['portfolio_id', 'signal_id', 'asset_id', 'position_id', 'broker', 'external_id', 'side', 'type', 'qty', 'price', 'stop_price', 'status', 'reason', 'fees', 'reject_reason', 'filled_at'])]
 class Order extends Model
 {
     /**
@@ -72,6 +74,12 @@ class Order extends Model
     public function asset(): BelongsTo
     {
         return $this->belongsTo(Asset::class);
+    }
+
+    /** @return BelongsTo<Position, $this> */
+    public function position(): BelongsTo
+    {
+        return $this->belongsTo(Position::class);
     }
 
     /** @return HasMany<Fill, $this> */
