@@ -29,4 +29,5 @@ foreach (array_filter(array_keys($newsSources), is_string(...)) as $source) {
 Schedule::command('portfolios:snapshot')->dailyAt('23:55')->withoutOverlapping();
 Schedule::command('agents:score')->dailyAt('00:10')->withoutOverlapping();
 Schedule::command('forecast:train')->weeklyOn(0, '04:00')->withoutOverlapping()->runInBackground()->when(fn () => (bool) config('forecast.enabled'));
+Schedule::command('insights:write')->dailyAt((string) config('insights.ai.daily_at'))->withoutOverlapping()->when(fn () => (bool) config('insights.ai.enabled'));
 Schedule::command('explorer:scan')->cron('*/'.config('explorer.interval_minutes').' * * * *')->withoutOverlapping()->when(fn () => (bool) config('explorer.enabled'));

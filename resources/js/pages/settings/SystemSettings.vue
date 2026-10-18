@@ -75,6 +75,11 @@ const groups: { title: string; description: string; items: Item[] }[] = [
                 title: 'Frase do explorador',
                 help: 'Uma frase do Haiku por rodada do explorador explicando cada par. Custa cerca de US$ 1 por mês.',
             },
+            {
+                key: 'insights__ai__enabled',
+                title: 'Análise do dia dos ativos',
+                help: 'O texto "Por que o ativo está em alta ou em queda hoje?" na página de cada ativo, escrito pelo Haiku com as velas, o sentimento do mercado e as notícias. Uma vez por dia para os ativos acompanhados, mais o botão "Atualizar análise". Cerca de US$ 0,0005 por análise: uns US$ 0,10 por mês com 7 ativos. Não depende da chave Agentes em ação, porque não opera nada.',
+            },
         ],
     },
     {

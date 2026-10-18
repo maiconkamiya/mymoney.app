@@ -33,6 +33,16 @@ class BinanceKlines
     }
 
     /**
+     * The last `$limit` klines of any Binance interval (15m, 1h, 4h, 1d...), oldest first.
+     *
+     * @return list<array{open_at: Carbon, open: float, high: float, low: float, close: float, volume: float}>
+     */
+    public function interval(string $symbol, string $interval, int $limit): array
+    {
+        return $this->fetch(['symbol' => $symbol, 'interval' => $interval, 'limit' => $limit]);
+    }
+
+    /**
      * Up to 1000 klines starting at $from, oldest first (the Binance page size).
      *
      * @return list<array{open_at: Carbon, open: float, high: float, low: float, close: float, volume: float}>

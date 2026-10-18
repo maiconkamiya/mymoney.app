@@ -4,6 +4,14 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.74] - 2026-10-18
+
+### Adicionado
+
+- **Página do ativo, como na Binance.** Na tela Ativos, clicar num par de cripto abre a página dele com o **Histórico de preços** em 24h, 7d, 1m, 3m e 1y: a variação de cada período, o gráfico, a abertura, a máxima e a mínima. Os dados vêm das velas públicas da Binance, sem custo.
+- **Sentimento do mercado cripto.** A mesma página mostra o índice Fear & Greed de 0 (medo extremo) a 100 (ganância extrema), com o valor de ontem, da semana passada e do mês passado. Vale para o mercado cripto inteiro e muda uma vez por dia. Gratuito.
+- **"Por que o ativo está em alta ou em queda hoje?"** Uma análise curta escrita pela IA (Haiku) com as velas, o sentimento e as notícias coletadas, todo dia às 11:00 UTC para os ativos acompanhados e pelo botão "Atualizar análise". Começa **desligada**: liga em Configurações > Custos e serviços, chave "Análise do dia dos ativos". Custa cerca de US$ 0,0005 por análise e não depende da chave "Agentes em ação", porque não opera nada.
+
 ## [0.3.73] - 2026-10-18
 
 ### Alterado
