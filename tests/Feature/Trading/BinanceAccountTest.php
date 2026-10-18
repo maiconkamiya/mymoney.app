@@ -269,7 +269,8 @@ class BinanceAccountTest extends TestCase
         $position->refresh();
         $this->assertNotNull($position->closed_at);
         $this->assertSame('micro', $position->exit_reason);
-        $this->assertEqualsWithDelta(10, $position->realized_pnl, 1e-6);
+        // No commission in the answer: the configured 0.1% of 610 USDT, never zero (#170).
+        $this->assertEqualsWithDelta(10 - 0.61, $position->realized_pnl, 1e-6);
         $this->assertEqualsWithDelta(610, $portfolio->fresh()->cash, 1e-6);
     }
 
