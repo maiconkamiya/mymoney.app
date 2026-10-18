@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Agents\AgentActivity;
+use App\Agents\TokenUsage;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
 use App\Http\Requests\DestroyPortfolioRequest;
@@ -142,7 +143,7 @@ class PortfolioController extends Controller
         return to_route('portfolios.index');
     }
 
-    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt, MicroOverview $micro, PriceFeed $prices): Response
+    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt, MicroOverview $micro, PriceFeed $prices, TokenUsage $tokens): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
@@ -220,6 +221,7 @@ class PortfolioController extends Controller
             ]),
             'tax_months' => fn () => $tax->months($portfolio),
             'agent_activity' => fn () => $activity->for($portfolio),
+            'token_usage' => fn () => $tokens->for($portfolio),
             'charts' => fn () => $charts->for($portfolio),
             'micro' => fn () => $micro->for($portfolio),
             'available_assets' => fn () => Asset::query()

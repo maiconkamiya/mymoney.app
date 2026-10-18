@@ -11,7 +11,8 @@ export type PortfolioScope =
     | 'micro'
     | 'assets'
     | 'charts'
-    | 'agents';
+    | 'agents'
+    | 'tokens';
 
 // Cada escopo do evento `portfolio.changed` recarrega só as props que ele afeta.
 export const scopeProps: Record<PortfolioScope, string[]> = {
@@ -24,6 +25,7 @@ export const scopeProps: Record<PortfolioScope, string[]> = {
     // Velas novas: o card de gráficos busca sozinho, a página não recarrega nada.
     charts: [],
     agents: ['agent_scores'],
+    tokens: ['token_usage'],
 };
 
 /** Todos os blocos que o canal mantém em dia: recarregados juntos quando a conexão volta. */

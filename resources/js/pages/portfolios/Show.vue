@@ -17,6 +17,7 @@ import BinanceTotal from '@/components/portfolio/BinanceTotal.vue';
 import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
+import TokenUsageCard from '@/components/portfolio/TokenUsageCard.vue';
 import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
 import BrokerOrdersList from '@/components/portfolio/BrokerOrdersList.vue';
 import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
@@ -42,6 +43,7 @@ import type {
     PositionRow,
     SignalRow,
     TaxMonth,
+    TokenUsage,
 } from '@/types';
 
 const props = defineProps<{
@@ -54,6 +56,7 @@ const props = defineProps<{
     agent_scores: AgentScoreRow[];
     tax_months: TaxMonth[];
     agent_activity: AgentActivity;
+    token_usage: TokenUsage;
     charts: PortfolioCharts;
     available_assets: AvailableAsset[];
     tracked_asset_ids: number[];
@@ -250,6 +253,8 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     :portfolio-id="portfolio.id"
                     :initial="agent_activity"
                 />
+
+                <TokenUsageCard :usage="token_usage" />
 
                 <PerformancePanel
                     :portfolio-id="portfolio.id"

@@ -4,6 +4,7 @@ namespace App\Trading;
 
 use App\Enums\Market;
 use App\Events\PortfolioChanged;
+use App\Models\AgentVote;
 use App\Models\Asset;
 use App\Models\MicroCycle;
 use App\Models\Order;
@@ -39,6 +40,15 @@ class PortfolioChangeBroadcaster
             $class::saved(fn (Position|Order|Signal|MicroCycle $model) => self::notify($model->portfolio_id, $scopes));
             $class::deleted(fn (Position|Order|Signal|MicroCycle $model) => self::notify($model->portfolio_id, $scopes));
         }
+
+        // Cada voto grava os tokens da chamada; a carteira vem do sinal.
+        AgentVote::created(function (AgentVote $vote): void {
+            $portfolioId = Signal::query()->whereKey($vote->signal_id)->value('portfolio_id');
+
+            if ($portfolioId !== null) {
+                self::notify((int) $portfolioId, [PortfolioChanged::SCOPE_TOKENS]);
+            }
+        });
 
         PortfolioSnapshot::created(fn (PortfolioSnapshot $model) => self::notify($model->portfolio_id, [PortfolioChanged::SCOPE_BALANCE]));
 

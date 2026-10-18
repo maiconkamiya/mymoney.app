@@ -448,3 +448,23 @@ export type AvailableAsset = {
     symbol: string;
     name: string | null;
 };
+
+export type TokenPeriod = {
+    input: number;
+    output: number;
+    total: number;
+    cost: number;
+    calls: number;
+};
+
+export type TokenUsage = {
+    /** Primeira chamada com tokens gravada nesta carteira (null antes da primeira). */
+    since: string | null;
+    today: TokenPeriod;
+    week: TokenPeriod;
+    month: TokenPeriod;
+    estimate: Omit<TokenPeriod, 'calls'> & {
+        days: number;
+        days_in_month: number;
+    };
+};

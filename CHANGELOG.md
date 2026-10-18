@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.65] - 2026-10-18
+
+### Adicionado
+
+- **Tokens da IA na carteira.** Abaixo de "Agentes em ação", um quadro mostra quantos tokens os agentes gastaram nos sinais da carteira hoje, na semana, no mês e a estimativa do mês (a média diária do mês projetada até o último dia), com o custo em dólar e o número de chamadas. Passe o mouse para ver entrada e saída separadas. Os números se atualizam sozinhos a cada voto novo, sem recarregar a tela, e contam desde a primeira chamada gravada na carteira. O explorador de oportunidades e a triagem de notícias são da conta toda e não entram nesse total.
+
 ## [0.3.64] - 2026-10-18
 
 ### Alterado
