@@ -102,7 +102,7 @@ const result = computed(() => equity.value / props.portfolio.initial_cash - 1);
 // Sidebar: uma seção aberta por vez, lembrada por carteira neste navegador.
 const section = useOpenSection(
     `portfolio.${props.portfolio.id}.sidebar`,
-    props.micro ? 'micro' : 'positions',
+    'positions',
 );
 
 const reloadingEvents = [
@@ -238,6 +238,14 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     :tracked="tracked_asset_ids"
                 />
 
+                <!-- O card usa container queries (@sm, @xl, @3xl), como na sidebar. -->
+                <div v-if="micro" class="@container">
+                    <MicroOperationsCard
+                        :portfolio="portfolio"
+                        :micro="micro"
+                    />
+                </div>
+
                 <AgentSwarmCard
                     :portfolio-id="portfolio.id"
                     :initial="agent_activity"
@@ -303,19 +311,6 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     @toggle="section.toggle('live')"
                 >
                     <LiveExecutionCard :portfolio="portfolio" :live="live" />
-                </SidebarSection>
-
-                <SidebarSection
-                    v-if="micro"
-                    title="Micro operações"
-                    hint="Aporte, meta do dia e posições do ciclo"
-                    :open="section.open.value === 'micro'"
-                    @toggle="section.toggle('micro')"
-                >
-                    <MicroOperationsCard
-                        :portfolio="portfolio"
-                        :micro="micro"
-                    />
                 </SidebarSection>
 
                 <SidebarSection

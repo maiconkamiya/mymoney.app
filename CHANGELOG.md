@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.64] - 2026-10-18
+
+### Alterado
+
+- **Micro operações de volta ao conteúdo principal da carteira.** O card das micro operações saiu da coluna à direita e fica logo abaixo de "Ativos em tempo real", sempre aberto. A coluna à direita continua com os outros cards, e a seção aberta de início passa a ser "Posições abertas".
+
 ## [0.3.63] - 2026-10-18
 
 ### Corrigido
