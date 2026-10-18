@@ -173,13 +173,14 @@ class AssetController extends Controller
 
         $before = $asset->trading_ends_on?->toDateString();
         $asset->update(['trading_ends_on' => $data['trading_ends_on'] ?? null]);
-        $after = $asset->trading_ends_on?->toDateString();
+        $ends = $asset->trading_ends_on;
+        $after = $ends?->toDateString();
 
         AuditLog::record('user:'.$request->user()->id, 'asset.trading_end_updated', $asset, ['symbol' => $asset->symbol, 'from' => $before, 'to' => $after]);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => $after === null
+        Inertia::flash('toast', ['type' => 'success', 'message' => $ends === null
             ? "{$asset->symbol} sem data de fim de negociação."
-            : "{$asset->symbol} encerra em ".$asset->trading_ends_on?->format('d/m/Y').'. Nesse dia o app para de comprar e vende o que houver nas carteiras.']);
+            : "{$asset->symbol} encerra em ".$ends->format('d/m/Y').'. Nesse dia o app para de comprar e vende o que houver nas carteiras.']);
 
         return back();
     }

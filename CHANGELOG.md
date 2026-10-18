@@ -4,6 +4,13 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.71] - 2026-10-18
+
+### Adicionado
+
+- **Data de fim da negociação do ativo.** Na tela Ativos, a coluna "Fim da negociação" recebe a data em que a Binance vai deixar de negociar o par. A partir da 00:00 UTC desse dia (quando a corretora costuma suspender o par) o app não compra mais o ativo, não o manda aos agentes, às micro operações nem ao explorador, cancela a venda limitada pendente e vende a mercado o que houver em todas as carteiras, reais e simuladas. A venda entra no histórico com o motivo "Fim de negociação". Só o administrador do sistema define ou tira a data.
+- **Aviso do ativo em encerramento.** A lista de Ativos marca o par com "Encerra em" ou "Negociação encerrada"; na carteira, a posição aberta e os "Ativos acompanhados" mostram a data. Quando o saldo fica abaixo do mínimo da corretora (5 USDT) e a venda não sai pela API, a posição mostra o motivo em vez de falhar em silêncio.
+
 ## [0.3.70] - 2026-10-18
 
 ### Adicionado

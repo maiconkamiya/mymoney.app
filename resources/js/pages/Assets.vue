@@ -9,13 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { avisoFimNegociacao, dataCurta } from '@/lib/fimNegociacao';
 import { marketLabels } from '@/lib/trading';
-import {
-    destroy,
-    index,
-    search,
-    store,
-    tradingEnd,
-} from '@/routes/assets';
+import { destroy, index, search, store, tradingEnd } from '@/routes/assets';
 import type {
     AssetRow,
     AssetSearchResult,
