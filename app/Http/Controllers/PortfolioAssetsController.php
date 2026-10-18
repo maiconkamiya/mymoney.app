@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\PortfolioChanged;
 use App\Models\Portfolio;
+use App\Trading\PortfolioChangeBroadcaster;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,6 +28,8 @@ class PortfolioAssetsController extends Controller
         ]);
 
         $portfolio->assets()->sync($data['asset_ids']);
+        // O pivô não dispara evento de modelo; outras abas da mesma carteira também atualizam.
+        PortfolioChangeBroadcaster::notify($portfolio->id, [PortfolioChanged::SCOPE_ASSETS, PortfolioChanged::SCOPE_MICRO]);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $data['asset_ids'] === []
             ? 'A carteira acompanha todos os ativos cadastrados do mercado.'

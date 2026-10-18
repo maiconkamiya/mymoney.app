@@ -4,11 +4,24 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.47] - 2026-10-18
+## [0.3.48] - 2026-10-18
 
 ### Corrigido
 
 - **Posições da Conta Binance fechando e reabrindo sozinhas.** A cada sincronização da conta, as moedas que continuavam no saldo eram encerradas com o motivo "conta" e voltavam na rodada seguinte com o preço do momento como preço médio. Isso perdia o custo real da compra e encerrava ciclos das micro operações como se tivessem sido vendidos. Agora a posição continua a mesma enquanto a moeda estiver na conta, com o preço médio original, e só é encerrada quando a moeda sai do saldo. A sincronização automática e o botão "Sincronizar" também não rodam mais ao mesmo tempo na mesma carteira.
+
+## [0.3.47] - 2026-10-18
+
+### Corrigido
+
+- **A carteira atualiza sozinha, sem F5.** A hora da última execução do motor, o motivo de cada par em foco e o "Liquidar com lucro" agora se atualizam a cada minuto. Mudanças no caixa feitas por uma ordem, o "Parar tudo", os ativos acompanhados alterados em outra aba e o patrimônio do gráfico de desempenho também chegam na hora.
+- **Preço de agora nas posições abertas.** A tabela de posições ganhou as colunas "Preço agora" e "Resultado", e o valor da posição e o patrimônio andam junto com a cotação recebida do servidor, sem recarregar. Na carteira simulada o valor da posição deixou de aparecer vazio.
+- **Cotações sem atraso.** As cotações dos gráficos não esperam mais as rodadas dos agentes para chegar à tela.
+
+### Adicionado
+
+- **Indicador de conexão em tempo real.** No topo da carteira aparece "Tempo real", "Conectando", "Sem tempo real" ou "Canal recusado". Se a conexão cair, a tela se atualiza a cada 30 segundos até ela voltar e, quando volta, recarrega tudo o que pode ter mudado no intervalo. Voltar para a aba depois de um tempo também recarrega.
+- **Aviso do motor parado sem F5.** Se o motor das micro operações parar de avisar por mais de 3 minutos, o aviso de agendador parado aparece sozinho.
 
 ## [0.3.46] - 2026-10-17
 

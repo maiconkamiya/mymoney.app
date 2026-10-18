@@ -2,7 +2,9 @@
 import { echoIsConfigured, useEcho } from '@laravel/echo-vue';
 import { Form, Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount } from 'vue';
+import { useMarketPrices } from '@/composables/useMarketPrices';
 import { usePortfolioRealtime } from '@/composables/usePortfolioRealtime';
+import RealtimeIndicator from '@/components/portfolio/RealtimeIndicator.vue';
 import BinanceController from '@/actions/App/Http/Controllers/Settings/BinanceController';
 import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
@@ -57,13 +59,37 @@ defineOptions({
     },
 });
 
-const result = computed(
-    () => props.portfolio.equity / props.portfolio.initial_cash - 1,
+// Saldo, posições, ordens, sinais e micro operações chegam pelo canal privado da
+// carteira; o preço de agora das posições, pelo canal público `mercado`.
+const realtime = usePortfolioRealtime(props.portfolio.id);
+const marketPrices = useMarketPrices();
+
+const livePositions = computed(() =>
+    props.positions.map((position) => {
+        const price =
+            marketPrices[position.symbol] ?? position.last_price ?? null;
+
+        return {
+            ...position,
+            price,
+            value: price === null ? position.value : position.qty * price,
+            pnl: price === null ? null : price / position.avg_price - 1,
+        };
+    }),
 );
 
-// Os cards de sinais acompanham o ciclo dos agentes (canal privado da carteira):
-// um sinal novo, o consenso decidido e a ordem concluída recarregam só a lista.
-usePortfolioRealtime(props.portfolio.id);
+// Mesma conta do servidor (caixa + posições a preço de agora, ou preço médio sem cotação).
+const equity = computed(
+    () =>
+        (props.portfolio.cash ?? 0) +
+        livePositions.value.reduce(
+            (sum, position) =>
+                sum + position.qty * (position.price ?? position.avg_price),
+            0,
+        ),
+);
+
+const result = computed(() => equity.value / props.portfolio.initial_cash - 1);
 
 const reloadingEvents = [
     'cycle.started',
@@ -131,21 +157,33 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
     <div
         class="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-8 p-4 md:p-6 lg:p-8"
     >
-        <Heading
-            :title="portfolio.name"
-            :description="`${marketLabels[portfolio.market]} · ${portfolio.mode === 'paper' ? 'simulada' : 'real'} · ${portfolio.starts_at} a ${portfolio.ends_at} · ${portfolio.auto_execute ? 'execução automática' : 'aprovação manual'}`"
-        />
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <Heading
+                :title="portfolio.name"
+                :description="`${marketLabels[portfolio.market]} · ${portfolio.mode === 'paper' ? 'simulada' : 'real'} · ${portfolio.starts_at} a ${portfolio.ends_at} · ${portfolio.auto_execute ? 'execução automática' : 'aprovação manual'}`"
+            />
+            <RealtimeIndicator
+                :status="realtime.status.value"
+                :last-update="realtime.lastUpdate.value"
+            />
+        </div>
 
         <div class="grid gap-4 sm:grid-cols-3">
             <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">Patrimônio</p>
-                <p class="text-2xl font-semibold tabular-nums">
-                    {{ money(portfolio.equity, portfolio.market) }}
+                <p
+                    class="text-2xl font-semibold tabular-nums"
+                    data-test="portfolio-equity"
+                >
+                    {{ money(equity, portfolio.market) }}
                 </p>
             </div>
             <div class="rounded-2xl border bg-card p-4">
                 <p class="text-sm text-muted-foreground">Caixa</p>
-                <p class="text-2xl font-semibold tabular-nums">
+                <p
+                    class="text-2xl font-semibold tabular-nums"
+                    data-test="portfolio-cash"
+                >
                     {{ money(portfolio.cash, portfolio.market) }}
                 </p>
             </div>
@@ -262,7 +300,13 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                 Preço médio
                             </th>
                             <th class="px-4 py-2 text-right font-medium">
+                                Preço agora
+                            </th>
+                            <th class="px-4 py-2 text-right font-medium">
                                 Valor (USDT)
+                            </th>
+                            <th class="px-4 py-2 text-right font-medium">
+                                Resultado
                             </th>
                             <th class="px-4 py-2 text-right font-medium">
                                 Stop
@@ -271,9 +315,10 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     </thead>
                     <tbody>
                         <tr
-                            v-for="position in positions"
+                            v-for="position in livePositions"
                             :key="position.id"
                             class="border-t"
+                            :data-test="`position-${position.symbol}`"
                         >
                             <td class="px-4 py-2 font-medium">
                                 {{ position.symbol }}
@@ -286,6 +331,19 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                     money(position.avg_price, portfolio.market)
                                 }}
                             </td>
+                            <td
+                                class="px-4 py-2 text-right tabular-nums"
+                                data-test="position-price"
+                            >
+                                {{
+                                    position.price === null
+                                        ? '-'
+                                        : position.price.toLocaleString(
+                                              'pt-BR',
+                                              { maximumSignificantDigits: 6 },
+                                          )
+                                }}
+                            </td>
                             <td class="px-4 py-2 text-right tabular-nums">
                                 {{
                                     position.value === null
@@ -294,6 +352,22 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                               position.value,
                                               portfolio.market,
                                           )
+                                }}
+                            </td>
+                            <td
+                                class="px-4 py-2 text-right tabular-nums"
+                                :class="
+                                    position.pnl === null
+                                        ? ''
+                                        : position.pnl < 0
+                                          ? 'text-down'
+                                          : 'text-up'
+                                "
+                            >
+                                {{
+                                    position.pnl === null
+                                        ? '-'
+                                        : percent(position.pnl)
                                 }}
                             </td>
                             <td class="px-4 py-2 text-right tabular-nums">

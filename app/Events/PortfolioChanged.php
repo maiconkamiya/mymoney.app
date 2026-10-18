@@ -8,8 +8,8 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 
 /**
- * Algo mudou na carteira (saldo, posições, ordens, sinais ou ciclos de micro
- * operações). Vai só para o canal privado do dono; a tela recarrega apenas os
+ * Algo mudou na carteira (saldo, posições, ordens, sinais, ciclos de micro
+ * operações ou ativos acompanhados). Vai só para o canal privado do dono; a tela recarrega apenas os
  * blocos citados em `scopes`, sem polling.
  */
 class PortfolioChanged implements ShouldBroadcastNow
@@ -25,6 +25,8 @@ class PortfolioChanged implements ShouldBroadcastNow
     public const SCOPE_SIGNALS = 'signals';
 
     public const SCOPE_MICRO = 'micro';
+
+    public const SCOPE_ASSETS = 'assets';
 
     /**
      * @param  list<string>  $scopes
