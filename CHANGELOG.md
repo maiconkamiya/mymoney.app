@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.75] - 2026-10-18
+
+### Corrigido
+
+- **Erro 500 na carteira e vendas das micro operações paradas.** Quando a corretora recusava a venda limitada de uma micro operação, a página da carteira passava a dar erro 500 e o robô das micro operações parava de registrar vendas a cada minuto. Agora o motivo da recusa aparece no card como antes, a venda é tentada de novo no prazo certo e a carteira volta a abrir sozinha depois da atualização, sem nenhum passo manual.
+
 ## [0.3.74] - 2026-10-18
 
 ### Adicionado

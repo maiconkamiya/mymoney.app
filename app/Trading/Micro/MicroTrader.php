@@ -17,6 +17,7 @@ use App\Trading\Live\LiveLimits;
 use App\Trading\OrderExecutor;
 use App\Trading\Risk\RiskGuard;
 use App\Trading\TradingHalt;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -374,9 +375,9 @@ class MicroTrader
                 continue;
             }
 
-            $failure = Cache::get($this->sellFailureKey($position));
+            $failure = $this->storedSellFailure($position);
 
-            if (is_array($failure) && now()->lt($failure['retry_at'])) {
+            if ($failure !== null && now()->lt(Carbon::parse($failure['retry_at']))) {
                 continue;
             }
 
@@ -406,7 +407,7 @@ class MicroTrader
             Cache::put($this->sellFailureKey($position), [
                 'reason' => is_string($sell) ? $sell : 'corretora recusou: '.($sell->reject_reason ?? 'sem motivo informado'),
                 'at' => now()->toIso8601String(),
-                'retry_at' => now()->addMinutes($wait)->subSeconds(5),
+                'retry_at' => now()->addMinutes($wait)->subSeconds(5)->toIso8601String(),
                 'attempts' => $attempts,
             ], now()->addDay());
         }
@@ -534,11 +535,44 @@ class MicroTrader
      */
     public function sellFailure(Position $position): ?array
     {
+        $failure = $this->storedSellFailure($position);
+
+        return $failure !== null
+            ? ['reason' => $failure['reason'], 'at' => $failure['at'], 'retry_at' => $failure['retry_at']]
+            : null;
+    }
+
+    /**
+     * The failure kept in the cache, with every date as ISO text. Anything else
+     * (an entry from before 0.3.75 kept a Carbon object, which the cache no longer
+     * unserializes) is forgotten and treated as no failure: the sale is tried again.
+     *
+     * @return array{reason: string, at: string, retry_at: string, attempts: int}|null
+     */
+    private function storedSellFailure(Position $position): ?array
+    {
         $failure = Cache::get($this->sellFailureKey($position));
 
-        return is_array($failure)
-            ? ['reason' => $failure['reason'], 'at' => $failure['at'], 'retry_at' => $failure['retry_at']->toIso8601String()]
-            : null;
+        if ($failure === null) {
+            return null;
+        }
+
+        if (is_array($failure)
+            && is_string($failure['reason'] ?? null)
+            && is_string($failure['at'] ?? null)
+            && is_string($failure['retry_at'] ?? null)
+            && strtotime($failure['retry_at']) !== false) {
+            return [
+                'reason' => $failure['reason'],
+                'at' => $failure['at'],
+                'retry_at' => $failure['retry_at'],
+                'attempts' => is_int($failure['attempts'] ?? null) ? $failure['attempts'] : 0,
+            ];
+        }
+
+        Cache::forget($this->sellFailureKey($position));
+
+        return null;
     }
 
     private function sellFailureKey(Position $position): string
@@ -773,7 +807,7 @@ class MicroTrader
             Cache::put($this->sellFailureKey($position), [
                 'reason' => is_string($sell) ? $sell : 'corretora recusou: '.($sell->reject_reason ?? 'sem motivo informado'),
                 'at' => now()->toIso8601String(),
-                'retry_at' => now()->addMinute()->subSeconds(5),
+                'retry_at' => now()->addMinute()->subSeconds(5)->toIso8601String(),
                 'attempts' => is_string($sell) ? 0 : 1,
             ], now()->addDay());
         } else {
