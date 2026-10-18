@@ -11,6 +11,12 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 - **"Sincronizar agora" não recarrega mais a tela inteira.** A carteira fica onde estava e só os blocos que mudam (saldo, posições, sincronização com a Binance, micro operações) são atualizados. O mesmo vale para "Executar sinais aprovados sem confirmação", os botões da execução real ("Parar tudo", liberar ordens, CONFIRMO, aviso por e-mail) e o "Salvar" dos ativos acompanhados. Se a sincronização falhar, o motivo aparece ao lado do botão.
 - **Telas abertas a partir da carteira também não recarregam.** O filtro do histórico de sinais e os botões da tela da Binance (sincronizar, trocar e remover a chave) mantêm a rolagem e o que estava na tela.
 
+## [0.3.48] - 2026-10-18
+
+### Corrigido
+
+- **Posições da Conta Binance fechando e reabrindo sozinhas.** A cada sincronização da conta, as moedas que continuavam no saldo eram encerradas com o motivo "conta" e voltavam na rodada seguinte com o preço do momento como preço médio. Isso perdia o custo real da compra e encerrava ciclos das micro operações como se tivessem sido vendidos. Agora a posição continua a mesma enquanto a moeda estiver na conta, com o preço médio original, e só é encerrada quando a moeda sai do saldo. A sincronização automática e o botão "Sincronizar" também não rodam mais ao mesmo tempo na mesma carteira.
+
 ## [0.3.47] - 2026-10-18
 
 ### Corrigido
