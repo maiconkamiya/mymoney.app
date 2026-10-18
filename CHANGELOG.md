@@ -4,6 +4,14 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.59] - 2026-10-18
+
+### Corrigido
+
+- **Venda por sinal dos agentes recusada pela Binance (quantidade fora do passo do par).** A venda pedida pelos agentes ia com a quantidade exata da posição, como 39,922 DUSK, e a Binance recusava porque o DUSK só aceita moedas inteiras. Agora toda venda sai arredondada para baixo no passo do par (39 DUSK), e a venda registrada da posição é cancelada antes, para liberar as moedas.
+- **Venda abaixo do mínimo de 5 USDT não é mais enviada.** Venda por sinal, stop, tempo limite e "Liquidar agora" conferem o valor das moedas inteiras contra o mínimo do par antes de enviar. Abaixo dele, nada é cancelado nem enviado e o motivo aparece no sinal ou no aviso do botão.
+- **O card diz por que uma posição está sem venda registrada.** Quando o modo não registra a venda de uma posição, a linha mostra o motivo: parada geral ou "Parar tudo" ligados, micro operações desligadas, execução real sem CONFIRMO, ativo fora dos acompanhados, posição aberta por sinal dos agentes ou marcada em "Liquidar com lucro".
+
 ## [0.3.58] - 2026-10-18
 
 ### Alterado

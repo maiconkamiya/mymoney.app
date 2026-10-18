@@ -474,6 +474,13 @@ const time = (iso: string) =>
                             {{ price(row.resting_sell_price) }}
                         </span>
                         <span
+                            v-else-if="row.qty > 0 && row.sell_skip"
+                            class="text-muted-foreground"
+                            :data-test="`micro-sell-skip-${row.symbol}`"
+                        >
+                            Sem venda registrada: {{ row.sell_skip }}
+                        </span>
+                        <span
                             v-else-if="row.qty > 0 && row.sell_failure"
                             class="text-down"
                             :data-test="`micro-sell-failure-${row.symbol}`"

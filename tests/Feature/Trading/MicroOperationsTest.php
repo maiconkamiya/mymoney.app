@@ -6,6 +6,7 @@ use App\Enums\Market;
 use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
+use App\Enums\SignalStage;
 use App\Models\Asset;
 use App\Models\AuditLog;
 use App\Models\BrokerCredential;
@@ -14,6 +15,7 @@ use App\Models\MicroCycle;
 use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
+use App\Models\Signal;
 use App\Models\User;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Live\BinanceAccountSync;
@@ -23,6 +25,7 @@ use App\Trading\Micro\MicroOverview;
 use App\Trading\Micro\MicroRanker;
 use App\Trading\Micro\MicroTargetOdds;
 use App\Trading\Micro\MicroTrader;
+use App\Trading\OrderExecutor;
 use App\Trading\PortfolioValuation;
 use App\Trading\PositionExits;
 use App\Trading\Risk\RiskGuard;
@@ -1052,5 +1055,117 @@ class MicroOperationsTest extends TestCase
         $this->assertStringContainsString('abaixo do mínimo de 5.00 USDT', $outcome);
         $this->assertNull($position->fresh()->closed_at);
         Http::assertNothingSent();
+    }
+
+    /**
+     * A real DUSK-like position (step 1) of 39.922 coins, a resting limit sale
+     * of it on the exchange (order 2), and a fake Binance that fills market sales.
+     */
+    private function liveStepOnePosition(string $minNotional = '5'): Position
+    {
+        config(['trading.live.enabled' => true]);
+        $this->asset->update(['lot_size' => '1', 'tick_size' => '0.0001', 'min_qty' => '1', 'min_notional' => $minNotional]);
+        $this->candles($this->asset, 100.0);
+        $user = User::factory()->create();
+        $credential = BrokerCredential::create(['user_id' => $user->id, 'broker' => 'binance', 'label' => 'x', 'api_key' => 'k', 'api_secret' => 's', 'can_withdraw' => false, 'verified_at' => now()]);
+        $portfolio = $this->micro(['user_id' => $user->id, 'mode' => 'live', 'broker' => 'binance', 'broker_credential_id' => $credential->id, 'auto_execute' => true, 'live_auto_confirmed_at' => now(), 'cash' => 50, 'initial_cash' => 50]);
+        $position = $this->boughtPosition($portfolio, 0.5);
+        $position->update(['qty' => 39.922]);
+        Order::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'position_id' => $position->id, 'broker' => 'binance', 'side' => OrderSide::Sell, 'type' => OrderType::Limit, 'qty' => 39, 'price' => 100.5, 'status' => OrderStatus::Pending, 'external_id' => 'DOGEUSDT:2']);
+
+        $state = 'NEW';
+
+        Http::fake(function (Request $request) use (&$state) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+
+            return match (true) {
+                $path === '/api/v3/time' => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+                $path === '/api/v3/account' => Http::response(['balances' => [['asset' => 'DOGE', 'free' => '39.922', 'locked' => '0'], ['asset' => 'USDT', 'free' => '50', 'locked' => '0']]]),
+                $request->method() === 'DELETE' => Http::response(['orderId' => 2, 'status' => $state = 'CANCELED']),
+                $request->method() === 'POST' => Http::response(['orderId' => 9, 'status' => 'FILLED', 'executedQty' => '39', 'cummulativeQuoteQty' => '3900', 'transactTime' => now()->getTimestampMs(), 'fills' => [['price' => '100', 'qty' => '39', 'commission' => '3.9', 'commissionAsset' => 'USDT']]]),
+                default => Http::response(['orderId' => 2, 'status' => $state, 'executedQty' => '0', 'cummulativeQuoteQty' => '0']),
+            };
+        });
+
+        return $position;
+    }
+
+    private function sellSignal(Position $position): Signal
+    {
+        return Signal::create(['portfolio_id' => $position->portfolio_id, 'asset_id' => $position->asset_id, 'stage' => SignalStage::Confirmed, 'side' => 'sell', 'decided_by' => 'auto']);
+    }
+
+    public function test_a_sell_signal_cancels_the_resting_sale_and_sells_whole_steps_of_its_position()
+    {
+        $position = $this->liveStepOnePosition();
+
+        $order = app(OrderExecutor::class)->execute($this->sellSignal($position), 'auto');
+
+        Http::assertSent(fn (Request $request) => $request->method() === 'DELETE' && str_contains($request->url(), 'orderId=2'));
+        // 39.922 on the account, step 1: 39 is what the exchange accepts (39.922 was refused with LOT_SIZE).
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_contains($request->url(), 'type=MARKET') && str_contains($request->url(), 'quantity=39&'));
+        $this->assertSame(OrderStatus::Filled, $order->status);
+        $this->assertSame($position->id, $order->position_id);
+        $this->assertSame(OrderStatus::Cancelled, Order::where('external_id', 'DOGEUSDT:2')->sole()->status);
+    }
+
+    public function test_a_sell_signal_under_the_pair_minimum_is_refused_without_touching_the_exchange()
+    {
+        // 39 whole coins at 100 = 3900, under a 5000 minimum (as 39 DUSK at 0.1201 = 4.68 USDT under 5).
+        $position = $this->liveStepOnePosition('5000');
+        $signal = $this->sellSignal($position);
+
+        $this->assertNull(app(OrderExecutor::class)->execute($signal, 'auto'));
+
+        $this->assertSame(SignalStage::Rejected, $signal->fresh()->stage);
+        $this->assertStringContainsString('abaixo do mínimo', (string) $signal->fresh()->decision_reason);
+        Http::assertNotSent(fn (Request $request) => in_array($request->method(), ['POST', 'DELETE'], true));
+        $this->assertSame(OrderStatus::Pending, Order::where('external_id', 'DOGEUSDT:2')->sole()->status);
+    }
+
+    public function test_liquidate_now_counts_only_whole_steps_against_the_minimum_and_keeps_the_resting_sale()
+    {
+        // 39.922 x 100 = 3992 passes a 3950 minimum, but only 39 coins can go: 3900.
+        $position = $this->liveStepOnePosition('3950');
+
+        $outcome = app(MicroTrader::class)->liquidateNow($position->portfolio, $position, 'user:1');
+
+        $this->assertIsString($outcome);
+        $this->assertStringContainsString('abaixo do mínimo', $outcome);
+        Http::assertNotSent(fn (Request $request) => in_array($request->method(), ['POST', 'DELETE'], true));
+        $this->assertSame(OrderStatus::Pending, Order::where('external_id', 'DOGEUSDT:2')->sole()->status);
+    }
+
+    public function test_the_card_says_why_a_position_has_no_registered_sale()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        $this->boughtPosition($portfolio);
+        app(TradingHalt::class)->halt('reconciler', 'teste');
+
+        app(MicroTrader::class)->run($portfolio);
+
+        $this->assertSame(0, Order::where('side', OrderSide::Sell)->count());
+        $row = collect(app(MicroOverview::class)->for($portfolio)['liquidation'])->firstWhere('symbol', 'DOGEUSDT');
+        $this->assertStringContainsString('Parada geral ligada', $row['sell_skip']);
+
+        $other = Asset::factory()->create(['symbol' => 'SOLUSDT']);
+        $portfolio->assets()->attach($other->id);
+        app(TradingHalt::class)->resume('teste');
+        $this->assertStringContainsString('Ativos acompanhados', app(MicroTrader::class)->sellSkip($portfolio->fresh(), $portfolio->openPositions()->sole()));
+    }
+
+    public function test_the_risk_guard_keeps_every_sale_on_the_pair_step()
+    {
+        $this->candles($this->asset);
+        $this->asset->update(['lot_size' => '1']);
+        $portfolio = $this->micro();
+        $position = Position::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'qty' => 39.922, 'avg_price' => 100, 'opened_at' => now()]);
+
+        // Within the position but off the step: 39.922 goes out as 39.
+        $decision = app(RiskGuard::class)->check($portfolio, new OrderRequest(asset: $this->asset->fresh(), side: OrderSide::Sell, qty: 39.922, positionId: $position->id));
+
+        $this->assertTrue($decision->allowed);
+        $this->assertSame(39.0, $decision->order->qty);
     }
 }

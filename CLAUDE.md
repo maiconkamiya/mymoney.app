@@ -10,7 +10,7 @@ Visão do produto e arquitetura: veja o `README.md` e a especificação em https
 2. **Uma branch por issue**, criada a partir de `main` atualizada. Nome: `tipo/N-descricao-curta`, com `tipo` em `fix`, `feat`, `chore`, `docs` ou `refactor` e `N` o número da issue. Exemplo: `feat/12-painel-ao-vivo`.
 3. **Nada vai direto para `main`.** Todo deploy passa por pull request. Abra o PR como rascunho enquanto houver trabalho, e marque como pronto só com a CI local verde.
 4. **A descrição do PR menciona a issue** com `Closes #N` (ou `Fixes #N` para correções), para a issue fechar no merge. Um PR que toca várias issues lista uma linha `Closes #N` para cada.
-5. **O merge é humano.** Agentes não aprovam nem fazem merge de PR; quem aprova é o Maicon.
+5. **Merge automático ao concluir a issue** (regra do Maicon, 2026-10-18). Quando o critério de pronto da issue foi atendido, a `composer ci` passou no último commit e a versão é a da `main` + 0.0.1 na hora do merge, o agente marca o PR como pronto e faz o merge sozinho, sem esperar "pode mergear". Exceção: PR que mexe na guarda de risco (`app/Trading/Risk/RiskGuard.php`) ou nas regras de dinheiro real espera a confirmação escrita do Maicon na thread. Agentes não aprovam PR, não criam tags e não fazem deploy.
 
 Commits seguem o estilo `tipo: descrição` (ex.: `feat: consenso com rodada de contestação`), em português.
 

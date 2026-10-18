@@ -81,7 +81,32 @@ class OrderExecutor
             }
         }
 
-        $outcome = $this->submit($signal->portfolio, $request, $signal, $actor, null);
+        $positionId = null;
+
+        // A sell signal sells the position like an exit: the pair's minimum is checked first, a resting
+        // limit sale is cancelled so the coins are free, and the quantity stays on the pair's step.
+        if ($signal->side === OrderSide::Sell) {
+            $position = $signal->portfolio->openPositions()->with(['asset', 'portfolio'])->where('asset_id', $signal->asset_id)->oldest('id')->first();
+            $reason = match (true) {
+                $position === null => 'Sem posição aberta para vender.',
+                ($small = $this->belowMinimum($position, $this->prices->quote($signal->asset)?->price)) !== null => $small,
+                ! $this->cancelResting($position, $actor) => 'A venda limitada aberta não pôde ser cancelada na corretora.',
+                $position->refresh()->closed_at !== null => 'A venda registrada da posição já executou.',
+                default => null,
+            };
+
+            if ($reason !== null) {
+                $signal->moveTo(SignalStage::Rejected, $reason);
+                AuditLog::record($actor, 'order.blocked', $signal, ['reasons' => [$reason]]);
+
+                return null;
+            }
+
+            $positionId = $position->id;
+            $request = new OrderRequest(asset: $request->asset, side: OrderSide::Sell, qty: $this->sellableQty($position), stopPrice: $request->stopPrice, clientId: $request->clientId, positionId: $positionId);
+        }
+
+        $outcome = $this->submit($signal->portfolio, $request, $signal, $actor, null, positionId: $positionId);
 
         if (is_string($outcome)) {
             $signal->moveTo(SignalStage::Rejected, $outcome);
@@ -110,6 +135,13 @@ class OrderExecutor
      */
     public function closePosition(Position $position, string $reason, string $actor, ?string &$blocked = null): ?Order
     {
+        // Below the pair's minimum the exchange refuses a market sale: nothing is cancelled nor sent.
+        if (($blocked = $this->belowMinimum($position, $this->prices->quote($position->asset)?->price)) !== null) {
+            $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'detail' => $blocked]);
+
+            return null;
+        }
+
         // A resting limit sell locks the coins: it goes first, and what it already sold counts.
         if (! $this->cancelResting($position, $actor)) {
             $blocked = 'A venda limitada aberta não pôde ser cancelada na corretora.';
@@ -406,6 +438,28 @@ class OrderExecutor
         $step = (float) $asset->lot_size;
 
         return $step > 0 ? floor(round($qty / $step, 8)) * $step : $qty;
+    }
+
+    /**
+     * Why a market sale of the whole position would be refused by the exchange
+     * for being under the pair's minimum order value, or null. Counts only the
+     * whole steps of the position: that is what can be sold.
+     */
+    public function belowMinimum(Position $position, ?float $price): ?string
+    {
+        $asset = $position->asset;
+        $minimum = $position->portfolio->isLive() ? (float) $asset->min_notional : 0.0;
+
+        if ($price === null || $minimum <= 0) {
+            return null;
+        }
+
+        $step = (float) $asset->lot_size;
+        $qty = $step > 0 ? floor(round($position->qty / $step, 8)) * $step : $position->qty;
+
+        return $qty * $price < $minimum
+            ? sprintf('A venda de %s %s a %s vale %.2f USDT, abaixo do mínimo de %.2f USDT do par: a corretora não aceita.', $qty, $asset->symbol, $price, $qty * $price, $minimum)
+            : null;
     }
 
     /**

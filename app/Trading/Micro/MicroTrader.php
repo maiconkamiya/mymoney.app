@@ -355,25 +355,15 @@ class MicroTrader
      */
     public function registerSells(Portfolio $portfolio): int
     {
-        if (! $portfolio->micro_enabled || ! $portfolio->isRunning() || $this->halt->isHalted() || $portfolio->isOrdersBlocked()) {
+        if ($this->sellBlock($portfolio) !== null) {
             return 0;
         }
 
-        if ($portfolio->isLive() && (! $this->live->enabled() || ! $portfolio->autoExecutesLive())) {
-            return 0;
-        }
-
-        $tracked = $portfolio->assets()->pluck('assets.id');
-        $marked = $portfolio->micro_liquidate_asset_ids ?? [];
         $gross = $this->costs->grossMarginPct($portfolio->micro_net_margin_pct);
         $placed = 0;
 
-        $positions = $portfolio->openPositions()
-            ->with(['asset', 'portfolio'])
-            ->whereNull('signal_id')
-            ->when($tracked->isNotEmpty(), fn ($query) => $query->whereIn('asset_id', $tracked))
-            ->whereNotIn('asset_id', $marked)
-            ->get();
+        $positions = $portfolio->openPositions()->with(['asset', 'portfolio'])->get()
+            ->filter(fn (Position $position) => $this->sellSkip($portfolio, $position) === null);
 
         foreach ($positions as $position) {
             if ($this->executor->restingSells($position)->isNotEmpty()) {
@@ -423,6 +413,49 @@ class MicroTrader
     }
 
     /**
+     * Why no sale is registered for any position of the portfolio right now, or null.
+     */
+    private function sellBlock(Portfolio $portfolio): ?string
+    {
+        return match (true) {
+            ! $portfolio->micro_enabled => 'Micro operações desligadas: a venda só é registrada com o modo ligado.',
+            ! $portfolio->isRunning() => 'Carteira fora do período de execução.',
+            $this->halt->isHalted() => 'Parada geral ligada: a venda é registrada no minuto seguinte ao desligamento.',
+            $portfolio->isOrdersBlocked() => '"Parar tudo" ligado nesta carteira.',
+            $portfolio->isLive() && ! $this->live->enabled() => 'Execução real desligada no servidor.',
+            $portfolio->isLive() && ! $portfolio->autoExecutesLive() => 'Carteira real sem a execução automática confirmada (CONFIRMO).',
+            default => null,
+        };
+    }
+
+    /**
+     * Why the mode does not keep a sale registered for this position, or null
+     * when it does. The card shows it next to a position without a sale.
+     */
+    public function sellSkip(Portfolio $portfolio, Position $position): ?string
+    {
+        if (($block = $this->sellBlock($portfolio)) !== null) {
+            return $block;
+        }
+
+        if ($position->signal_id !== null) {
+            return 'Posição aberta por sinal dos agentes: sai pelo stop e pelo alvo do sinal.';
+        }
+
+        if ($portfolio->liquidates($position->asset_id)) {
+            return 'Marcado em "Liquidar com lucro": vende quando o preço cobrir o custo.';
+        }
+
+        $tracked = $portfolio->assets()->pluck('assets.id');
+
+        if ($tracked->isNotEmpty() && ! $tracked->contains($position->asset_id)) {
+            return 'Ativo fora dos "Ativos acompanhados" da carteira.';
+        }
+
+        return null;
+    }
+
+    /**
      * Where the position is meant to be sold: the open cycle's target, or what
      * was paid plus the round trip plus the card's net margin.
      */
@@ -457,10 +490,10 @@ class MicroTrader
         }
 
         $row = $this->liquidation($portfolio, $position);
-        $minimum = $portfolio->isLive() ? (float) $position->asset->min_notional : 0.0;
 
-        if ($row['price'] !== null && $position->qty * $row['price'] < $minimum) {
-            return sprintf('A posição vale %.2f USDT, abaixo do mínimo de %.2f USDT do par: a corretora não aceita a venda.', $position->qty * $row['price'], $minimum);
+        // Checked before the resting sale is cancelled: below the pair's minimum it would be cancelled for nothing.
+        if (($small = $this->executor->belowMinimum($position, $row['price'])) !== null) {
+            return $small;
         }
 
         $sale = $this->executor->closePosition($position, 'micro_manual', $actor, $blocked);
