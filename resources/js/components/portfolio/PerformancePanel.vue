@@ -12,6 +12,8 @@ const props = defineProps<{
     market: string;
     performance: Performance;
     agentScores: AgentScoreRow[];
+    /** Falso com os agentes em ação desligados em Custos e serviços. */
+    showAgentScores: boolean;
     taxMonths: TaxMonth[];
 }>();
 
@@ -144,55 +146,63 @@ const taxUrl = computed(
             </p>
         </div>
 
-        <Heading
-            variant="small"
-            title="Placar dos agentes"
-            description="Taxa de acerto das chamadas de compra e venda; o peso entra no consenso (1,00 até 10 sinais)."
-        />
-        <p
-            v-if="agentScores.length === 0"
-            class="text-sm text-muted-foreground"
-        >
-            O placar é calculado todo dia depois que há sinais executados.
-        </p>
-        <div v-else class="overflow-x-auto rounded-2xl border bg-card">
-            <table class="w-full text-sm">
-                <thead class="bg-muted/50 text-left text-muted-foreground">
-                    <tr>
-                        <th class="px-4 py-2 font-medium">Agente</th>
-                        <th class="px-4 py-2 text-right font-medium">Sinais</th>
-                        <th class="px-4 py-2 text-right font-medium">
-                            Acertos
-                        </th>
-                        <th class="px-4 py-2 text-right font-medium">Taxa</th>
-                        <th class="px-4 py-2 text-right font-medium">Peso</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr
-                        v-for="row in agentScores"
-                        :key="row.agent"
-                        class="border-t"
-                    >
-                        <td class="px-4 py-2 font-medium">
-                            {{ agentLabels[row.agent] ?? row.agent }}
-                        </td>
-                        <td class="px-4 py-2 text-right tabular-nums">
-                            {{ row.signals }}
-                        </td>
-                        <td class="px-4 py-2 text-right tabular-nums">
-                            {{ row.hits }}
-                        </td>
-                        <td class="px-4 py-2 text-right tabular-nums">
-                            {{ (row.hit_rate * 100).toFixed(1) }}%
-                        </td>
-                        <td class="px-4 py-2 text-right tabular-nums">
-                            {{ row.weight.toFixed(2) }}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <template v-if="showAgentScores">
+            <Heading
+                variant="small"
+                title="Placar dos agentes"
+                description="Taxa de acerto das chamadas de compra e venda; o peso entra no consenso (1,00 até 10 sinais)."
+            />
+            <p
+                v-if="agentScores.length === 0"
+                class="text-sm text-muted-foreground"
+            >
+                O placar é calculado todo dia depois que há sinais executados.
+            </p>
+            <div v-else class="overflow-x-auto rounded-2xl border bg-card">
+                <table class="w-full text-sm">
+                    <thead class="bg-muted/50 text-left text-muted-foreground">
+                        <tr>
+                            <th class="px-4 py-2 font-medium">Agente</th>
+                            <th class="px-4 py-2 text-right font-medium">
+                                Sinais
+                            </th>
+                            <th class="px-4 py-2 text-right font-medium">
+                                Acertos
+                            </th>
+                            <th class="px-4 py-2 text-right font-medium">
+                                Taxa
+                            </th>
+                            <th class="px-4 py-2 text-right font-medium">
+                                Peso
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="row in agentScores"
+                            :key="row.agent"
+                            class="border-t"
+                        >
+                            <td class="px-4 py-2 font-medium">
+                                {{ agentLabels[row.agent] ?? row.agent }}
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">
+                                {{ row.signals }}
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">
+                                {{ row.hits }}
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">
+                                {{ (row.hit_rate * 100).toFixed(1) }}%
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">
+                                {{ row.weight.toFixed(2) }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </template>
 
         <div class="flex items-center justify-between">
             <Heading
