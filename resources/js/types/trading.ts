@@ -337,6 +337,7 @@ export type MicroLiquidationRow = {
     price: number | null;
     resting_sell_price: number | null;
     sell_failure: { reason: string; at: string; retry_at: string } | null;
+    sell_skip: string | null;
     odds: MicroTargetOdds | null;
 };
 

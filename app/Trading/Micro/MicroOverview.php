@@ -144,12 +144,13 @@ class MicroOverview
                 'price' => $row['price'] === null ? null : round($row['price'], 8),
                 'resting_sell_price' => $resting,
                 'sell_failure' => $this->trader->sellFailure($position),
+                'sell_skip' => $resting === null ? $this->trader->sellSkip($portfolio, $position) : null,
                 'odds' => $row['price'] === null ? null : ['target' => round($target, 8)] + $this->odds->estimate($position->asset, $row['price'], $target, $this->minutesLeft($portfolio, $position, $hold)),
             ];
         }
 
         foreach (Asset::query()->whereIn('id', array_diff($markedIds, array_keys($rows)))->orderBy('symbol')->get() as $asset) {
-            $rows[$asset->id] = ['asset_id' => $asset->id, 'symbol' => $asset->symbol, 'marked' => true, 'qty' => 0.0, 'cost' => null, 'sell_from' => null, 'price' => null, 'resting_sell_price' => null, 'sell_failure' => null, 'odds' => null];
+            $rows[$asset->id] = ['asset_id' => $asset->id, 'symbol' => $asset->symbol, 'marked' => true, 'qty' => 0.0, 'cost' => null, 'sell_from' => null, 'price' => null, 'resting_sell_price' => null, 'sell_failure' => null, 'sell_skip' => null, 'odds' => null];
         }
 
         return array_values($rows);

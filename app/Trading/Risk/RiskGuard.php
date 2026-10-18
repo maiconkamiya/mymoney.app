@@ -75,17 +75,18 @@ class RiskGuard
                 return RiskDecision::block('Venda a descoberto não é permitida.');
             }
 
-            if ($order->qty <= $held) {
-                return new RiskDecision(true, $order);
+            // Every sale stays on the pair's step: a quantity off the step is refused by the exchange (LOT_SIZE).
+            $lot = (float) $asset->lot_size;
+            $qty = min($order->qty, $held);
+            $qty = $lot > 0 ? floor(round($qty / $lot, 8)) * $lot : $qty;
+
+            if ($qty <= 0) {
+                return RiskDecision::block('Quantidade da posição abaixo do passo do par.');
             }
 
-            // The cut stays on the pair's step: a quantity off the step is refused by the exchange (LOT_SIZE).
-            $lot = (float) $asset->lot_size;
-            $held = $lot > 0 ? floor(round($held / $lot, 8)) * $lot : $held;
-
-            return $held > 0
-                ? new RiskDecision(true, $order->withQty($held), ['Quantidade limitada à posição.'])
-                : RiskDecision::block('Quantidade da posição abaixo do passo do par.');
+            return $order->qty > $held
+                ? new RiskDecision(true, $order->withQty($qty), ['Quantidade limitada à posição.'])
+                : new RiskDecision(true, abs($qty - $order->qty) > 1e-12 ? $order->withQty($qty) : $order);
         }
 
         if ($profile->require_stop && $order->stopPrice === null) {
