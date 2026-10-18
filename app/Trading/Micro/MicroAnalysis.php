@@ -61,11 +61,19 @@ class MicroAnalysis
 
         $entry = $reasons === [];
 
+        // The same four conditions, one by one, so the screen can show which pass and which block.
+        $checks = [
+            ['key' => 'trend', 'label' => 'Tendência de alta', 'ok' => $uptrend, 'detail' => $uptrend ? 'Média de 9 minutos acima da de 21, e a de 21 subindo.' : 'Médias de 9 e 21 minutos sem alta.'],
+            ['key' => 'support', 'label' => $distance <= $zone || ! $pullback ? 'Perto do suporte' : 'Recuo na tendência', 'ok' => $distance <= $zone || $pullback, 'detail' => sprintf('%.2f%% acima do suporte (zona de %.2f%%); %.2f%% da média de 9 minutos.', $distance, $zone, $stretch)],
+            ['key' => 'reach', 'label' => 'Alvo alcançável', 'ok' => $reachable, 'detail' => sprintf('Alvo bruto de %.2f%%; o par costuma andar %.2f%% em %d minutos.', $grossMarginPct, $reach, (int) config('trading.micro.max_hold_minutes'))],
+            ['key' => 'room', 'label' => 'Espaço até a resistência', 'ok' => $room >= $grossMarginPct, 'detail' => sprintf('%.2f%% de espaço para um alvo bruto de %.2f%%.', $room, $grossMarginPct)],
+        ];
+
         if ($entry) {
             $reasons[] = sprintf('Tendência de alta, %.2f%% acima do suporte (%s) e %.2f%% de espaço até a resistência.', $distance, $distance <= $zone ? 'perto do suporte' : 'recuo dentro da tendência', $room);
         }
 
-        return new MicroSetup($price, $atrPct, $uptrend, $support, $resistance, $distance, $room, $entry, $reach, $reasons);
+        return new MicroSetup($price, $atrPct, $uptrend, $support, $resistance, $distance, $room, $entry, $reach, $reasons, $checks);
     }
 
     /**

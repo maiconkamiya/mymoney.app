@@ -9,6 +9,7 @@ final readonly class MicroSetup
 {
     /**
      * @param  list<string>  $reasons  why it passes, or what blocks it
+     * @param  list<array{key: string, label: string, ok: bool, detail: string}>  $checks  each entry condition
      */
     public function __construct(
         public float $price,
@@ -21,6 +22,7 @@ final readonly class MicroSetup
         public bool $entry,
         public float $reachPct,
         public array $reasons,
+        public array $checks = [],
     ) {}
 
     /**
@@ -39,6 +41,7 @@ final readonly class MicroSetup
             'reach_pct' => round($this->reachPct, 4),
             'entry' => $this->entry,
             'reasons' => $this->reasons,
+            'checks' => $this->checks,
         ];
     }
 }
