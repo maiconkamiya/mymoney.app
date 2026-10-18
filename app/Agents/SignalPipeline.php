@@ -4,6 +4,7 @@ namespace App\Agents;
 
 use App\Agents\Consensus\ConsensusEngine;
 use App\Agents\Consensus\ConsensusResult;
+use App\Agents\Consensus\LateEntryCheck;
 use App\Agents\Data\Scenario;
 use App\Agents\Data\Vote;
 use App\Agents\Llm\LlmClient;
@@ -28,6 +29,7 @@ class SignalPipeline
         private readonly ConsensusEngine $consensus,
         private readonly OrderExecutor $executor,
         private readonly AgentActivityBroadcaster $broadcaster,
+        private readonly LateEntryCheck $lateEntry,
     ) {}
 
     public function analyze(Signal $signal): ?ConsensusResult
@@ -65,12 +67,14 @@ class SignalPipeline
         }
 
         $result = $this->consensus->decide($finalVotes, $signal->portfolio->riskProfile, $this->weights($signal), (int) config('trading.consensus.min_voters'));
+        $stop = $this->median($finalVotes, $result, 'stop');
+        $result = $this->checkLateEntry($result, $scenario, $stop);
 
         $signal->update([
             'score' => $result->score,
             'calculation' => $result->calculation,
             'side' => $result->side,
-            'stop_price' => $this->median($finalVotes, $result, 'stop'),
+            'stop_price' => $stop,
             'target_price' => $this->median($finalVotes, $result, 'target'),
         ]);
         $signal->moveTo(SignalStage::Analyzed);
@@ -96,6 +100,30 @@ class SignalPipeline
         }
 
         return $result;
+    }
+
+    /**
+     * A buy also has to pass the late-entry rule: room up to the probable
+     * ceiling against the risk, and distance from the 21-period EMA. Its
+     * numbers go to the worksheet whenever the vote points to a buy.
+     */
+    private function checkLateEntry(ConsensusResult $result, Scenario $scenario, ?float $stop): ConsensusResult
+    {
+        if ($result->side !== OrderSide::Buy) {
+            return $result;
+        }
+
+        $check = $this->lateEntry->check($scenario->chart['extension'] ?? null, $scenario->price, $stop);
+
+        if ($check === null) {
+            return $result;
+        }
+
+        $calculation = [...($result->calculation ?? []), 'late_entry' => [...$check['details'], 'blocked' => $check['blocked']]];
+
+        return $result->approved && $check['blocked']
+            ? new ConsensusResult(false, $result->side, $result->score, $result->agreeing, false, (string) $check['reason'], $calculation)
+            : new ConsensusResult($result->approved, $result->side, $result->score, $result->agreeing, $result->vetoed, $result->reason, $calculation);
     }
 
     /**

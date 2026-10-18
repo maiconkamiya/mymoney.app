@@ -102,6 +102,10 @@ const when = (iso: string) =>
                 Entrada {{ money(signal.entry_price, market) }} · stop
                 {{ money(signal.stop_price, market) }} · alvo
                 {{ money(signal.target_price, market) }}
+                <template v-if="signal.calculation?.late_entry">
+                    · teto provável
+                    {{ money(signal.calculation.late_entry.ceiling, market) }}
+                </template>
             </p>
 
             <ul

@@ -63,6 +63,19 @@ export type SignalCalculation = {
     min_voters: number;
     agreeing: number;
     quorum: number;
+    late_entry?: {
+        ceiling: number;
+        ceiling_source: string | null;
+        room_pct: number | null;
+        stop: number;
+        reward_risk: number;
+        min_reward_risk: number;
+        ema21_distance_atr: number | null;
+        max_ema21_atr: number;
+        move_from_low_atr: number | null;
+        volume_fading: boolean | null;
+        blocked: boolean;
+    };
 };
 
 export type SignalRow = {
@@ -234,6 +247,8 @@ export type ChartAsset = {
     name: string | null;
     quote_currency: string;
     series: ChartCandle[];
+    /** Teto provável da alta no último sinal de compra das últimas 2 horas. */
+    ceiling: number | null;
     position: {
         qty: number;
         avg_price: number;
@@ -309,6 +324,7 @@ export type MicroOverview = {
     cycles: MicroCycleRow[];
     liquidation: MicroLiquidationRow[];
     liquidation_blocked: string | null;
+    sell_fee_rate: number;
 };
 
 export type MicroLiquidationRow = {
@@ -321,6 +337,18 @@ export type MicroLiquidationRow = {
     price: number | null;
     resting_sell_price: number | null;
     sell_failure: { reason: string; at: string; retry_at: string } | null;
+    odds: MicroTargetOdds | null;
+};
+
+/** Frequência, nos últimos 30 dias, de o par subir até o valor da venda dentro da janela. */
+export type MicroTargetOdds = {
+    target: number;
+    pct: number | null;
+    distance_pct: number;
+    distance_atr: number | null;
+    minutes: number;
+    samples: number;
+    reason: string;
 };
 
 export type AssetRow = {

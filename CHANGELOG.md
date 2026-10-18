@@ -4,7 +4,7 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.55] - 2026-10-18
+## [0.3.57] - 2026-10-18
 
 ### Adicionado
 
@@ -12,6 +12,21 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 - **Acompanhar ou mandar aos agentes com um clique.** "Acompanhar" coloca o par nos ativos acompanhados da carteira escolhida e baixa 30 dias de velas. "Mandar aos agentes" pede uma análise completa do par uma vez, sem acompanhar.
 - **Envio automático das 3 melhores, por carteira.** Ligando a opção na tela Ativos, as 3 melhores de cada varredura vão sozinhas aos agentes daquela carteira, com nota mínima, no máximo 12 envios por dia e uma vez a cada 6 horas por par. O explorador nunca compra: a compra, se vier, passa pelo consenso, pela guarda de risco e pelos limites da carteira real.
 - **Pares achados não entram sozinhos nas carteiras.** Um par cadastrado só pelo explorador aparece como "Achado", não entra nas carteiras que acompanham todos os ativos nem nas micro operações, e sai sozinho depois de 24 horas fora do topo se ninguém o acompanhar.
+
+## [0.3.56] - 2026-10-18
+
+### Adicionado
+
+- **Os agentes passam a estimar o teto provável de uma alta.** A leitura do gráfico calcula até onde o preço tende a ir (a resistência mais próxima; sem ela, a máxima recente; sem ela, o preço mais 2 ATR), a folga até esse teto, o quanto o preço já está acima da média de 21 e desde o último fundo, e se o volume cai enquanto o preço sobe. Os agentes de Risco e o Cético agora recebem esses números.
+- **Compra tardia é rejeitada.** Um sinal de compra aprovado pelos agentes é rejeitado com o motivo "Entrada tardia" quando o ganho até o teto provável é menor que 1,5 vez o risco até o stop, ou quando o preço está mais de 3 ATR acima da média de 21. Vale só para os sinais dos agentes; as micro operações seguem como antes.
+- **Teto no sinal e no gráfico.** O card do sinal mostra o teto provável ao lado de entrada, stop e alvo, e "Como o score foi calculado" mostra a conta da entrada tardia. Os gráficos da carteira desenham a linha "teto" do último sinal de compra das últimas 2 horas.
+
+## [0.3.55] - 2026-10-18
+
+### Adicionado
+
+- **Chance de alcançar o alvo em cada posição das micro operações.** Cada posição aberta no card mostra "Chance de alcançar o alvo de X em N min", quanto falta em % e em faixas médias de 1 minuto, e o motivo. A conta usa as velas de 1 minuto dos últimos 30 dias do próprio par: quantas vezes, partindo de momentos com volatilidade parecida com a de agora, o preço subiu a mesma distância dentro do tempo que resta do ciclo (ou 60 minutos para posição sem ciclo). É uma frequência do passado, não uma previsão, e não usa IA. Atualiza a cada minuto sem recarregar a página.
+- **Botão "Liquidar agora".** Vende a posição inteira a mercado pelo preço de agora, mesmo com prejuízo. Antes de vender, a tela mostra quanto você recebe e o resultado estimado com a taxa. A venda registrada na corretora é cancelada antes, a guarda de risco e o "Parar tudo" continuam valendo, e a saída aparece no histórico como "Liquidado à mão". Vale para posição com ou sem ciclo.
 
 ## [0.3.54] - 2026-10-18
 
