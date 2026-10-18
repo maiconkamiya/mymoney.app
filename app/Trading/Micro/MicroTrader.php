@@ -34,6 +34,8 @@ class MicroTrader
 {
     public const ACTOR = 'micro';
 
+    private const REALTIME_KEY = 'micro:realtime:alive';
+
     public function __construct(
         private readonly MicroRanker $ranker,
         private readonly MicroCosts $costs,
@@ -797,7 +799,8 @@ class MicroTrader
             side: OrderSide::Buy,
             qty: $this->entryQty($portfolio, $asset, $setup->price, $stopPct),
             stopPrice: $setup->price * (1 - $stopPct / 100),
-            clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHi'),
+            // Seconds too: the real-time engine may buy the same pair again within a minute.
+            clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHis'),
         );
     }
 
@@ -861,6 +864,59 @@ class MicroTrader
         }
 
         return true;
+    }
+
+    /**
+     * Positions of open cycles whose price reached the stop or the target (the
+     * resting sale may have executed). The real-time engine asks this every
+     * second; the time limit and the books are left to the whole run.
+     *
+     * @return list<int>
+     */
+    public function due(Portfolio $portfolio): array
+    {
+        $due = [];
+
+        $cycles = $portfolio->microCycles()->where('status', 'open')->with('position.asset')->get();
+
+        foreach ($cycles as $cycle) {
+            $position = $cycle->position;
+
+            if ($position === null || $position->closed_at !== null) {
+                continue;
+            }
+
+            $price = $this->prices->quote($position->asset)?->price;
+
+            if ($price === null) {
+                continue;
+            }
+
+            if ($price <= ($position->stop_price ?? $cycle->stop_price) || $price >= ($position->target_price ?? $cycle->target_price)) {
+                $due[] = $position->id;
+            }
+        }
+
+        return $due;
+    }
+
+    /**
+     * The real-time engine (`micro:watch`) says it is alive on every pass.
+     */
+    public static function markRealtime(): void
+    {
+        Cache::put(self::REALTIME_KEY, now()->toIso8601String(), now()->addMinutes(5));
+    }
+
+    /**
+     * Whether the real-time engine passed recently; while it does, the minute run stays as a reserve.
+     */
+    public static function realtimeAlive(): bool
+    {
+        $at = Cache::get(self::REALTIME_KEY);
+
+        return is_string($at) && strtotime($at) !== false
+            && Carbon::parse($at)->gte(now()->subSeconds((int) config('trading.micro.realtime.alive_seconds')));
     }
 
     /**

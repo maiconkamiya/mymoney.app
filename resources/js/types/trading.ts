@@ -355,6 +355,7 @@ export type MicroOverview = {
     state: { code: string; label: string };
     last_block: string | null;
     last_run: string | null;
+    realtime: boolean;
     scheduler_stale: boolean;
     margin_warning: string | null;
     skipped: { symbol: string; reason: string }[];

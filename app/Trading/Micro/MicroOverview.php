@@ -79,6 +79,8 @@ class MicroOverview
             'state' => $this->trader->state($portfolio),
             'last_block' => $this->trader->lastBlock($portfolio),
             'last_run' => $lastRun,
+            // O processo micro:watch (serviço mymoney-micro) passou há pouco; senão vale a rodada por minuto.
+            'realtime' => MicroTrader::realtimeAlive(),
             // Ligado e sem execução no último 3 minutos: o agendador (mymoney-schedule) não está rodando.
             'scheduler_stale' => $portfolio->micro_enabled && ($lastRun === null || Carbon::parse($lastRun)->lt(now()->subMinutes(3))),
             'today' => [
