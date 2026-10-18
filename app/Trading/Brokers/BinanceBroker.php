@@ -15,6 +15,8 @@ use App\Trading\Live\BinanceClient;
 use App\Trading\Live\LiveLimits;
 use App\Trading\Live\LiveTradingException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
+use Throwable;
 
 /**
  * Live spot execution on Binance. Every call re-checks the live guard rails,
@@ -150,7 +152,43 @@ class BinanceBroker implements Broker
         [$symbol, $orderId] = $this->split($externalId);
 
         // Reading an order moves no money: the reconciler and the resting sells still see it during "Parada geral".
-        return $this->toResult($symbol, $this->readClient()->signed('GET', '/api/v3/order', ['symbol' => $symbol, 'orderId' => $orderId]));
+        $client = $this->readClient();
+        $response = $client->signed('GET', '/api/v3/order', ['symbol' => $symbol, 'orderId' => $orderId]);
+
+        // The order query carries no fills: the commission of what executed is in the order's trades.
+        if (! isset($response['fills']) && (float) ($response['executedQty'] ?? 0) > 0) {
+            $response['fills'] = $this->trades($client, $symbol, $orderId);
+        }
+
+        return $this->toResult($symbol, $response);
+    }
+
+    /**
+     * Trades of one order, with their commission. Empty when they cannot be
+     * read, so the fee falls back to the configured rate.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function trades(BinanceClient $client, string $symbol, string $orderId): array
+    {
+        try {
+            $rows = $client->signed('GET', '/api/v3/myTrades', ['symbol' => $symbol, 'orderId' => $orderId]);
+        } catch (Throwable) {
+            return [];
+        }
+
+        return array_values(array_filter($rows, fn ($row) => is_array($row) && isset($row['commission'], $row['commissionAsset'], $row['price'], $row['qty'])));
+    }
+
+    /**
+     * Reads the commission of an executed order already in the app.
+     */
+    public function orderFees(string $externalId): ?float
+    {
+        [$symbol, $orderId] = $this->split($externalId);
+        $trades = $this->trades($this->readClient(), $symbol, $orderId);
+
+        return $trades === [] ? null : $this->fees($symbol, $trades, null, 0.0);
     }
 
     public function getBalances(): array
@@ -219,7 +257,7 @@ class BinanceBroker implements Broker
             externalId: $symbol.':'.$response['orderId'],
             filledQty: $executed,
             avgPrice: $avg,
-            fees: $this->fees($symbol, $response['fills'] ?? [], $avg),
+            fees: $this->fees($symbol, $response['fills'] ?? [], $avg, $executed),
             filledAt: $executed > 0 && isset($response['transactTime']) ? Carbon::createFromTimestampMs($response['transactTime']) : ($executed > 0 ? now() : null),
             rejectReason: $status === OrderStatus::Rejected ? 'Recusada pela Binance.' : null,
         );
@@ -227,26 +265,53 @@ class BinanceBroker implements Broker
 
     /**
      * Commissions in the quote asset count as is, in the base asset at the fill
-     * price. Commissions in another asset (such as BNB) are not converted.
+     * price and in another asset (such as BNB) at its USDT price. A fill whose
+     * commission cannot be priced, or an executed order with no fills at all,
+     * is charged the configured rate: never zero.
      *
      * @param  list<array<string, mixed>>  $fills
      */
-    private function fees(string $symbol, array $fills, ?float $avg): float
+    private function fees(string $symbol, array $fills, ?float $avg, float $executed): float
     {
+        $rate = (float) config('trading.costs.crypto.fee_rate');
+
+        if ($fills === []) {
+            return round($executed * ($avg ?? 0) * $rate, 8);
+        }
+
         $total = 0.0;
 
         foreach ($fills as $fill) {
             $asset = (string) $fill['commissionAsset'];
             $commission = (float) $fill['commission'];
+            $price = (float) $fill['price'];
 
             if (str_starts_with($symbol, $asset)) {
-                $total += $commission * ($avg ?? (float) $fill['price']);
+                $total += $commission * ($avg ?? $price);
             } elseif (str_ends_with($symbol, $asset)) {
                 $total += $commission;
+            } else {
+                $usdt = $commission > 0 ? $this->usdtPrice($asset) : 0.0;
+                $total += $usdt === null ? (float) $fill['qty'] * $price * $rate : $commission * $usdt;
             }
         }
 
         return round($total, 8);
+    }
+
+    /**
+     * Last USDT price of a coin, from the public endpoint; null when unknown.
+     */
+    private function usdtPrice(string $asset): ?float
+    {
+        try {
+            $price = Http::baseUrl(config('trading.binance.base_url'))->timeout(10)
+                ->get('/api/v3/ticker/price', ['symbol' => $asset.'USDT'])->throw()->json('price');
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_numeric($price) && (float) $price > 0 ? (float) $price : null;
     }
 
     /**
