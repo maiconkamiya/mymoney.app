@@ -84,8 +84,21 @@ class SignalScanner
         return (bool) config('agents.enabled');
     }
 
+    /**
+     * With the switch on, a pair with an open micro cycle is left to the cycle's
+     * own target, stop and time: the swarm is not called for it (no tokens).
+     */
+    public static function waitsMicroCycle(Portfolio $portfolio, int $assetId): bool
+    {
+        return (bool) config('agents.wait_micro_cycle') && $portfolio->hasOpenMicroCycle($assetId);
+    }
+
     private function open(Portfolio $portfolio, Asset $asset, ?string $reason): ?Signal
     {
+        if (self::waitsMicroCycle($portfolio, $asset->id)) {
+            return null;
+        }
+
         $inFlight = $portfolio->signals()
             ->where('asset_id', $asset->id)
             ->whereIn('stage', [SignalStage::Scanned, SignalStage::Analyzed, SignalStage::Approved, SignalStage::Confirmed])

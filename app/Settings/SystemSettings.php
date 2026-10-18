@@ -34,6 +34,7 @@ class SystemSettings
         'agents.risk_needs_direction' => ['type' => 'bool'],
         'agents.skip_skeptic_on_late_entry' => ['type' => 'bool'],
         'agents.compact_json' => ['type' => 'bool'],
+        'agents.wait_micro_cycle' => ['type' => 'bool'],
         'news.b3_sources' => ['type' => 'bool'],
         'trading.b3_sync' => ['type' => 'bool'],
         'forecast.enabled' => ['type' => 'bool'],

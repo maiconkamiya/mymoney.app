@@ -9,6 +9,9 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 ### Adicionado
 
 - **Regra de entrada "Atual + alta em 24 h e 4 h" nas micro operações.** No card Micro operações, o campo "Regra de entrada" ganha uma terceira opção: a regra atual, com as mesmas saídas, que só compra se o par estiver acima do preço de 24 horas atrás e de 4 horas atrás. Os cards de Pares em foco mostram essa quinta condição com ✓ ou ✗ e a variação de cada período. Na carteira simulada pode ser escolhida já; na carteira real só depois de passar no backtest semanal. As carteiras existentes continuam na regra atual.
+### Corrigido
+
+- **O enxame não vende mais a posição de uma micro operação em andamento.** Enquanto um ciclo das micro operações está aberto num par, os agentes não analisam esse par na carteira, e quem decide a venda é o alvo, o stop e o tempo do ciclo. Hoje o enxame chegou a vender uma micro operação 2 segundos depois da compra. Se uma venda for aprovada pelos agentes nesse meio tempo, ela aparece no card de Sinais como rejeitada com o motivo "Ciclo micro aberto" e nada é vendido. Fim de negociação, "Parar tudo" e os botões "Liquidar com lucro" e "Liquidar agora" continuam vendendo. Também poupa tokens. Dá para voltar ao comportamento antigo em Configurações > Custos e serviços, chave "Enxame espera o ciclo micro", que começa **ligada**.
 
 ## [0.3.75] - 2026-10-18
 

@@ -71,6 +71,11 @@ const groups: { title: string; description: string; items: Item[] }[] = [
                 help: 'Envia os mesmos dados sem espaços de formatação: cerca de 15% menos tokens de entrada. O modelo lê igual.',
             },
             {
+                key: 'agents__wait_micro_cycle',
+                title: 'Enxame espera o ciclo micro',
+                help: 'Enquanto um ciclo das micro operações está aberto num par, o enxame não analisa esse par na carteira: quem decide a venda é o alvo, o stop e o tempo do ciclo. Uma venda aprovada nesse meio tempo é rejeitada com o motivo "Ciclo micro aberto". Poupa tokens. Fim de negociação, "Parar tudo" e os botões Liquidar continuam vendendo.',
+            },
+            {
                 key: 'explorer__ai__enabled',
                 title: 'Frase do explorador',
                 help: 'Uma frase do Haiku por rodada do explorador explicando cada par. Custa cerca de US$ 1 por mês.',
