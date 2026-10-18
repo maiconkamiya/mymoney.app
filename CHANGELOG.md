@@ -4,7 +4,7 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.54] - 2026-10-18
+## [0.3.55] - 2026-10-18
 
 ### Adicionado
 
@@ -12,6 +12,12 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 - **Acompanhar ou mandar aos agentes com um clique.** "Acompanhar" coloca o par nos ativos acompanhados da carteira escolhida e baixa 30 dias de velas. "Mandar aos agentes" pede uma análise completa do par uma vez, sem acompanhar.
 - **Envio automático das 3 melhores, por carteira.** Ligando a opção na tela Ativos, as 3 melhores de cada varredura vão sozinhas aos agentes daquela carteira, com nota mínima, no máximo 12 envios por dia e uma vez a cada 6 horas por par. O explorador nunca compra: a compra, se vier, passa pelo consenso, pela guarda de risco e pelos limites da carteira real.
 - **Pares achados não entram sozinhos nas carteiras.** Um par cadastrado só pelo explorador aparece como "Achado", não entra nas carteiras que acompanham todos os ativos nem nas micro operações, e sai sozinho depois de 24 horas fora do topo se ninguém o acompanhar.
+
+## [0.3.54] - 2026-10-18
+
+### Adicionado
+
+- **Comparação de variações do modelo de previsão.** Novo modo do treino (`php artisan forecast:train --experiments`) que testa, no mesmo backtest e com os mesmos critérios, o modelo com probabilidades calibradas, com variáveis extras, com filtro de volatilidade e com horizontes de 30, 60 e 240 minutos. Mostra uma tabela com acerto, erro de probabilidade, número de operações e retorno líquido por janela, e diz se alguma variação passou. Não grava modelo nem muda o que o Quantitativo vota hoje.
 
 ## [0.3.53] - 2026-10-18
 

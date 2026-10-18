@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use SplFileObject;
 
-#[Signature('forecast:train {--horizon= : Velas à frente (padrão: FORECAST_HORIZON)} {--days= : Dias de histórico (padrão: FORECAST_TRAINING_DAYS)} {--fee-bps=20 : Custo de ida e volta no backtest, em pontos-base}')]
+#[Signature('forecast:train {--horizon= : Velas à frente (padrão: FORECAST_HORIZON)} {--days= : Dias de histórico (padrão: FORECAST_TRAINING_DAYS)} {--fee-bps=20 : Custo de ida e volta no backtest, em pontos-base} {--experiments : Compara variações do modelo no backtest, sem gravar modelo}')]
 #[Description('Exporta candles e notícias, treina o modelo de previsão em Python e roda o backtest')]
 class TrainForecast extends Command
 {
@@ -30,16 +30,19 @@ class TrainForecast extends Command
 
         $feeBps = $this->option('fee-bps');
 
+        $experiments = (bool) $this->option('experiments');
+        $arguments = [
+            '--candles', $disk->path('forecast/candles.csv'),
+            '--news', $disk->path('forecast/news.csv'),
+            '--fee-bps', is_numeric($feeBps) ? (string) $feeBps : '20',
+        ];
+
         $result = Process::path(base_path('services/forecast'))
-            ->timeout(1800)
+            ->timeout($experiments ? 7200 : 1800)
             ->env(['FORECAST_MODEL_DIR' => $disk->path('forecast/models')])
-            ->run([
-                (string) config('forecast.python'), '-m', 'forecast.train',
-                '--candles', $disk->path('forecast/candles.csv'),
-                '--news', $disk->path('forecast/news.csv'),
-                '--horizon', (string) $horizon,
-                '--fee-bps', is_numeric($feeBps) ? (string) $feeBps : '20',
-            ]);
+            ->run($experiments
+                ? [(string) config('forecast.python'), '-m', 'forecast.experiments', ...$arguments]
+                : [(string) config('forecast.python'), '-m', 'forecast.train', ...$arguments, '--horizon', (string) $horizon]);
 
         $this->line(trim($result->output()));
 

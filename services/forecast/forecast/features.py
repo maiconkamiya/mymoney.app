@@ -65,6 +65,43 @@ def build_features(frame: pd.DataFrame, sentiment: pd.Series | float = 0.0) -> p
     return out.replace([np.inf, -np.inf], np.nan)[FEATURES]
 
 
+EXTRA_FEATURES = [
+    "ret_60",
+    "ret_240",
+    "vol_240",
+    "vol_ratio",
+    "close_pos",
+    "volume_z",
+    "dist_high_240",
+    "dist_low_240",
+]
+
+
+def build_extra_features(frame: pd.DataFrame) -> pd.DataFrame:
+    """Variáveis extras dos experimentos (`forecast.experiments`); olham só até a vela t, como as demais.
+
+    Janelas de até 240 velas: ainda não servem à previsão ao vivo, que recebe 61 velas.
+    """
+    close = frame["close"]
+    log_ret = np.log(close).diff()
+    vol_15 = log_ret.rolling(15).std()
+    vol_60 = log_ret.rolling(60).std()
+    spread = (frame["high"] - frame["low"]).replace(0, np.nan)
+    volume_mean = frame["volume"].rolling(60).mean()
+    volume_std = frame["volume"].rolling(60).std().replace(0, np.nan)
+
+    out = pd.DataFrame(index=frame.index)
+    out["ret_60"] = close.pct_change(60)
+    out["ret_240"] = close.pct_change(240)
+    out["vol_240"] = log_ret.rolling(240).std()
+    out["vol_ratio"] = vol_15 / vol_60.replace(0, np.nan)
+    out["close_pos"] = (close - frame["low"]) / spread
+    out["volume_z"] = (frame["volume"] - volume_mean) / volume_std
+    out["dist_high_240"] = close / frame["high"].rolling(240).max() - 1
+    out["dist_low_240"] = close / frame["low"].rolling(240).min() - 1
+    return out.replace([np.inf, -np.inf], np.nan)[EXTRA_FEATURES]
+
+
 def add_label(frame: pd.DataFrame, horizon: int) -> pd.Series:
     """1 se o fechamento `horizon` velas à frente é maior que o atual; NaN nas últimas velas."""
     future = frame["close"].shift(-horizon)

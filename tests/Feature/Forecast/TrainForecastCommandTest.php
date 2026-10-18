@@ -36,6 +36,16 @@ class TrainForecastCommandTest extends TestCase
             && str_contains(implode(' ', (array) $process->command), '--horizon 10'));
     }
 
+    public function test_experiments_run_the_comparison_module_without_training()
+    {
+        Process::fake(['*' => Process::result('tabela')]);
+
+        $this->artisan('forecast:train', ['--experiments' => true])->assertSuccessful();
+
+        Process::assertRan(fn (PendingProcess $process) => str_contains(implode(' ', (array) $process->command), '-m forecast.experiments')
+            && ! str_contains(implode(' ', (array) $process->command), '--horizon'));
+    }
+
     public function test_reports_failure_from_the_trainer()
     {
         Process::fake(['*' => Process::result(errorOutput: 'sem dados', exitCode: 1)]);
