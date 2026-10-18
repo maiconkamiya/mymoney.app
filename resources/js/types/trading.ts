@@ -105,6 +105,8 @@ export type PositionRow = {
     trading_ends_on: string | null;
     trading_ended: boolean;
     delisting_block: string | null;
+    /** Real position worth less than the pair's minimum now: the app cannot sell it at market. */
+    below_minimum: string | null;
 };
 
 export type AccountHolding = {
@@ -391,6 +393,7 @@ export type MicroLiquidationRow = {
     resting_sell_price: number | null;
     sell_failure: { reason: string; at: string; retry_at: string } | null;
     sell_skip: string | null;
+    below_minimum: string | null;
     odds: MicroTargetOdds | null;
 };
 

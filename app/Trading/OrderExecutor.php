@@ -137,7 +137,8 @@ class OrderExecutor
     {
         // Below the pair's minimum the exchange refuses a market sale: nothing is cancelled nor sent.
         if (($blocked = $this->belowMinimum($position, $this->prices->quote($position->asset)?->price)) !== null) {
-            $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'detail' => $blocked]);
+            // The detail carries the price and changes every minute: the code keeps it to one log an hour.
+            $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'code' => 'below_minimum', 'detail' => $blocked]);
 
             return null;
         }
@@ -185,17 +186,21 @@ class OrderExecutor
     /**
      * The exits job retries every minute; log the same block once an hour, not once a minute.
      *
-     * @param  array<string, string>  $payload
+     * @param  array<string, string>  $payload  with a `code`, the same reason and code count as the same block
      */
     private function logCloseBlocked(Position $position, string $actor, array $payload): void
     {
+        $same = fn (array $logged): bool => isset($payload['code'])
+            ? ($logged['reason'] ?? null) === $payload['reason'] && ($logged['code'] ?? null) === $payload['code']
+            : $logged === $payload;
+
         $repeated = AuditLog::query()
             ->where('action', 'position.close_blocked')
             ->where('subject_type', $position->getMorphClass())
             ->where('subject_id', $position->getKey())
             ->where('created_at', '>=', now()->subHour())
             ->get()
-            ->contains(fn (AuditLog $log) => $log->payload === $payload);
+            ->contains(fn (AuditLog $log) => is_array($log->payload) && $same($log->payload));
 
         if (! $repeated) {
             AuditLog::record($actor, 'position.close_blocked', $position, $payload);

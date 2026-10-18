@@ -21,6 +21,7 @@ use App\Reports\TaxReport;
 use App\Trading\Contracts\PriceFeed;
 use App\Trading\Live\LiveLimits;
 use App\Trading\Micro\MicroOverview;
+use App\Trading\Micro\MicroTrader;
 use App\Trading\PortfolioCharts;
 use App\Trading\PortfolioValuation;
 use App\Trading\PositionExits;
@@ -144,7 +145,7 @@ class PortfolioController extends Controller
         return to_route('portfolios.index');
     }
 
-    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt, MicroOverview $micro, PriceFeed $prices, TokenUsage $tokens): Response
+    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt, MicroOverview $micro, MicroTrader $trader, PriceFeed $prices, TokenUsage $tokens): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
@@ -185,7 +186,7 @@ class PortfolioController extends Controller
                 'halted' => $halt->isHalted(),
             ] : null,
             // Preço da última vela gravada (a mesma do canal `mercado`); a tela segue o canal depois.
-            'positions' => fn () => $portfolio->openPositions()->with('asset')->get()->map(function (Position $position) use ($prices, $holdings) {
+            'positions' => fn () => $portfolio->openPositions()->with('asset')->get()->map(function (Position $position) use ($prices, $holdings, $portfolio, $trader) {
                 $last = $prices->quote($position->asset)->price
                     ?? $holdings->get(preg_replace('/USDT$/', '', $position->asset->symbol))['price'] ?? null;
 
@@ -200,6 +201,7 @@ class PortfolioController extends Controller
                     'trading_ends_on' => $position->asset->trading_ends_on?->toDateString(),
                     'trading_ended' => $position->asset->tradingEnded(),
                     'delisting_block' => $position->asset->tradingEnded() ? PositionExits::delistingBlock($position) : null,
+                    'below_minimum' => $trader->belowMinimumNotice($position->setRelation('portfolio', $portfolio), $last === null ? null : (float) $last),
                 ];
             }),
             'account_sync' => fn () => $portfolio->broker === 'binance' && $portfolio->mode === PortfolioMode::Live ? [

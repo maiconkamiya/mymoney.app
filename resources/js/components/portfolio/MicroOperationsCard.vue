@@ -545,6 +545,13 @@ const time = (iso: string) =>
                             {{ time(row.sell_failure.retry_at) }}.
                         </span>
                         <span
+                            v-if="row.qty > 0 && row.below_minimum"
+                            class="text-amber-400"
+                            :data-test="`micro-below-minimum-${row.symbol}`"
+                        >
+                            {{ row.below_minimum }}
+                        </span>
+                        <span
                             v-if="row.qty > 0 && row.odds"
                             class="flex flex-col gap-0.5"
                             :data-test="`micro-odds-${row.symbol}`"

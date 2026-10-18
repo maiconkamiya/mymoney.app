@@ -213,6 +213,8 @@ return [
         // (faixa média por minuto vezes a raiz do tempo limite em minutos).
         'reach_factor' => 2.0,
         'stop_ratio' => 1.0,
+        // Carteira real: a compra cobre o mínimo do par mesmo vendida no stop com este deslize a mais (#175).
+        'stop_slippage_pct' => (float) env('TRADING_MICRO_STOP_SLIPPAGE_PCT', 0.5),
         'max_candle_age_seconds' => 150,
 
         // Regra "Tendência com recuo": EMA21 de 1 h subindo, EMA9 acima da EMA21 em 15 min, entrada

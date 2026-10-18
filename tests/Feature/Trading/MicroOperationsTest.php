@@ -1267,4 +1267,111 @@ class MicroOperationsTest extends TestCase
         $this->assertTrue($decision->allowed);
         $this->assertSame(39.0, $decision->order->qty);
     }
+
+    /**
+     * A real portfolio with a 5 USDT stake on a pair with a 5 USDT minimum, and
+     * a fake Binance that fills each market order with the quantity it was sent
+     * at the last candle's price and holds what was bought.
+     */
+    private function liveFiveUsdt(float $stopPct): Portfolio
+    {
+        config(['trading.live.enabled' => true]);
+        config(['trading.micro.stop_ratio' => $stopPct / app(MicroCosts::class)->grossMarginPct(0.2)]);
+        $this->asset->update(['lot_size' => '0.0001', 'tick_size' => '0.01', 'min_qty' => '0.0001', 'min_notional' => '5']);
+        $user = User::factory()->create();
+        $credential = BrokerCredential::create(['user_id' => $user->id, 'broker' => 'binance', 'label' => 'x', 'api_key' => 'k', 'api_secret' => 's', 'can_withdraw' => false, 'verified_at' => now()]);
+        $held = '0';
+        $limit = 'NEW';
+
+        Http::fake(function (Request $request) use (&$held, &$limit) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            $url = $request->url();
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+            $price = (string) Candle::where('asset_id', $this->asset->id)->latest('open_at')->value('close');
+
+            return match (true) {
+                $path === '/api/v3/time' => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+                $path === '/api/v3/ticker/price' => Http::response([]),
+                $path === '/api/v3/account' => Http::response(['balances' => [['asset' => 'DOGE', 'free' => $held, 'locked' => '0'], ['asset' => 'USDT', 'free' => '30', 'locked' => '0']]]),
+                $request->method() === 'POST' && str_contains($url, 'type=LIMIT') => Http::response(['orderId' => 2, 'status' => 'NEW', 'executedQty' => '0', 'cummulativeQuoteQty' => '0', 'fills' => []]),
+                $request->method() === 'POST' => (function () use ($query, $price, &$held) {
+                    $held = str_contains($query['side'] ?? '', 'BUY') ? $query['quantity'] : '0';
+
+                    return Http::response(['orderId' => 3, 'status' => 'FILLED', 'executedQty' => $query['quantity'], 'cummulativeQuoteQty' => (string) ((float) $query['quantity'] * (float) $price), 'transactTime' => now()->getTimestampMs(), 'fills' => [['price' => $price, 'qty' => $query['quantity'], 'commission' => '0', 'commissionAsset' => 'USDT']]]);
+                })(),
+                $request->method() === 'DELETE' => Http::response(['orderId' => 2, 'status' => $limit = 'CANCELED']),
+                default => Http::response(['orderId' => 2, 'status' => $limit, 'executedQty' => '0', 'cummulativeQuoteQty' => '0']),
+            };
+        });
+
+        return $this->micro(['user_id' => $user->id, 'mode' => 'live', 'broker' => 'binance', 'broker_credential_id' => $credential->id, 'auto_execute' => true, 'live_auto_confirmed_at' => now(), 'cash' => 50, 'initial_cash' => 50, 'micro_order_value' => 5]);
+    }
+
+    public function test_a_five_usdt_stake_is_sized_so_the_sale_at_a_3_5_pct_stop_still_reaches_the_minimum()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->liveFiveUsdt(3.5);
+
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+
+        $buy = Order::where('side', OrderSide::Buy)->sole();
+        $cycle = MicroCycle::sole();
+        // 5 / (1 - 3.5% - 0.5% de deslize) = 5.21 USDT, not the 5.05 of the old 1% margin.
+        $this->assertGreaterThanOrEqual(5 / 0.96, $buy->qty * $buy->price);
+        $this->assertLessThan(5.5, $buy->qty * $buy->price);
+
+        // The price falls 3.5% to the stop: the market sale is still worth the minimum and goes out.
+        $this->advanceTo($cycle->stop_price);
+        app(PositionExits::class)->checkStopsAndTargets();
+
+        $sale = Order::where('side', OrderSide::Sell)->where('type', OrderType::Market)->sole();
+        $this->assertSame('stop', $sale->reason);
+        $this->assertSame(OrderStatus::Filled, $sale->status);
+        $this->assertGreaterThanOrEqual(5.0, $sale->qty * $sale->price);
+        $this->assertSame(0, AuditLog::where('action', 'position.close_blocked')->count());
+    }
+
+    public function test_a_stake_that_cannot_cover_the_stop_does_not_enter_and_says_why()
+    {
+        $this->candles($this->asset);
+        // 5 / (1 - 20% - 0.5%) = 6.29 USDT, more than 10% above the 5 USDT stake.
+        $portfolio = $this->liveFiveUsdt(20.0);
+
+        $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
+        $this->assertSame(0, Order::count());
+        $this->assertStringContainsString('aporte não cobre o stop', (string) app(MicroTrader::class)->lastBlock($portfolio));
+
+        $focus = collect(app(MicroOverview::class)->for($portfolio)['focus'])->firstWhere('symbol', 'DOGEUSDT');
+        $this->assertStringContainsString('aporte não cobre o stop', (string) $focus['blocked']);
+
+        Artisan::call('micro:run', ['--explain' => true]);
+        $this->assertStringContainsString('aporte não cobre o stop', Artisan::output());
+    }
+
+    public function test_a_position_stuck_under_the_minimum_is_flagged_and_logged_once_an_hour_and_other_users_get_403()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->liveFiveUsdt(1.0);
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+        $cycle = MicroCycle::sole();
+
+        // A gap of 3.5% below the entry: the sale would be worth ~4.9 USDT, under the 5 USDT minimum.
+        $this->advanceTo($cycle->entry_price * 0.965);
+        app(PositionExits::class)->checkStopsAndTargets();
+        $this->advanceTo($cycle->entry_price * 0.964);
+        $this->travel(1)->minutes();
+        app(PositionExits::class)->checkStopsAndTargets();
+
+        $this->assertSame(0, Order::where('side', OrderSide::Sell)->where('type', OrderType::Market)->count());
+        $this->assertSame(1, AuditLog::where('action', 'position.close_blocked')->count());
+        // The limit sale at the target is not cancelled: it is the way out.
+        $this->assertSame(OrderStatus::Pending, Order::where('type', OrderType::Limit)->sole()->status);
+
+        $row = collect(app(MicroOverview::class)->for($portfolio)['liquidation'])->firstWhere('symbol', 'DOGEUSDT');
+        $this->assertStringContainsString('Abaixo do mínimo da Binance', (string) $row['below_minimum']);
+
+        $this->actingAs(User::factory()->create())->get(route('portfolios.show', $portfolio))->assertForbidden();
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
+            ->where('positions.0.below_minimum', fn ($notice) => str_contains((string) $notice, 'saída só pelo alvo')));
+    }
 }
