@@ -3,6 +3,7 @@ import { echoIsConfigured, useEcho, useEchoPublic } from '@laravel/echo-vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PortfolioChartsController from '@/actions/App/Http/Controllers/PortfolioChartsController';
 import AssetChart from '@/components/portfolio/AssetChart.vue';
+import type { AssetChartMode } from '@/components/portfolio/AssetChart.vue';
 import Heading from '@/components/Heading.vue';
 import {
     applyKline,
@@ -34,6 +35,30 @@ const charts = ref<PortfolioCharts>(props.initial);
 const series = ref<Record<string, ChartCandle[]>>(
     Object.fromEntries(props.initial.assets.map((a) => [a.symbol, a.series])),
 );
+const MODE_KEY = 'mymoney.graficos.modo';
+const chartMode = ref<AssetChartMode>(readMode());
+
+/** Linha ou velas: escolha de cada pessoa, lembrada neste navegador. */
+function readMode(): AssetChartMode {
+    try {
+        return localStorage.getItem(MODE_KEY) === 'candles'
+            ? 'candles'
+            : 'line';
+    } catch {
+        return 'line';
+    }
+}
+
+function setMode(mode: AssetChartMode) {
+    chartMode.value = mode;
+
+    try {
+        localStorage.setItem(MODE_KEY, mode);
+    } catch {
+        // Sem armazenamento (aba anônima): vale só nesta visita.
+    }
+}
+
 const flash = ref<Record<string, 'up' | 'down' | null>>({});
 const socketUp = ref(false);
 const serverLive = ref(false);
@@ -327,18 +352,47 @@ onBeforeUnmount(() => {
             <Heading
                 variant="small"
                 title="Ativos em tempo real"
-                description="Preço por minuto dos ativos que a carteira opera. Linhas tracejadas marcam o preço médio, o stop e o alvo (ou a venda registrada) das posições abertas."
+                description="Preço por minuto dos ativos que a carteira opera, em linha ou em velas. Linhas tracejadas marcam o preço médio, o stop e o alvo (ou a venda registrada) das posições abertas."
             />
-            <p
-                class="flex items-center gap-2 text-xs text-muted-foreground"
-                data-testid="charts-status"
-            >
-                <span
-                    class="size-1.5 rounded-full"
-                    :class="status.live ? 'bg-up' : 'bg-muted-foreground/50'"
-                />
-                {{ status.text }}
-            </p>
+            <div class="flex items-center gap-3">
+                <div
+                    class="inline-flex rounded-lg border p-0.5 text-xs"
+                    role="group"
+                    aria-label="Tipo de gráfico"
+                    data-testid="chart-mode"
+                >
+                    <button
+                        v-for="option in [
+                            { value: 'line', label: 'Linha' },
+                            { value: 'candles', label: 'Velas' },
+                        ] as const"
+                        :key="option.value"
+                        type="button"
+                        class="rounded-md px-2.5 py-1 transition-colors"
+                        :class="
+                            chartMode === option.value
+                                ? 'bg-muted font-medium text-foreground'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                        :aria-pressed="chartMode === option.value"
+                        @click="setMode(option.value)"
+                    >
+                        {{ option.label }}
+                    </button>
+                </div>
+                <p
+                    class="flex items-center gap-2 text-xs text-muted-foreground"
+                    data-testid="charts-status"
+                >
+                    <span
+                        class="size-1.5 rounded-full"
+                        :class="
+                            status.live ? 'bg-up' : 'bg-muted-foreground/50'
+                        "
+                    />
+                    {{ status.text }}
+                </p>
+            </div>
         </div>
 
         <p v-if="cards.length === 0" class="text-sm text-muted-foreground">
@@ -413,6 +467,7 @@ onBeforeUnmount(() => {
                                 : 'alvo'
                         "
                         :format="card.fmt"
+                        :mode="chartMode"
                     />
                 </div>
             </article>

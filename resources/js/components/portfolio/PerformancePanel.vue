@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import type { ApexAxisChartSeries, ApexOptions } from 'apexcharts';
 import { computed } from 'vue';
+import ApexChart from '@/components/charts/ApexChart.vue';
 import Heading from '@/components/Heading.vue';
+import { baseOptions, mergeOptions, useChartPalette } from '@/lib/charts';
 import { agentLabels, money, percent } from '@/lib/trading';
 import type { AgentScoreRow, Performance, TaxMonth } from '@/types';
 
@@ -12,31 +15,66 @@ const props = defineProps<{
     taxMonths: TaxMonth[];
 }>();
 
-const width = 600;
-const height = 160;
+const palette = useChartPalette();
 
-const path = computed(() => {
-    const curve = props.performance.curve;
-    const values = curve.flatMap((p) =>
-        p.benchmark === null ? [p.equity] : [p.equity, p.benchmark],
+const options = computed<ApexOptions>(() => {
+    const p = palette.value;
+
+    return mergeOptions(baseOptions(p), {
+        chart: { type: 'line' },
+        colors: [p.primary, p.muted],
+        stroke: { width: [2, 1.5], dashArray: [0, 4] },
+        markers: { size: 0, hover: { size: 3 } },
+        xaxis: {
+            labels: {
+                formatter: (value: string | number) =>
+                    new Date(Number(value)).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                    }),
+            },
+        },
+        yaxis: {
+            tickAmount: 3,
+            labels: {
+                formatter: (value: number) => money(value, props.market),
+            },
+        },
+        tooltip: {
+            shared: true,
+            x: {
+                formatter: (value: number) =>
+                    new Date(value).toLocaleDateString('pt-BR'),
+            },
+            y: { formatter: (value: number) => money(value, props.market) },
+        },
+    });
+});
+
+/** Datas dos snapshots ao meio-dia local, para o eixo não pular um dia pelo fuso. */
+const at = (date: string) =>
+    new Date(`${date.slice(0, 10)}T12:00:00`).getTime();
+
+const series = computed<ApexAxisChartSeries>(() => {
+    // Em ordem de data: o eixo é de tempo, um ponto fora de ordem riscaria o gráfico de volta.
+    const curve = [...props.performance.curve].sort((a, b) =>
+        a.date.localeCompare(b.date),
     );
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const span = max - min || 1;
-    const x = (i: number) =>
-        curve.length < 2 ? width / 2 : (i / (curve.length - 1)) * width;
-    const y = (v: number) => height - ((v - min) / span) * height;
-    const line = (pick: (p: (typeof curve)[number]) => number | null) =>
-        curve
-            .map((p, i) => ({ i, v: pick(p) }))
-            .filter((p): p is { i: number; v: number } => p.v !== null)
-            .map((p, n) => `${n === 0 ? 'M' : 'L'}${x(p.i)},${y(p.v)}`)
-            .join(' ');
+    const out: ApexAxisChartSeries = [
+        {
+            name: 'Carteira',
+            data: curve.map((point) => [at(point.date), point.equity]),
+        },
+    ];
 
-    return {
-        equity: line((p) => p.equity),
-        benchmark: line((p) => p.benchmark),
-    };
+    if (curve.some((point) => point.benchmark !== null)) {
+        out.push({
+            name: props.performance.benchmark ?? 'Benchmark',
+            data: curve.map((point) => [at(point.date), point.benchmark]),
+        });
+    }
+
+    return out;
 });
 
 const taxUrl = computed(
@@ -86,30 +124,19 @@ const taxUrl = computed(
         </div>
 
         <div class="rounded-2xl border bg-card p-4">
-            <svg
-                :viewBox="`0 0 ${width} ${height}`"
-                class="h-40 w-full"
-                preserveAspectRatio="none"
-                role="img"
-                aria-label="Curva de patrimônio"
+            <ApexChart
+                v-if="performance.curve.length >= 2"
+                :options="options"
+                :series="series"
+                :height="160"
+                label="Curva de patrimônio"
+            />
+            <div
+                v-else
+                class="flex h-40 items-center justify-center rounded-xl bg-muted/40 text-xs text-muted-foreground"
             >
-                <path
-                    v-if="path.benchmark"
-                    :d="path.benchmark"
-                    fill="none"
-                    class="stroke-muted-foreground"
-                    stroke-dasharray="4 3"
-                    stroke-width="1.5"
-                    vector-effect="non-scaling-stroke"
-                />
-                <path
-                    :d="path.equity"
-                    fill="none"
-                    class="stroke-primary"
-                    stroke-width="2"
-                    vector-effect="non-scaling-stroke"
-                />
-            </svg>
+                A curva aparece depois do segundo snapshot diário.
+            </div>
             <p class="mt-2 text-xs text-muted-foreground">
                 Linha cheia: carteira · tracejada:
                 {{ performance.benchmark ?? 'benchmark' }} (sem dados de

@@ -1,6 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import type { ApexAxisChartSeries, ApexOptions } from 'apexcharts';
+import { computed } from 'vue';
+import ApexChart from '@/components/charts/ApexChart.vue';
+import {
+    baseOptions,
+    hourMinute,
+    mergeOptions,
+    priceLine,
+    useChartPalette,
+} from '@/lib/charts';
 import type { ChartCandle } from '@/types';
+
+export type AssetChartMode = 'line' | 'candles';
 
 const props = defineProps<{
     data: ChartCandle[];
@@ -11,225 +22,175 @@ const props = defineProps<{
     targetLabel?: string;
     ceilingPrice?: number | null;
     format: (value: number) => string;
+    mode?: AssetChartMode;
 }>();
 
-const box = ref<HTMLElement | null>(null);
-const width = ref(360);
-let observer: ResizeObserver | null = null;
-
-onMounted(() => {
-    observer = new ResizeObserver(([entry]) => {
-        width.value = Math.max(240, Math.round(entry.contentRect.width));
-    });
-
-    if (box.value) {
-        observer.observe(box.value);
-    }
-});
-
-onBeforeUnmount(() => observer?.disconnect());
-
-const PAD = { top: 12, right: 8, bottom: 22, left: 8 };
 const HEIGHT = 168;
+const palette = useChartPalette();
+const mode = computed<AssetChartMode>(() => props.mode ?? 'line');
 
-const geo = computed(() => {
-    const d = props.data;
+const num = (v: number | null | undefined): number | null =>
+    typeof v === 'number' ? v : null;
 
-    if (d.length < 2) {
-        return null;
-    }
+/**
+ * Tudo o que muda as opções numa só chave de texto: enquanto as linhas e a cor
+ * não mudam, as opções não mudam e cada minuto novo só troca a série.
+ */
+const linesKey = computed(() =>
+    JSON.stringify({
+        up: props.up,
+        avg: num(props.avgPrice),
+        stop: num(props.stopPrice),
+        target: num(props.targetPrice),
+        targetLabel: props.targetLabel ?? 'alvo',
+        ceiling: num(props.ceilingPrice),
+        avgText:
+            num(props.avgPrice) === null
+                ? ''
+                : props.format(props.avgPrice as number),
+        stopText:
+            num(props.stopPrice) === null
+                ? ''
+                : props.format(props.stopPrice as number),
+        targetText:
+            num(props.targetPrice) === null
+                ? ''
+                : props.format(props.targetPrice as number),
+        ceilingText:
+            num(props.ceilingPrice) === null
+                ? ''
+                : props.format(props.ceilingPrice as number),
+    }),
+);
 
-    const W = width.value;
+/**
+ * Faixa do eixo de preço com as linhas de médio, stop, alvo e teto sempre
+ * visíveis. Arredondada para um passo fixo: só muda quando o preço sai dela,
+ * então a maioria dos minutos novos troca só a série.
+ */
+const range = computed(() => {
     const refs = [
         props.avgPrice,
         props.stopPrice,
         props.targetPrice,
         props.ceilingPrice,
     ].filter((v): v is number => typeof v === 'number');
-    const lo = Math.min(...d.map((c) => c[3]), ...refs);
-    const hi = Math.max(...d.map((c) => c[2]), ...refs);
-    const span = hi - lo || 1;
-    const x = (i: number) =>
-        PAD.left + (i / (d.length - 1)) * (W - PAD.left - PAD.right);
-    const y = (v: number) =>
-        PAD.top + (1 - (v - lo) / span) * (HEIGHT - PAD.top - PAD.bottom);
-    const line = d
-        .map(
-            (c, i) =>
-                `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(c[4]).toFixed(1)}`,
-        )
-        .join('');
-    const base = HEIGHT - PAD.bottom;
-    const area = `${line}L${x(d.length - 1).toFixed(1)},${base}L${PAD.left},${base}Z`;
-    const time = (i: number) =>
-        new Date(d[i][0]).toLocaleTimeString('pt-BR', {
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    const last = d[d.length - 1];
+    const lo = Math.min(...props.data.map((c) => c[3]), ...refs);
+    const hi = Math.max(...props.data.map((c) => c[2]), ...refs);
+    const span = hi - lo || Math.abs(hi) * 0.001 || 1;
+    const step = 10 ** Math.floor(Math.log10(span)) / 4;
 
-    return {
-        W,
-        line,
-        area,
-        base,
-        first: { x: PAD.left, label: time(0) },
-        lastLabel: time(d.length - 1),
-        end: { x: x(d.length - 1), y: y(last[4]) },
-        avg: typeof props.avgPrice === 'number' ? y(props.avgPrice) : null,
-        stop: typeof props.stopPrice === 'number' ? y(props.stopPrice) : null,
-        target:
-            typeof props.targetPrice === 'number' ? y(props.targetPrice) : null,
-        ceiling:
-            typeof props.ceilingPrice === 'number'
-                ? y(props.ceilingPrice)
-                : null,
-    };
+    return `${Math.floor((lo - span * 0.04) / step) * step}|${Math.ceil((hi + span * 0.04) / step) * step}`;
 });
 
-const color = computed(() => (props.up ? 'var(--up)' : 'var(--down)'));
-const gradientId = `fill-${Math.random().toString(36).slice(2, 8)}`;
+const options = computed<ApexOptions>(() => {
+    const [yMin, yMax] = range.value.split('|').map(Number);
+    const k = JSON.parse(linesKey.value) as {
+        up: boolean;
+        avg: number | null;
+        stop: number | null;
+        target: number | null;
+        targetLabel: string;
+        ceiling: number | null;
+        avgText: string;
+        stopText: string;
+        targetText: string;
+        ceilingText: string;
+    };
+    const p = palette.value;
+    const color = k.up ? p.up : p.down;
+    const lines = [
+        k.avg !== null &&
+            priceLine(k.avg, p.muted, `médio ${k.avgText}`, {
+                background: p.card,
+            }),
+        k.stop !== null &&
+            priceLine(k.stop, p.down, `stop ${k.stopText}`, {
+                opacity: 0.7,
+                background: p.card,
+            }),
+        k.target !== null &&
+            priceLine(k.target, p.up, `${k.targetLabel} ${k.targetText}`, {
+                opacity: 0.7,
+                background: p.card,
+            }),
+        k.ceiling !== null &&
+            priceLine(k.ceiling, p.foreground, `teto ${k.ceilingText}`, {
+                dash: 2,
+                opacity: 0.5,
+                align: 'right',
+                background: p.card,
+            }),
+    ].filter((line) => line !== false);
+    const candles = mode.value === 'candles';
+
+    return mergeOptions(baseOptions(p), {
+        chart: { type: candles ? 'candlestick' : 'area' },
+        colors: [color],
+        stroke: { width: candles ? 1 : 2 },
+        fill: candles
+            ? { type: 'solid', opacity: 1 }
+            : {
+                  type: 'gradient',
+                  gradient: {
+                      shadeIntensity: 0,
+                      opacityFrom: 0.22,
+                      opacityTo: 0,
+                      stops: [0, 100],
+                  },
+              },
+        plotOptions: {
+            candlestick: {
+                colors: { upward: p.up, downward: p.down },
+                wick: { useFillColor: true },
+            },
+        },
+        markers: { size: 0, hover: { size: 3 } },
+        grid: { show: false, padding: { left: 16, right: 16 } },
+        xaxis: { tickAmount: 2, labels: { hideOverlappingLabels: true } },
+        yaxis: { show: false, min: yMin, max: yMax },
+        annotations: { yaxis: lines },
+        tooltip: {
+            x: { formatter: (value: number) => hourMinute(value) },
+            y: { formatter: (value: number) => props.format(value) },
+        },
+    });
+});
+
+const series = computed<ApexAxisChartSeries>(() =>
+    mode.value === 'candles'
+        ? [
+              {
+                  name: 'Vela de 1 min',
+                  data: props.data.map((c) => ({
+                      x: c[0],
+                      y: [c[1], c[2], c[3], c[4]],
+                  })),
+              },
+          ]
+        : [
+              {
+                  name: 'Preço',
+                  data: props.data.map((c) => [c[0], c[4]]),
+              },
+          ],
+);
 </script>
 
 <template>
-    <div ref="box" class="w-full overflow-hidden">
-        <svg
-            v-if="geo"
-            :viewBox="`0 0 ${geo.W} ${HEIGHT}`"
-            class="block h-auto w-full"
-            role="img"
-            aria-label="Preço de fechamento por minuto"
-        >
-            <defs>
-                <linearGradient :id="gradientId" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" :stop-color="color" stop-opacity="0.2" />
-                    <stop offset="100%" :stop-color="color" stop-opacity="0" />
-                </linearGradient>
-            </defs>
-
-            <line
-                :x1="PAD.left"
-                :x2="geo.W - PAD.right"
-                :y1="geo.base"
-                :y2="geo.base"
-                stroke="var(--border)"
-            />
-
-            <g v-if="geo.avg !== null">
-                <line
-                    :x1="PAD.left"
-                    :x2="geo.W - PAD.right"
-                    :y1="geo.avg"
-                    :y2="geo.avg"
-                    stroke="var(--muted-foreground)"
-                    stroke-dasharray="3 5"
-                />
-                <text
-                    :x="PAD.left + 2"
-                    :y="geo.avg - 4"
-                    fill="var(--muted-foreground)"
-                    font-size="11"
-                >
-                    médio {{ format(avgPrice as number) }}
-                </text>
-            </g>
-            <g v-if="geo.stop !== null">
-                <line
-                    :x1="PAD.left"
-                    :x2="geo.W - PAD.right"
-                    :y1="geo.stop"
-                    :y2="geo.stop"
-                    stroke="var(--down)"
-                    stroke-dasharray="3 5"
-                    opacity="0.7"
-                />
-                <text
-                    :x="PAD.left + 2"
-                    :y="geo.stop - 4"
-                    fill="var(--down)"
-                    font-size="11"
-                >
-                    stop {{ format(stopPrice as number) }}
-                </text>
-            </g>
-
-            <g v-if="geo.target !== null" data-testid="chart-target">
-                <line
-                    :x1="PAD.left"
-                    :x2="geo.W - PAD.right"
-                    :y1="geo.target"
-                    :y2="geo.target"
-                    stroke="var(--up)"
-                    stroke-dasharray="3 5"
-                    opacity="0.7"
-                />
-                <text
-                    :x="PAD.left + 2"
-                    :y="geo.target - 4"
-                    fill="var(--up)"
-                    font-size="11"
-                >
-                    {{ targetLabel ?? 'alvo' }}
-                    {{ format(targetPrice as number) }}
-                </text>
-            </g>
-
-            <g v-if="geo.ceiling !== null" data-testid="chart-ceiling">
-                <line
-                    :x1="PAD.left"
-                    :x2="geo.W - PAD.right"
-                    :y1="geo.ceiling"
-                    :y2="geo.ceiling"
-                    stroke="var(--foreground)"
-                    stroke-dasharray="1 4"
-                    opacity="0.5"
-                />
-                <text
-                    :x="geo.W - PAD.right - 2"
-                    :y="geo.ceiling - 4"
-                    fill="var(--muted-foreground)"
-                    font-size="11"
-                    text-anchor="end"
-                >
-                    teto {{ format(ceilingPrice as number) }}
-                </text>
-            </g>
-
-            <path :d="geo.area" :fill="`url(#${gradientId})`" />
-            <path
-                :d="geo.line"
-                fill="none"
-                :stroke="color"
-                stroke-width="2"
-                stroke-linejoin="round"
-            />
-            <circle
-                :cx="geo.end.x"
-                :cy="geo.end.y"
-                r="8"
-                :fill="color"
-                opacity="0.16"
-            />
-            <circle :cx="geo.end.x" :cy="geo.end.y" r="3.5" :fill="color" />
-
-            <text
-                :x="geo.first.x"
-                :y="HEIGHT - 6"
-                fill="var(--muted-foreground)"
-                font-size="11"
-            >
-                {{ geo.first.label }}
-            </text>
-            <text
-                :x="geo.W - PAD.right"
-                :y="HEIGHT - 6"
-                fill="var(--muted-foreground)"
-                font-size="11"
-                text-anchor="end"
-            >
-                {{ geo.lastLabel }}
-            </text>
-        </svg>
+    <div class="w-full overflow-hidden" data-testid="asset-chart-plot">
+        <ApexChart
+            v-if="data.length >= 2"
+            :key="mode"
+            :options="options"
+            :series="series"
+            :height="HEIGHT"
+            :label="
+                mode === 'candles'
+                    ? 'Velas de 1 minuto'
+                    : 'Preço de fechamento por minuto'
+            "
+        />
         <div
             v-else
             class="flex h-[168px] items-center justify-center rounded-xl bg-muted/40 text-xs text-muted-foreground"

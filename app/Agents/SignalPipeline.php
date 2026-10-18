@@ -51,13 +51,22 @@ class SignalPipeline
         $signal->update(['scenario' => $scenario->toArray(), 'entry_price' => $scenario->price]);
 
         $voters = array_values(array_filter(AgentRole::voters(), fn (AgentRole $role) => $role !== AgentRole::Skeptic));
-        $firstRound = array_map(fn (AgentRole $role) => $this->cast($signal, $role, 1, $scenario), $voters);
+        $firstRound = [];
+
+        foreach ($voters as $role) {
+            $firstRound[] = $this->skipsRisk($role, $firstRound)
+                ? $this->announce($signal, Vote::abstain($role, 'Sem direção na primeira rodada: o Risco não foi consultado para poupar custo.'), 1)
+                : $this->cast($signal, $role, 1, $scenario);
+        }
+
         $this->store($signal, $firstRound, 1);
 
         $finalVotes = $firstRound;
+        $lateBeforeSkeptic = $this->lateEntryBeforeSkeptic($firstRound, $scenario);
 
-        // The challenge round only matters when the first round points somewhere.
-        if (array_filter($firstRound, fn (Vote $vote) => $vote->action->direction() !== 0) !== []) {
+        // The challenge round only matters when the first round points somewhere, and is
+        // skipped (when switched on) if the late-entry rule would reject the buy anyway.
+        if ($lateBeforeSkeptic === null && array_filter($firstRound, fn (Vote $vote) => $vote->action->direction() !== 0) !== []) {
             $skeptic = $this->cast($signal, AgentRole::Skeptic, 2, $scenario, $firstRound);
             $objection = implode(' ', $skeptic->reasons);
 
@@ -67,8 +76,21 @@ class SignalPipeline
         }
 
         $result = $this->consensus->decide($finalVotes, $signal->portfolio->riskProfile, $this->weights($signal), (int) config('trading.consensus.min_voters'));
+
+        if ($lateBeforeSkeptic !== null) {
+            $result = new ConsensusResult(
+                false,
+                OrderSide::Buy,
+                $result->score,
+                $result->agreeing,
+                false,
+                (string) $lateBeforeSkeptic['reason'].' O Cético não foi consultado.',
+                [...($result->calculation ?? []), 'late_entry' => [...$lateBeforeSkeptic['details'], 'blocked' => true], 'skeptic_skipped' => true],
+            );
+        }
+
         $stop = $this->median($finalVotes, $result, 'stop');
-        $result = $this->checkLateEntry($result, $scenario, $stop);
+        $result = $lateBeforeSkeptic === null ? $this->checkLateEntry($result, $scenario, $stop) : $result;
 
         $signal->update([
             'score' => $result->score,
@@ -124,6 +146,56 @@ class SignalPipeline
         return $result->approved && $check['blocked']
             ? new ConsensusResult(false, $result->side, $result->score, $result->agreeing, false, (string) $check['reason'], $calculation)
             : new ConsensusResult($result->approved, $result->side, $result->score, $result->agreeing, $result->vetoed, $result->reason, $calculation);
+    }
+
+    /**
+     * With the switch on, the Risk agent is not asked when nobody before it in the
+     * first round points anywhere: without a direction no signal can be approved.
+     *
+     * @param  list<Vote>  $before
+     */
+    private function skipsRisk(AgentRole $role, array $before): bool
+    {
+        return $role === AgentRole::Risk
+            && config('agents.risk_needs_direction')
+            && array_filter($before, fn (Vote $vote) => $vote->action->direction() !== 0) === [];
+    }
+
+    /**
+     * With the switch on, the late-entry rule runs before the challenge round: a
+     * first round leaning to buy that the rule would block gets its rejection now,
+     * without the skeptic's call. Returns the check when it blocks, else null.
+     *
+     * @param  list<Vote>  $firstRound
+     * @return array{blocked: bool, reason: string|null, details: array<string, mixed>}|null
+     */
+    private function lateEntryBeforeSkeptic(array $firstRound, Scenario $scenario): ?array
+    {
+        if (! config('agents.skip_skeptic_on_late_entry')) {
+            return null;
+        }
+
+        $buys = array_filter($firstRound, fn (Vote $vote) => $vote->action->direction() === 1);
+
+        if ($buys === [] || array_sum(array_map(fn (Vote $vote) => $vote->value(), $firstRound)) <= 0) {
+            return null;
+        }
+
+        $stops = collect($buys)->pluck('stop')->filter()->sort()->values();
+        $check = $this->lateEntry->check($scenario->chart['extension'] ?? null, $scenario->price, $stops->isEmpty() ? null : (float) $stops->median());
+
+        return $check !== null && $check['blocked'] ? $check : null;
+    }
+
+    /**
+     * A vote decided without the model is announced like any other.
+     */
+    private function announce(Signal $signal, Vote $vote, int $round): Vote
+    {
+        $this->broadcaster->agentStarted($signal, $vote->agent, $round);
+        $this->broadcaster->agentVoted($signal, $vote, $round);
+
+        return $vote;
     }
 
     /**

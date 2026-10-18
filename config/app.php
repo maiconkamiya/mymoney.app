@@ -80,6 +80,13 @@ return [
 
     'locale' => env('APP_LOCALE', 'pt_BR'),
 
+    /*
+    | Who may change the system-wide switches in Configurações > Custos e
+    | serviços (comma-separated e-mails). Empty: the first account created.
+    */
+
+    'admin_emails' => array_values(array_filter(array_map(trim(...), explode(',', (string) env('ADMIN_EMAILS', ''))))),
+
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
