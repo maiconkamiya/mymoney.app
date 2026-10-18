@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.47] - 2026-10-18
+
+### Corrigido
+
+- **Posições da Conta Binance fechando e reabrindo sozinhas.** A cada sincronização da conta, as moedas que continuavam no saldo eram encerradas com o motivo "conta" e voltavam na rodada seguinte com o preço do momento como preço médio. Isso perdia o custo real da compra e encerrava ciclos das micro operações como se tivessem sido vendidos. Agora a posição continua a mesma enquanto a moeda estiver na conta, com o preço médio original, e só é encerrada quando a moeda sai do saldo. A sincronização automática e o botão "Sincronizar" também não rodam mais ao mesmo tempo na mesma carteira.
+
 ## [0.3.46] - 2026-10-17
 
 ### Alterado

@@ -130,6 +130,9 @@ class BinanceAccountSync
         }
 
         DB::transaction(function () use ($portfolio, $cash, $held, $holdings) {
+            // The scheduled sync and the "Sincronizar" button can run together: one at a time per portfolio.
+            Portfolio::query()->whereKey($portfolio->id)->lockForUpdate()->first();
+
             $open = $portfolio->openPositions()->get()->keyBy('asset_id');
 
             foreach ($held as $assetId => [$asset, $qty, $price]) {
@@ -146,7 +149,11 @@ class BinanceAccountSync
             // A position with a limit sell still resting is not closed by a balance read.
             $resting = Order::query()->where('portfolio_id', $portfolio->id)->where('side', OrderSide::Sell)->where('type', OrderType::Limit)->where('status', OrderStatus::Pending)->pluck('asset_id')->all();
 
-            $open->except([...array_keys($held), ...$resting])->each(fn (Position $position) => $position->update([
+            $kept = [...array_keys($held), ...$resting];
+
+            // Filter by asset: an Eloquent collection's except() drops by the position's own id, not by the keyBy key,
+            // which closed every position still in the account and reopened it on the next sync.
+            $open->reject(fn (Position $position) => in_array($position->asset_id, $kept, true))->each(fn (Position $position) => $position->update([
                 'closed_at' => now(),
                 'exit_reason' => 'conta',
             ]));

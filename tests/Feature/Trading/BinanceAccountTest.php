@@ -149,6 +149,33 @@ class BinanceAccountTest extends TestCase
         $this->assertSame(0, $portfolio->openPositions()->count());
     }
 
+    public function test_sync_keeps_the_same_positions_while_the_balance_does_not_change()
+    {
+        // Asset ids that differ from the position ids: the bug only showed when they did not match.
+        $eth = Asset::factory()->create(['symbol' => 'ETHUSDT']);
+        $sol = Asset::factory()->create(['symbol' => 'SOLUSDT']);
+        $this->quote($eth, 2_400);
+        $this->quote($sol, 100);
+        $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential(User::factory()->create()));
+        $this->fakeAccount([
+            ['asset' => 'ETH', 'free' => '0.01', 'locked' => '0'],
+            ['asset' => 'SOL', 'free' => '0.5', 'locked' => '0'],
+        ]);
+
+        app(BinanceAccountSync::class)->sync($portfolio);
+        $portfolio->openPositions()->update(['avg_price' => 90]);
+        $first = $portfolio->openPositions()->orderBy('asset_id')->pluck('id', 'asset_id')->all();
+
+        app(BinanceAccountSync::class)->sync($portfolio);
+        app(BinanceAccountSync::class)->sync($portfolio);
+
+        $this->assertSame($first, $portfolio->openPositions()->orderBy('asset_id')->pluck('id', 'asset_id')->all());
+        $this->assertSame([$eth->id, $sol->id], array_keys($first));
+        $this->assertSame(2, $portfolio->positions()->count());
+        $this->assertSame(0, $portfolio->positions()->where('exit_reason', 'conta')->count());
+        $this->assertEqualsWithDelta(90, $portfolio->openPositions()->where('asset_id', $sol->id)->sole()->avg_price, 1e-6);
+    }
+
     public function test_geoblocking_is_reported_clearly()
     {
         $portfolio = app(BinanceAccountSync::class)->portfolioFor($this->credential(User::factory()->create()));
