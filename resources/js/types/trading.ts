@@ -360,7 +360,51 @@ export type AssetRow = {
     tick_size: string;
     min_qty: string | null;
     min_notional: string | null;
+    discovered: boolean;
     blockers: string[];
+};
+
+export type Opportunity = {
+    id: number;
+    rank: number;
+    symbol: string;
+    base: string;
+    score: number;
+    price: number;
+    change_24h_pct: number;
+    quote_volume: number;
+    spread_pct: number;
+    volume_accel: number | null;
+    breakout: boolean;
+    extension_atr: number | null;
+    reasons: string[];
+    ai_note: string | null;
+    swarm_sent_at: string | null;
+    status: 'registered' | 'discovered' | null;
+};
+
+export type ExplorerPortfolio = {
+    id: number;
+    name: string;
+    mode: string;
+    running: boolean;
+    auto_swarm: boolean;
+};
+
+export type ExplorerData = {
+    enabled: boolean;
+    interval_minutes: number;
+    swarm_top: number;
+    swarm_min_score: number;
+    swarm_max_per_day: number;
+    swarm_cooldown_hours: number;
+    scanned_at: string | null;
+    pairs_seen: number | null;
+    pairs_passed: number | null;
+    ai_model: string | null;
+    error: string | null;
+    opportunities: Opportunity[];
+    portfolios: ExplorerPortfolio[];
 };
 
 export type AssetSearchResult = {

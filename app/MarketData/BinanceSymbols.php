@@ -58,7 +58,7 @@ class BinanceSymbols
     /**
      * @return list<array{symbol: string, base: string, lot_size: string, tick_size: string, min_qty: string, min_notional: string|null}>
      */
-    private function catalog(): array
+    public function catalog(): array
     {
         return Cache::remember('binance.pares-usdt', now()->addHour(), function (): array {
             $rows = Http::baseUrl(config('trading.binance.market_data_url'))

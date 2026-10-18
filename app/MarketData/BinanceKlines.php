@@ -23,6 +23,16 @@ class BinanceKlines
     }
 
     /**
+     * The last `$limit` 1-hour klines, oldest first; the current hour is the last one.
+     *
+     * @return list<array{open_at: Carbon, open: float, high: float, low: float, close: float, volume: float}>
+     */
+    public function hourly(string $symbol, int $limit = 48): array
+    {
+        return $this->fetch(['symbol' => $symbol, 'interval' => '1h', 'limit' => $limit]);
+    }
+
+    /**
      * Up to 1000 klines starting at $from, oldest first (the Binance page size).
      *
      * @return list<array{open_at: Carbon, open: float, high: float, low: float, close: float, volume: float}>

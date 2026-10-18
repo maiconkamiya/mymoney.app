@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import OpportunitiesPanel from '@/components/explorer/OpportunitiesPanel.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { marketLabels } from '@/lib/trading';
 import { destroy, index, search, store } from '@/routes/assets';
-import type { AssetRow, AssetSearchResult, Market } from '@/types';
+import type {
+    AssetRow,
+    AssetSearchResult,
+    ExplorerData,
+    Market,
+} from '@/types';
 
 defineOptions({
     layout: {
@@ -18,6 +24,7 @@ defineOptions({
 
 const props = defineProps<{
     assets: AssetRow[];
+    explorer: ExplorerData;
 }>();
 
 const market = ref<Market>('crypto');
@@ -244,6 +251,8 @@ const grouped = computed(() =>
             <InputError :message="errors.asset" />
         </section>
 
+        <OpportunitiesPanel :explorer="explorer" />
+
         <section v-for="group in grouped" :key="group.market" class="space-y-3">
             <Heading
                 variant="small"
@@ -293,6 +302,14 @@ const grouped = computed(() =>
                                 >
                                     {{ asset.name }}
                                 </span>
+                                <Badge
+                                    v-if="asset.discovered"
+                                    variant="outline"
+                                    class="ml-2"
+                                    title="Cadastrado pelo explorador: só entra nas carteiras que o acompanharem e sai sozinho depois de 24 h fora do topo."
+                                >
+                                    Achado
+                                </Badge>
                             </td>
                             <td class="px-4 py-2 text-right tabular-nums">
                                 {{ Number(asset.lot_size) }}

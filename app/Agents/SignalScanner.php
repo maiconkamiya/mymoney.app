@@ -50,30 +50,55 @@ class SignalScanner
             ->get();
 
         foreach ($portfolios as $portfolio) {
-            $inFlight = $portfolio->signals()
-                ->where('asset_id', $asset->id)
-                ->whereIn('stage', [SignalStage::Scanned, SignalStage::Analyzed, SignalStage::Approved, SignalStage::Confirmed])
-                ->exists();
-
-            if ($inFlight) {
-                continue;
+            if (($signal = $this->open($portfolio, $asset, $reason)) !== null) {
+                $signals[] = $signal;
             }
-
-            $signal = $portfolio->signals()->create([
-                'asset_id' => $asset->id,
-                'stage' => SignalStage::Scanned,
-                'stage_history' => [array_filter([
-                    'stage' => SignalStage::Scanned->value,
-                    'at' => now()->toIso8601String(),
-                    'reason' => $reason,
-                ])],
-            ]);
-
-            AnalyzeSignalJob::dispatch($signal->id);
-            $signals[] = $signal;
         }
 
         return $signals;
+    }
+
+    /**
+     * One signal for one portfolio, even when it does not track the asset (the
+     * explorer sends pairs nobody tracks yet). Same gates as the scan.
+     */
+    public function scanPortfolio(Portfolio $portfolio, Asset $asset, ?string $reason = null): ?Signal
+    {
+        if (! $portfolio->isRunning()
+            || $portfolio->market !== $asset->market
+            || $portfolio->starts_at->isFuture()
+            || $portfolio->ends_at->isPast()
+            || ! $this->tradable($asset)) {
+            return null;
+        }
+
+        return $this->open($portfolio, $asset, $reason);
+    }
+
+    private function open(Portfolio $portfolio, Asset $asset, ?string $reason): ?Signal
+    {
+        $inFlight = $portfolio->signals()
+            ->where('asset_id', $asset->id)
+            ->whereIn('stage', [SignalStage::Scanned, SignalStage::Analyzed, SignalStage::Approved, SignalStage::Confirmed])
+            ->exists();
+
+        if ($inFlight) {
+            return null;
+        }
+
+        $signal = $portfolio->signals()->create([
+            'asset_id' => $asset->id,
+            'stage' => SignalStage::Scanned,
+            'stage_history' => [array_filter([
+                'stage' => SignalStage::Scanned->value,
+                'at' => now()->toIso8601String(),
+                'reason' => $reason,
+            ])],
+        ]);
+
+        AnalyzeSignalJob::dispatch($signal->id);
+
+        return $signal;
     }
 
     private function tradable(Asset $asset): bool
