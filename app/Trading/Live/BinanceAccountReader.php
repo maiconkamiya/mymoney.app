@@ -27,4 +27,19 @@ class BinanceAccountReader
 
         return $balances;
     }
+
+    /**
+     * The last `$limit` orders of one pair, newest first, in any state.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function orders(BinanceClient $client, string $symbol, int $limit = 20): array
+    {
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $client->signed('GET', '/api/v3/allOrders', ['symbol' => $symbol, 'limit' => $limit]);
+
+        usort($rows, fn (array $a, array $b) => (int) ($b['time'] ?? 0) <=> (int) ($a['time'] ?? 0));
+
+        return array_slice($rows, 0, $limit);
+    }
 }

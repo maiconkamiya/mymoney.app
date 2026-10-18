@@ -281,6 +281,35 @@ class OrderExecutor
     }
 
     /**
+     * Book every resting sell of the portfolio that the broker already executed
+     * or cancelled, whatever the pair or the position. Reading the order moves
+     * no money, so it also runs during "Parada geral".
+     *
+     * @return int how many reached a final state
+     */
+    public function refreshPortfolio(Portfolio $portfolio, string $actor): int
+    {
+        $settled = 0;
+
+        $orders = Order::query()
+            ->with('asset')
+            ->where('portfolio_id', $portfolio->id)
+            ->where('side', OrderSide::Sell)
+            ->where('type', OrderType::Limit)
+            ->where('status', OrderStatus::Pending)
+            ->whereNotNull('external_id')
+            ->get();
+
+        foreach ($orders as $order) {
+            if ($this->settleResting($portfolio, $order, $this->restingState($portfolio, $order), $actor)) {
+                $settled++;
+            }
+        }
+
+        return $settled;
+    }
+
+    /**
      * Cancel the resting sells of the position, booking what they already sold.
      * False when the broker could not confirm it, so nothing else is sent.
      */

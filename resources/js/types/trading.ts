@@ -113,11 +113,38 @@ export type AccountHolding = {
     reason: string | null;
 };
 
+export type BrokerOrderStatus =
+    | 'pending'
+    | 'filled'
+    | 'partially_filled'
+    | 'cancelled'
+    | 'expired'
+    | 'rejected';
+
+/** Uma das últimas ordens de um par na Binance, lida na sincronização. */
+export type BrokerOrder = {
+    id: string;
+    symbol: string;
+    side: 'buy' | 'sell';
+    type: string;
+    status: BrokerOrderStatus;
+    price: number | null;
+    avg_price: number | null;
+    qty: number;
+    executed_qty: number;
+    value: number;
+    time: string | null;
+    app_order_id: number | null;
+    from_app: boolean;
+};
+
 export type AccountSync = {
     synced_at: string | null;
     dust: AccountHolding[];
     dust_total: number;
     not_mirrored: AccountHolding[];
+    orders: BrokerOrder[];
+    order_errors: Record<string, string>;
 };
 
 export type CurvePoint = {

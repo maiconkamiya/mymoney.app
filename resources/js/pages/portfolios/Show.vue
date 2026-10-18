@@ -17,6 +17,7 @@ import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
 import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
+import BrokerOrdersList from '@/components/portfolio/BrokerOrdersList.vue';
 import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
 import MicroOperationsCard from '@/components/portfolio/MicroOperationsCard.vue';
 import SignalCard from '@/components/portfolio/SignalCard.vue';
@@ -519,6 +520,10 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                     </template>
                                 </li>
                             </ul>
+                            <BrokerOrdersList
+                                :orders="account_sync.orders"
+                                :errors="account_sync.order_errors"
+                            />
                             <p class="text-xs">
                                 Só a carteira Spot é lida. Saldos em Earn,
                                 Funding, Margin ou Futuros da Binance não
