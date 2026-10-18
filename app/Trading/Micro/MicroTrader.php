@@ -59,6 +59,7 @@ class MicroTrader
 
         $this->settle($portfolio);
         $this->expire($portfolio);
+        $this->registerSells($portfolio);
 
         if ($this->state($portfolio)['code'] !== 'active') {
             return 0;
@@ -218,9 +219,10 @@ class MicroTrader
             $sell = (clone $sales)->where('position_id', $cycle->position_id)->first()
                 ?? $sales->whereNull('position_id')->first();
 
-            $exitPrice = $sell->price ?? $position->avg_price;
+            // Closed with no sale in the app (the coins left the account): no exit price nor result to invent.
+            $exitPrice = $sell?->price;
             $fees = $cycle->fees + ($sell->fees ?? 0);
-            $net = $cycle->qty * ($exitPrice - $cycle->entry_price) - $fees;
+            $net = $exitPrice === null ? null : $cycle->qty * ($exitPrice - $cycle->entry_price) - $fees;
 
             $cycle->update([
                 'status' => 'closed',
@@ -234,7 +236,7 @@ class MicroTrader
             AuditLog::record(self::ACTOR, 'micro.closed', $cycle, [
                 'portfolio_id' => $portfolio->id,
                 'exit_reason' => $cycle->exit_reason,
-                'net_pnl' => round($net, 8),
+                'net_pnl' => $net === null ? null : round($net, 8),
             ]);
         }
     }
@@ -339,6 +341,104 @@ class MicroTrader
         }
 
         return $qty > 0 ? $paid / $qty : (float) $position->avg_price;
+    }
+
+    /**
+     * Every open position of a tracked pair keeps a limit sell resting at the
+     * exchange: the cycle's own at its target, and a position the account sync
+     * brought (or whose sale was refused) at what was paid plus the round trip
+     * plus the card's net margin. A refusal is shown on the card and tried
+     * again: the next minute, then spaced up to 15 minutes while the exchange
+     * keeps refusing, so a stuck order does not send one alert a minute.
+     *
+     * @return int sells registered
+     */
+    public function registerSells(Portfolio $portfolio): int
+    {
+        if (! $portfolio->micro_enabled || ! $portfolio->isRunning() || $this->halt->isHalted() || $portfolio->isOrdersBlocked()) {
+            return 0;
+        }
+
+        if ($portfolio->isLive() && (! $this->live->enabled() || ! $portfolio->autoExecutesLive())) {
+            return 0;
+        }
+
+        $tracked = $portfolio->assets()->pluck('assets.id');
+        $marked = $portfolio->micro_liquidate_asset_ids ?? [];
+        $gross = $this->costs->grossMarginPct($portfolio->micro_net_margin_pct);
+        $placed = 0;
+
+        $positions = $portfolio->openPositions()
+            ->with(['asset', 'portfolio'])
+            ->whereNull('signal_id')
+            ->when($tracked->isNotEmpty(), fn ($query) => $query->whereIn('asset_id', $tracked))
+            ->whereNotIn('asset_id', $marked)
+            ->get();
+
+        foreach ($positions as $position) {
+            if ($this->executor->restingSells($position)->isNotEmpty()) {
+                Cache::forget($this->sellFailureKey($position));
+
+                continue;
+            }
+
+            $failure = Cache::get($this->sellFailureKey($position));
+
+            if (is_array($failure) && now()->lt($failure['retry_at'])) {
+                continue;
+            }
+
+            if ($portfolio->isLive()) {
+                $this->refreshFilters($position->asset);
+                $position->asset->refresh();
+            }
+
+            $cycle = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->first();
+            $price = $cycle !== null ? (float) $cycle->target_price : $this->costBasis($portfolio, $position) * (1 + $gross / 100);
+
+            $sell = $this->executor->placeRestingSell($position, $price, 'target', self::ACTOR);
+
+            if (! is_string($sell) && $sell->status !== OrderStatus::Rejected) {
+                Cache::forget($this->sellFailureKey($position));
+                AuditLog::record(self::ACTOR, 'micro.target_order_placed', $cycle ?? $position, ['portfolio_id' => $portfolio->id, 'order_id' => $sell->id, 'price' => $sell->price, 'qty' => $sell->qty, 'retry' => true]);
+                $placed++;
+
+                continue;
+            }
+
+            // Nothing reached the exchange when the check failed here: the next minute may already pass.
+            $sent = ! is_string($sell);
+            $attempts = $sent ? (($failure['attempts'] ?? 0) + 1) : 0;
+            $wait = $sent ? min(2 ** ($attempts - 1), 15) : 1;
+
+            Cache::put($this->sellFailureKey($position), [
+                'reason' => is_string($sell) ? $sell : 'corretora recusou: '.($sell->reject_reason ?? 'sem motivo informado'),
+                'at' => now()->toIso8601String(),
+                'retry_at' => now()->addMinutes($wait)->subSeconds(5),
+                'attempts' => $attempts,
+            ], now()->addDay());
+        }
+
+        return $placed;
+    }
+
+    /**
+     * Why the sale of the position could not be registered, and when it is tried again.
+     *
+     * @return array{reason: string, at: string, retry_at: string}|null
+     */
+    public function sellFailure(Position $position): ?array
+    {
+        $failure = Cache::get($this->sellFailureKey($position));
+
+        return is_array($failure)
+            ? ['reason' => $failure['reason'], 'at' => $failure['at'], 'retry_at' => $failure['retry_at']->toIso8601String()]
+            : null;
+    }
+
+    private function sellFailureKey(Position $position): string
+    {
+        return 'micro:sell-failure:'.$position->id;
     }
 
     /**
@@ -555,6 +655,13 @@ class MicroTrader
 
         if (is_string($sell) || $sell->status === OrderStatus::Rejected) {
             AuditLog::record(self::ACTOR, 'micro.target_order_failed', $cycle, ['portfolio_id' => $portfolio->id, 'reason' => is_string($sell) ? $sell : $sell->reject_reason]);
+            // The next minute's run tries again (registerSells) and the card shows why it failed.
+            Cache::put($this->sellFailureKey($position), [
+                'reason' => is_string($sell) ? $sell : 'corretora recusou: '.($sell->reject_reason ?? 'sem motivo informado'),
+                'at' => now()->toIso8601String(),
+                'retry_at' => now()->addMinute()->subSeconds(5),
+                'attempts' => is_string($sell) ? 0 : 1,
+            ], now()->addDay());
         } else {
             AuditLog::record(self::ACTOR, 'micro.target_order_placed', $cycle, ['portfolio_id' => $portfolio->id, 'order_id' => $sell->id, 'price' => $sell->price, 'qty' => $sell->qty]);
         }

@@ -260,6 +260,7 @@ export type MicroCycleRow = {
     stop_price: number;
     exit_price: number | null;
     resting_sell_price: number | null;
+    sell_failure: string | null;
     fees: number;
     net_pnl: number | null;
     exit_reason: string | null;
@@ -318,6 +319,8 @@ export type MicroLiquidationRow = {
     cost: number | null;
     sell_from: number | null;
     price: number | null;
+    resting_sell_price: number | null;
+    sell_failure: { reason: string; at: string; retry_at: string } | null;
 };
 
 export type AssetRow = {

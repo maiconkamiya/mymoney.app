@@ -79,6 +79,7 @@ const exitLabels: Record<string, string> = {
     period_end: 'Fim do período',
     sold: 'Vendida',
     micro_liquidate: 'Liquidado com lucro',
+    conta: 'Saiu da conta',
 };
 
 const time = (iso: string) =>
@@ -398,6 +399,23 @@ const time = (iso: string) =>
                         <span v-else class="text-muted-foreground">
                             Sem posição aberta. O modo não compra este ativo.
                         </span>
+                        <span
+                            v-if="row.qty > 0 && row.resting_sell_price"
+                            class="text-muted-foreground tabular-nums"
+                            :data-test="`micro-sell-${row.symbol}`"
+                        >
+                            Venda registrada na corretora a
+                            {{ price(row.resting_sell_price) }}
+                        </span>
+                        <span
+                            v-else-if="row.qty > 0 && row.sell_failure"
+                            class="text-down"
+                            :data-test="`micro-sell-failure-${row.symbol}`"
+                        >
+                            Venda não registrada: {{ row.sell_failure.reason }}
+                            Nova tentativa às
+                            {{ time(row.sell_failure.retry_at) }}.
+                        </span>
                     </div>
                     <Button
                         type="button"
@@ -452,9 +470,19 @@ const time = (iso: string) =>
                                 {{ cycle.exit_price }} ·
                                 {{ time(cycle.closed_at!) }}
                             </template>
+                            <template v-else-if="cycle.status === 'closed'">
+                                sem venda no app ·
+                                {{ time(cycle.closed_at!) }}
+                            </template>
                             <template v-else-if="cycle.resting_sell_price">
                                 venda registrada a
                                 {{ cycle.resting_sell_price }}
+                            </template>
+                            <template v-else-if="cycle.sell_failure">
+                                <span class="text-down"
+                                    >venda recusada:
+                                    {{ cycle.sell_failure }}</span
+                                >
                             </template>
                             <template v-else>
                                 alvo {{ cycle.target_price.toFixed(4) }}
@@ -471,7 +499,10 @@ const time = (iso: string) =>
                                       : 'text-up'
                             "
                         >
-                            {{ cycle.net_pnl ?? 'aberto' }}
+                            {{
+                                cycle.net_pnl ??
+                                (cycle.status === 'open' ? 'aberto' : '—')
+                            }}
                         </td>
                         <td class="py-1">
                             {{

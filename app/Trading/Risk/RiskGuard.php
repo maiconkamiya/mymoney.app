@@ -64,7 +64,9 @@ class RiskGuard
             return RiskDecision::block('Cotação ausente ou atrasada para '.$asset->symbol.'.');
         }
 
-        $position = $portfolio->openPositions()->where('asset_id', $asset->id)->first();
+        $position = $portfolio->openPositions()->where('asset_id', $asset->id)
+            ->when($order->side === OrderSide::Sell && $order->positionId !== null, fn ($query) => $query->whereKey($order->positionId))
+            ->first();
 
         if ($order->side === OrderSide::Sell) {
             $held = $position->qty ?? 0;
@@ -73,9 +75,17 @@ class RiskGuard
                 return RiskDecision::block('Venda a descoberto não é permitida.');
             }
 
-            return $order->qty > $held
+            if ($order->qty <= $held) {
+                return new RiskDecision(true, $order);
+            }
+
+            // The cut stays on the pair's step: a quantity off the step is refused by the exchange (LOT_SIZE).
+            $lot = (float) $asset->lot_size;
+            $held = $lot > 0 ? floor(round($held / $lot, 8)) * $lot : $held;
+
+            return $held > 0
                 ? new RiskDecision(true, $order->withQty($held), ['Quantidade limitada à posição.'])
-                : new RiskDecision(true, $order);
+                : RiskDecision::block('Quantidade da posição abaixo do passo do par.');
         }
 
         if ($profile->require_stop && $order->stopPrice === null) {

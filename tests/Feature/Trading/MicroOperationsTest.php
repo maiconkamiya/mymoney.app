@@ -807,4 +807,144 @@ class MicroOperationsTest extends TestCase
             ->assertRedirect();
         $this->assertNull($portfolio->fresh()->micro_liquidate_asset_ids);
     }
+
+    public function test_an_account_position_gets_a_resting_sale_at_cost_plus_round_trip_plus_margin()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        // Paid 100 (the sync recorded 90): sells at 100 * (1 + 0.30% + 0.20%).
+        $position = $this->boughtPosition($portfolio);
+
+        app(MicroTrader::class)->run($portfolio);
+
+        $sell = Order::where('side', OrderSide::Sell)->sole();
+        $this->assertSame(OrderType::Limit, $sell->type);
+        $this->assertSame(OrderStatus::Pending, $sell->status);
+        $this->assertSame($position->id, $sell->position_id);
+        $this->assertEqualsWithDelta(100.5, $sell->price, 0.01);
+
+        // Already resting: nothing more is sent the next minute.
+        app(MicroTrader::class)->run($portfolio);
+        $this->assertSame(1, Order::where('side', OrderSide::Sell)->count());
+
+        $row = collect(app(MicroOverview::class)->for($portfolio)['liquidation'])->firstWhere('symbol', 'DOGEUSDT');
+        $this->assertEqualsWithDelta(100.5, $row['resting_sell_price'], 0.01);
+        $this->assertNull($row['sell_failure']);
+    }
+
+    public function test_positions_from_agent_signals_and_marked_pairs_get_no_resting_sale()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_liquidate_asset_ids' => [$this->asset->id]]);
+        $this->boughtPosition($portfolio);
+
+        app(MicroTrader::class)->registerSells($portfolio);
+
+        $this->assertSame(0, Order::where('side', OrderSide::Sell)->count());
+    }
+
+    public function test_a_refused_real_sale_is_shown_on_the_card_and_tried_again()
+    {
+        config(['trading.live.enabled' => true]);
+        // DUSK-like pair: step 1, minimum 5 USDT.
+        $this->asset->update(['lot_size' => '1', 'tick_size' => '0.0001', 'min_qty' => '1', 'min_notional' => '5']);
+        $this->candles($this->asset, 100.0);
+        $user = User::factory()->create();
+        $credential = BrokerCredential::create(['user_id' => $user->id, 'broker' => 'binance', 'label' => 'x', 'api_key' => 'k', 'api_secret' => 's', 'can_withdraw' => false, 'verified_at' => now()]);
+        $portfolio = $this->micro(['user_id' => $user->id, 'mode' => 'live', 'broker' => 'binance', 'broker_credential_id' => $credential->id, 'auto_execute' => true, 'live_auto_confirmed_at' => now(), 'cash' => 50, 'initial_cash' => 50]);
+        $position = $this->boughtPosition($portfolio, 0.5);
+        $position->update(['qty' => 39.922]);
+        $refuse = true;
+
+        Http::fake(function (Request $request) use (&$refuse) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+
+            return match (true) {
+                $path === '/api/v3/time' => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+                $path === '/api/v3/account' => Http::response(['balances' => [['asset' => 'DOGE', 'free' => '39.922', 'locked' => '0'], ['asset' => 'USDT', 'free' => '50', 'locked' => '0']]]),
+                $request->method() === 'POST' && $refuse => Http::response(['code' => -2010, 'msg' => 'Account has insufficient balance for requested action.'], 400),
+                $request->method() === 'POST' => Http::response(['orderId' => 7, 'status' => 'NEW', 'executedQty' => '0', 'cummulativeQuoteQty' => '0', 'fills' => []]),
+                default => Http::response([]),
+            };
+        });
+
+        app(MicroTrader::class)->registerSells($portfolio);
+
+        $this->assertSame(OrderStatus::Rejected, Order::where('side', OrderSide::Sell)->sole()->status);
+        $row = collect(app(MicroOverview::class)->for($portfolio)['liquidation'])->firstWhere('symbol', 'DOGEUSDT');
+        $this->assertStringContainsString('Saldo insuficiente', $row['sell_failure']['reason']);
+        $this->assertNull($row['resting_sell_price']);
+
+        // Each minute the quote stays fresh, as the market collector keeps it.
+        $minute = function () {
+            $this->travel(61)->seconds();
+            Candle::where('asset_id', $this->asset->id)->latest('open_at')->first()->update(['open_at' => now()->startOfMinute()]);
+            app(MicroTrader::class)->registerSells(Portfolio::sole());
+        };
+
+        // Refused again a minute later, then spaced: two minutes until the third try.
+        $minute();
+        $this->assertSame(2, Order::where('side', OrderSide::Sell)->count());
+        $minute();
+        $this->assertSame(2, Order::where('side', OrderSide::Sell)->count());
+
+        $refuse = false;
+        $minute();
+
+        $resting = Order::where('side', OrderSide::Sell)->where('status', OrderStatus::Pending)->sole();
+        // Whole coins only (step 1), at the cost of 100 plus 0.50%.
+        $this->assertEqualsWithDelta(39.0, $resting->qty, 1e-8);
+        $this->assertEqualsWithDelta(100.5, $resting->price, 0.001);
+        Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_contains($request->url(), 'quantity=39&') && str_contains($request->url(), 'type=LIMIT'));
+        $this->assertNull(app(MicroTrader::class)->sellFailure($position));
+    }
+
+    public function test_the_risk_guard_cuts_a_sale_at_its_own_position_and_on_the_pair_step()
+    {
+        $this->candles($this->asset);
+        $this->asset->update(['lot_size' => '1']);
+        $portfolio = $this->micro();
+        // Two open positions of the pair (as the #108 sync bug left): the sale names the second one.
+        Position::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'qty' => 38.961, 'avg_price' => 100, 'opened_at' => now()]);
+        $own = Position::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'qty' => 41.5, 'avg_price' => 100, 'opened_at' => now()]);
+
+        $decision = app(RiskGuard::class)->check($portfolio, new OrderRequest(asset: $this->asset->fresh(), side: OrderSide::Sell, qty: 45, type: OrderType::Limit, limitPrice: 101, positionId: $own->id));
+
+        $this->assertTrue($decision->allowed);
+        $this->assertSame(41.0, $decision->order->qty);
+
+        // Without a position the cut still lands on the step.
+        $decision = app(RiskGuard::class)->check($portfolio, new OrderRequest(asset: $this->asset->fresh(), side: OrderSide::Sell, qty: 45));
+        $this->assertSame(38.0, $decision->order->qty);
+    }
+
+    public function test_a_cycle_whose_coins_left_the_account_closes_without_a_made_up_result()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+        $cycle = MicroCycle::sole();
+        Order::where('side', OrderSide::Sell)->update(['status' => OrderStatus::Cancelled]);
+        $cycle->position->update(['closed_at' => now(), 'exit_reason' => 'conta']);
+
+        app(MicroTrader::class)->settle($portfolio);
+
+        $cycle->refresh();
+        $this->assertSame('closed', $cycle->status);
+        $this->assertSame('conta', $cycle->exit_reason);
+        $this->assertNull($cycle->exit_price);
+        $this->assertNull($cycle->net_pnl);
+    }
+
+    public function test_other_users_get_403_on_the_portfolio_with_the_sale_rows()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        $this->boughtPosition($portfolio);
+        app(MicroTrader::class)->run($portfolio);
+
+        $this->actingAs(User::factory()->create())->get(route('portfolios.show', $portfolio))->assertForbidden();
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
+            ->where('micro.liquidation.0.resting_sell_price', fn ($price) => abs($price - 100.5) < 0.01));
+    }
 }

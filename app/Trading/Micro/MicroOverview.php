@@ -103,6 +103,7 @@ class MicroOverview
                 'resting_sell_price' => $cycle->status === 'open' && $cycle->position !== null
                     ? $this->executor->restingSells($cycle->position)->first()?->price
                     : null,
+                'sell_failure' => $cycle->status === 'open' && $cycle->position !== null ? $this->trader->sellFailure($cycle->position)['reason'] ?? null : null,
                 'fees' => round($cycle->fees, 6),
                 'net_pnl' => $cycle->net_pnl === null ? null : round($cycle->net_pnl, 6),
                 'exit_reason' => $cycle->exit_reason,
@@ -133,11 +134,13 @@ class MicroOverview
                 'cost' => round($row['cost'], 8),
                 'sell_from' => round($row['sell_from'], 8),
                 'price' => $row['price'] === null ? null : round($row['price'], 8),
+                'resting_sell_price' => $this->executor->restingSells($position)->first()?->price,
+                'sell_failure' => $this->trader->sellFailure($position),
             ];
         }
 
         foreach (Asset::query()->whereIn('id', array_diff($marked, array_keys($rows)))->orderBy('symbol')->get() as $asset) {
-            $rows[$asset->id] = ['asset_id' => $asset->id, 'symbol' => $asset->symbol, 'marked' => true, 'qty' => 0.0, 'cost' => null, 'sell_from' => null, 'price' => null];
+            $rows[$asset->id] = ['asset_id' => $asset->id, 'symbol' => $asset->symbol, 'marked' => true, 'qty' => 0.0, 'cost' => null, 'sell_from' => null, 'price' => null, 'resting_sell_price' => null, 'sell_failure' => null];
         }
 
         return array_values($rows);

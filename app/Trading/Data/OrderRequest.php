@@ -16,10 +16,12 @@ final readonly class OrderRequest
         public ?float $limitPrice = null,
         public ?float $stopPrice = null,
         public ?string $clientId = null,
+        // The position a sell reduces: the risk guard caps the sale at that one, not at another of the same pair.
+        public ?int $positionId = null,
     ) {}
 
     public function withQty(float $qty): self
     {
-        return new self($this->asset, $this->side, $qty, $this->type, $this->limitPrice, $this->stopPrice, $this->clientId);
+        return new self($this->asset, $this->side, $qty, $this->type, $this->limitPrice, $this->stopPrice, $this->clientId, $this->positionId);
     }
 }
