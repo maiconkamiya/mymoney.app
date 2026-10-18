@@ -134,6 +134,7 @@ class OrderExecutor
             side: OrderSide::Sell,
             qty: $this->sellableQty($position),
             clientId: 'position-'.$position->id.'-'.$reason,
+            positionId: $position->id,
         );
 
         $outcome = $this->submit($position->portfolio, $request, $position->signal, $actor, $reason, positionId: $position->id);
@@ -196,7 +197,9 @@ class OrderExecutor
             qty: $qty,
             type: OrderType::Limit,
             limitPrice: $limit,
-            clientId: 'position-'.$position->id.'-'.$reason,
+            // A new attempt after a refusal needs its own id at the exchange.
+            clientId: 'position-'.$position->id.'-'.$reason.'-'.now()->format('dHi'),
+            positionId: $position->id,
         );
 
         return $this->submit($position->portfolio, $request, null, $actor, $reason, positionId: $position->id);

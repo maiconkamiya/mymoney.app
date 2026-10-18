@@ -4,6 +4,15 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.52] - 2026-10-18
+
+### Corrigido
+
+- **Toda posição aberta das micro operações tem venda registrada na Binance.** Antes, só a compra feita pelo próprio modo ganhava a ordem de venda, e uma única vez. Agora, a cada minuto, toda posição aberta de um ativo acompanhado fica com uma venda limitada registrada: a do ciclo no alvo e a posição que veio da conta (ou cuja venda foi recusada) pelo custo pago mais o custo da ida e volta mais a margem líquida do card. Ativos marcados em "Liquidar com lucro" e posições abertas por sinal dos agentes seguem como antes.
+- **Venda recusada aparece no card e é tentada de novo.** O card mostra "Venda registrada na corretora a X" ou o motivo da recusa e a hora da próxima tentativa. A primeira nova tentativa sai no minuto seguinte; se a Binance continuar recusando, o intervalo cresce até 15 minutos.
+- **Venda recusada por quantidade fora do passo do par.** Com duas posições abertas do mesmo par, a venda era limitada pela posição errada e saía com quantidade quebrada, que a Binance recusa. Agora a venda é limitada pela própria posição e arredondada para baixo no passo do par.
+- **Ciclo encerrado sem venda não mostra resultado inventado.** Quando as moedas saem da conta sem venda feita pelo sistema, o ciclo aparece como "sem venda no app" e "Saiu da conta", sem preço de saída nem lucro ou prejuízo.
+
 ## [0.3.51] - 2026-10-18
 
 ### Corrigido
