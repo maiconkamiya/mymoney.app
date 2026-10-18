@@ -4,13 +4,19 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.54] - 2026-10-18
+## [0.3.55] - 2026-10-18
 
 ### Adicionado
 
 - **Os agentes passam a estimar o teto provável de uma alta.** A leitura do gráfico calcula até onde o preço tende a ir (a resistência mais próxima; sem ela, a máxima recente; sem ela, o preço mais 2 ATR), a folga até esse teto, o quanto o preço já está acima da média de 21 e desde o último fundo, e se o volume cai enquanto o preço sobe. Os agentes de Risco e o Cético agora recebem esses números.
 - **Compra tardia é rejeitada.** Um sinal de compra aprovado pelos agentes é rejeitado com o motivo "Entrada tardia" quando o ganho até o teto provável é menor que 1,5 vez o risco até o stop, ou quando o preço está mais de 3 ATR acima da média de 21. Vale só para os sinais dos agentes; as micro operações seguem como antes.
 - **Teto no sinal e no gráfico.** O card do sinal mostra o teto provável ao lado de entrada, stop e alvo, e "Como o score foi calculado" mostra a conta da entrada tardia. Os gráficos da carteira desenham a linha "teto" do último sinal de compra das últimas 2 horas.
+
+## [0.3.54] - 2026-10-18
+
+### Adicionado
+
+- **Comparação de variações do modelo de previsão.** Novo modo do treino (`php artisan forecast:train --experiments`) que testa, no mesmo backtest e com os mesmos critérios, o modelo com probabilidades calibradas, com variáveis extras, com filtro de volatilidade e com horizontes de 30, 60 e 240 minutos. Mostra uma tabela com acerto, erro de probabilidade, número de operações e retorno líquido por janela, e diz se alguma variação passou. Não grava modelo nem muda o que o Quantitativo vota hoje.
 
 ## [0.3.53] - 2026-10-18
 

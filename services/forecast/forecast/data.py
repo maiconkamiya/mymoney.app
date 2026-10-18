@@ -7,8 +7,10 @@ from pathlib import Path
 import pandas as pd
 
 from .features import (
+    EXTRA_FEATURES,
     FEATURES,
     add_label,
+    build_extra_features,
     build_features,
     forward_return,
     news_sentiment_series,
@@ -16,7 +18,9 @@ from .features import (
 )
 
 
-def load_dataset(candles_csv: Path, news_csv: Path | None, horizon: int, timeframe: str = "1m") -> pd.DataFrame:
+def load_dataset(
+    candles_csv: Path, news_csv: Path | None, horizon: int, timeframe: str = "1m", extra: bool = False
+) -> pd.DataFrame:
     candles = pd.read_csv(candles_csv)
     candles["open_at"] = to_utc_naive(candles["open_at"])
     candles = candles[candles["timeframe"] == timeframe]
@@ -32,6 +36,8 @@ def load_dataset(candles_csv: Path, news_csv: Path | None, horizon: int, timefra
         asset_news = news[news["symbol"] == symbol] if news is not None else None
         sentiment = news_sentiment_series(group["open_at"], asset_news)
         part = build_features(group, sentiment)
+        if extra:
+            part = part.join(build_extra_features(group))
         part["label"] = add_label(group, horizon)
         part["fwd_return"] = forward_return(group, horizon)
         part["open_at"] = group["open_at"]
@@ -39,5 +45,5 @@ def load_dataset(candles_csv: Path, news_csv: Path | None, horizon: int, timefra
         parts.append(part)
 
     if not parts:
-        return pd.DataFrame(columns=[*FEATURES, "label", "fwd_return", "open_at", "symbol"])
+        return pd.DataFrame(columns=[*FEATURES, *(EXTRA_FEATURES if extra else []), "label", "fwd_return", "open_at", "symbol"])
     return pd.concat(parts, ignore_index=True)
