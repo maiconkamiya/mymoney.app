@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateMicroOperationsRequest;
 use App\Models\AuditLog;
 use App\Models\Portfolio;
 use App\Trading\Micro\MicroTrader;
+use App\Trading\PortfolioLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -94,7 +95,11 @@ class MicroOperationsController extends Controller
         $position = $portfolio->openPositions()->where('asset_id', $data['asset_id'])->with(['asset', 'portfolio'])->first();
         $actor = 'user:'.$request->user()->id;
 
-        $outcome = $position === null ? 'Não há posição aberta deste ativo.' : $trader->liquidateNow($portfolio, $position, $actor);
+        // O motor em tempo real pode estar mexendo nesta carteira agora: espera ele terminar a passada.
+        $outcome = $position === null
+            ? 'Não há posição aberta deste ativo.'
+            : PortfolioLock::run($portfolio->id, fn () => $trader->liquidateNow($portfolio, $position->refresh(), $actor), wait: 10);
+        $outcome = $outcome === false ? 'O motor está ocupado com esta carteira; tente de novo em alguns segundos.' : $outcome;
 
         AuditLog::record($actor, 'portfolio.micro_liquidate_now', $portfolio, [
             'asset_id' => (int) $data['asset_id'],

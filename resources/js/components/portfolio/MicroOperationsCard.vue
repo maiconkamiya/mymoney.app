@@ -181,10 +181,11 @@ const exitLabels: Record<string, string> = {
     conta: 'Saiu da conta',
 };
 
-const time = (iso: string) =>
+const time = (iso: string, seconds = false) =>
     new Date(iso).toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
+        ...(seconds ? { second: '2-digit' } : {}),
     });
 </script>
 
@@ -443,10 +444,22 @@ const time = (iso: string) =>
             >).
         </p>
         <p
+            v-else-if="micro.enabled && micro.last_run && micro.realtime"
+            class="text-sm text-muted-foreground"
+            data-test="micro-realtime"
+        >
+            Motor em tempo real: stop e alvo conferidos a cada segundo, entradas
+            a cada poucos segundos. Última avaliação às
+            {{ time(micro.last_run, true) }}.
+        </p>
+        <p
             v-else-if="micro.enabled && micro.last_run"
             class="text-sm text-muted-foreground"
+            data-test="micro-minute"
         >
-            Última execução do motor às {{ time(micro.last_run) }}.
+            Última execução do motor às {{ time(micro.last_run) }}, na rodada
+            por minuto. O motor em tempo real (<code>mymoney-micro</code>) não
+            está rodando.
         </p>
 
         <p v-if="micro.last_block" class="text-sm text-muted-foreground">

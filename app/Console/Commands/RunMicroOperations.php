@@ -9,6 +9,7 @@ use App\Trading\Micro\MicroCosts;
 use App\Trading\Micro\MicroRanker;
 use App\Trading\Micro\MicroTrader;
 use App\Trading\PortfolioChangeBroadcaster;
+use App\Trading\PortfolioLock;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -29,10 +30,17 @@ class RunMicroOperations extends Command
             return $this->explain($portfolios->where('micro_enabled', true), $trader, $ranker, $costs);
         }
 
+        // Com o motor em tempo real de pé (micro:watch), esta rodada por minuto é só a reserva.
+        if (MicroTrader::realtimeAlive()) {
+            $this->info('Motor em tempo real ativo (micro:watch): a rodada por minuto fica de reserva.');
+
+            return self::SUCCESS;
+        }
+
         $opened = 0;
 
         $portfolios->each(function (Portfolio $portfolio) use ($trader, &$opened) {
-            $opened += $trader->run($portfolio);
+            $opened += (int) PortfolioLock::run($portfolio->id, fn () => $trader->run($portfolio), wait: 20);
 
             // A hora da avaliação, o motivo por par e o preço de agora ficam no cache: avisa a tela a cada rodada.
             PortfolioChangeBroadcaster::notify($portfolio->id, [PortfolioChanged::SCOPE_MICRO]);
@@ -81,7 +89,7 @@ class RunMicroOperations extends Command
 
                 if ($setup->entry) {
                     $block = $trader->gate($portfolio, $row['asset'], $setup, $open);
-                    $this->line($block === null ? '      -> a ordem sairia no próximo minuto.' : "      -> BLOQUEADO: {$block}");
+                    $this->line($block === null ? '      -> a ordem sairia na próxima rodada.' : "      -> BLOQUEADO: {$block}");
                 }
             }
 

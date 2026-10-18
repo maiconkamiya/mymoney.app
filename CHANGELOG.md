@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.81] - 2026-10-18
+
+### Alterado
+
+- **Micro operações em tempo real.** O motor das micro operações não espera mais a rodada de cada minuto: com o serviço novo `mymoney-micro` ligado, o stop e o alvo dos ciclos abertos são conferidos a cada segundo e a venda sai na hora, e as entradas são avaliadas a cada 3 segundos. Quando um ciclo fecha, o par já pode receber o próximo na mesma passada. Os limites do card, o teto diário da carteira real, a guarda de risco e o "Parar tudo" continuam valendo em toda ordem. O card mostra "Motor em tempo real" com a hora da última avaliação; se o serviço parar, a rodada por minuto volta sozinha e o card avisa.
+
 ## [0.3.80] - 2026-10-18
 
 ### Corrigido

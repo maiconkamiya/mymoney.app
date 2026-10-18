@@ -217,6 +217,18 @@ return [
         'stop_slippage_pct' => (float) env('TRADING_MICRO_STOP_SLIPPAGE_PCT', 0.5),
         'max_candle_age_seconds' => 150,
 
+        // Motor em tempo real (`micro:watch`, serviço mymoney-micro): confere stop, alvo e tempo dos
+        // ciclos abertos a cada `exit_seconds` e roda o motor inteiro (entradas) a cada `entry_seconds`.
+        // Um ciclo que disparou e não saiu (venda recusada, abaixo do mínimo) espera `retry_seconds`.
+        // Com o processo vivo há menos de `alive_seconds`, o `micro:run` por minuto fica de reserva.
+        'realtime' => [
+            'exit_seconds' => max(1, (int) env('TRADING_MICRO_REALTIME_EXIT_SECONDS', 1)),
+            'entry_seconds' => max(1, (int) env('TRADING_MICRO_REALTIME_ENTRY_SECONDS', 3)),
+            'retry_seconds' => 5,
+            'notify_seconds' => 30,
+            'alive_seconds' => 30,
+        ],
+
         // Regra "Tendência com recuo": EMA21 de 1 h subindo, EMA9 acima da EMA21 em 15 min, entrada
         // até `pullback_atr` ATR de 15 min da EMA21 de 15 min com a vela de 5 min virando para cima.
         // Stop a `stop_atr` ATR de 15 min; alvo `reward_risk` vezes o risco e no mínimo

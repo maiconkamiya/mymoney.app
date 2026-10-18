@@ -1,0 +1,21 @@
+# Motor das micro operações em tempo real (micro:watch) como unidade systemd de usuário.
+# Instalação, uma vez, dentro do clone de produção:
+#   install -m 0644 deploy/systemd/mymoney-micro.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now mymoney-micro
+# O `composer deploy` reinicia a unidade quando ela está instalada. Sem ela, o
+# `micro:run` do agendador continua rodando uma vez por minuto.
+# Assume o clone de produção em ~/projetos/mymoney.app (igual aos outros mymoney-*).
+[Unit]
+Description=MyMoney.App motor das micro operações em tempo real
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projetos/mymoney.app
+# Sai a cada hora e o systemd sobe de novo: memória limpa e configuração relida.
+ExecStart=/usr/bin/env php artisan micro:watch --max-seconds=3600
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

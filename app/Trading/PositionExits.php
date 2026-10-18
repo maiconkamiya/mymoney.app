@@ -27,6 +27,7 @@ class PositionExits
 
     /**
      * Sell every position of running portfolios whose last price crossed the stop or the target.
+     * Each portfolio waits for the real-time micro process to let go of it.
      *
      * @return int number of positions closed
      */
@@ -37,29 +38,48 @@ class PositionExits
         $portfolios = Portfolio::query()->where('status', PortfolioStatus::Running)->get();
 
         foreach ($portfolios as $portfolio) {
-            foreach ($portfolio->openPositions()->with(['asset', 'signal'])->get() as $position) {
-                // A resting limit sell (micro operations target) may have executed since the last minute.
-                $this->executor->refreshResting($position, 'exits');
+            $closed += (int) PortfolioLock::run($portfolio->id, fn () => $this->checkPortfolio($portfolio), wait: 20);
+        }
 
-                if ($position->refresh()->closed_at !== null) {
+        return $closed;
+    }
+
+    /**
+     * The same check for one portfolio, or for some of its positions. The
+     * caller holds the portfolio's lock.
+     *
+     * @param  list<int>|null  $positionIds
+     * @return int number of positions closed
+     */
+    public function checkPortfolio(Portfolio $portfolio, ?array $positionIds = null): int
+    {
+        $closed = 0;
+        $positions = $portfolio->openPositions()->with(['asset', 'signal'])
+            ->when($positionIds !== null, fn ($query) => $query->whereIn('id', $positionIds))
+            ->get();
+
+        foreach ($positions as $position) {
+            // A resting limit sell (micro operations target) may have executed since the last check.
+            $this->executor->refreshResting($position, 'exits');
+
+            if ($position->refresh()->closed_at !== null) {
+                $closed++;
+
+                continue;
+            }
+
+            if ($position->asset->tradingEnded()) {
+                if ($this->liquidateDelisted($position)) {
                     $closed++;
-
-                    continue;
                 }
 
-                if ($position->asset->tradingEnded()) {
-                    if ($this->liquidateDelisted($position)) {
-                        $closed++;
-                    }
+                continue;
+            }
 
-                    continue;
-                }
+            $reason = $this->exitReason($position);
 
-                $reason = $this->exitReason($position);
-
-                if ($reason !== null && $this->executor->closePosition($position, $reason, 'exits')?->status === OrderStatus::Filled) {
-                    $closed++;
-                }
+            if ($reason !== null && $this->executor->closePosition($position, $reason, 'exits')?->status === OrderStatus::Filled) {
+                $closed++;
             }
         }
 
@@ -83,9 +103,11 @@ class PositionExits
             ->get();
 
         foreach ($portfolios as $portfolio) {
-            foreach ($portfolio->openPositions()->with(['asset', 'signal'])->get() as $position) {
-                $this->executor->closePosition($position, 'period_end', 'exits');
-            }
+            PortfolioLock::run($portfolio->id, function () use ($portfolio): void {
+                foreach ($portfolio->openPositions()->with(['asset', 'signal'])->get() as $position) {
+                    $this->executor->closePosition($position, 'period_end', 'exits');
+                }
+            }, wait: 20);
 
             if ($portfolio->openPositions()->exists()) {
                 continue;

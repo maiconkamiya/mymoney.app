@@ -286,7 +286,7 @@ class MicroOperationsTest extends TestCase
         Cache::put('micro:last-block:'.$portfolio->id, 'velho', now()->addHour());
 
         Artisan::call('micro:run', ['--explain' => true]);
-        $this->assertStringContainsString('a ordem sairia no próximo minuto', Artisan::output());
+        $this->assertStringContainsString('a ordem sairia na próxima rodada', Artisan::output());
 
         $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
         $this->assertNull(app(MicroTrader::class)->lastBlock($portfolio));

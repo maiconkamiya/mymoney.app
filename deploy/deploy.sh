@@ -17,8 +17,8 @@ set -euo pipefail
 
 REF="main"
 DRY_RUN=0
-SERVICOS_REINICIAR=(mymoney-reverb mymoney-binance mymoney-forecast)
-SERVICOS_ESTADO=(mymoney-web mymoney-queue mymoney-schedule mymoney-reverb mymoney-binance mymoney-forecast)
+SERVICOS_REINICIAR=(mymoney-reverb mymoney-binance mymoney-micro mymoney-forecast)
+SERVICOS_ESTADO=(mymoney-web mymoney-queue mymoney-schedule mymoney-reverb mymoney-binance mymoney-micro mymoney-forecast)
 
 uso() {
     cat <<'USO'
