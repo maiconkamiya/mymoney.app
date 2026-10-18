@@ -6,6 +6,7 @@ use App\Events\PortfolioChanged;
 use App\Models\MicroCycle;
 use App\Models\Order;
 use App\Models\Portfolio;
+use App\Models\PortfolioSnapshot;
 use App\Models\Position;
 use App\Models\Signal;
 use Illuminate\Support\Facades\Log;
@@ -20,21 +21,32 @@ class PortfolioChangeBroadcaster
 {
     public static function register(): void
     {
-        Portfolio::saved(function (Portfolio $portfolio) {
-            if ($portfolio->wasChanged() || $portfolio->wasRecentlyCreated) {
-                self::send($portfolio->id, [PortfolioChanged::SCOPE_BALANCE, PortfolioChanged::SCOPE_POSITIONS, PortfolioChanged::SCOPE_MICRO]);
-            }
-        });
-        Position::saved(fn (Position $model) => self::send($model->portfolio_id, [PortfolioChanged::SCOPE_POSITIONS, PortfolioChanged::SCOPE_BALANCE]));
-        Order::saved(fn (Order $model) => self::send($model->portfolio_id, [PortfolioChanged::SCOPE_ORDERS, PortfolioChanged::SCOPE_BALANCE]));
-        Signal::saved(fn (Signal $model) => self::send($model->portfolio_id, [PortfolioChanged::SCOPE_SIGNALS]));
-        MicroCycle::saved(fn (MicroCycle $model) => self::send($model->portfolio_id, [PortfolioChanged::SCOPE_MICRO, PortfolioChanged::SCOPE_POSITIONS]));
+        // `updated` (e não `saved`) porque o increment/decrement do caixa só dispara esse.
+        $portfolio = fn (Portfolio $model) => self::notify($model->id, [PortfolioChanged::SCOPE_BALANCE, PortfolioChanged::SCOPE_POSITIONS, PortfolioChanged::SCOPE_MICRO]);
+        Portfolio::created($portfolio);
+        Portfolio::updated($portfolio);
+
+        $models = [
+            Position::class => [PortfolioChanged::SCOPE_POSITIONS, PortfolioChanged::SCOPE_BALANCE, PortfolioChanged::SCOPE_MICRO],
+            Order::class => [PortfolioChanged::SCOPE_ORDERS, PortfolioChanged::SCOPE_BALANCE, PortfolioChanged::SCOPE_MICRO],
+            Signal::class => [PortfolioChanged::SCOPE_SIGNALS],
+            MicroCycle::class => [PortfolioChanged::SCOPE_MICRO, PortfolioChanged::SCOPE_POSITIONS],
+        ];
+
+        foreach ($models as $class => $scopes) {
+            $class::saved(fn (Position|Order|Signal|MicroCycle $model) => self::notify($model->portfolio_id, $scopes));
+            $class::deleted(fn (Position|Order|Signal|MicroCycle $model) => self::notify($model->portfolio_id, $scopes));
+        }
+
+        PortfolioSnapshot::created(fn (PortfolioSnapshot $model) => self::notify($model->portfolio_id, [PortfolioChanged::SCOPE_BALANCE]));
     }
 
     /**
+     * Para o que muda fora dos modelos (cache do motor, update em massa, pivô).
+     *
      * @param  list<string>  $scopes
      */
-    private static function send(int $portfolioId, array $scopes): void
+    public static function notify(int $portfolioId, array $scopes): void
     {
         try {
             PortfolioChanged::dispatch($portfolioId, $scopes);

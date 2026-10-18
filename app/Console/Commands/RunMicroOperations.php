@@ -3,10 +3,12 @@
 namespace App\Console\Commands;
 
 use App\Enums\Market;
+use App\Events\PortfolioChanged;
 use App\Models\Portfolio;
 use App\Trading\Micro\MicroCosts;
 use App\Trading\Micro\MicroRanker;
 use App\Trading\Micro\MicroTrader;
+use App\Trading\PortfolioChangeBroadcaster;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -31,6 +33,9 @@ class RunMicroOperations extends Command
 
         $portfolios->each(function (Portfolio $portfolio) use ($trader, &$opened) {
             $opened += $trader->run($portfolio);
+
+            // A hora da avaliação, o motivo por par e o preço de agora ficam no cache: avisa a tela a cada rodada.
+            PortfolioChangeBroadcaster::notify($portfolio->id, [PortfolioChanged::SCOPE_MICRO]);
         });
 
         $this->info("{$opened} micro operações abertas em {$portfolios->count()} carteira(s) com o modo ligado.");

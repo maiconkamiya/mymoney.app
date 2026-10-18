@@ -17,6 +17,7 @@ use App\Models\RiskProfile;
 use App\Models\Signal;
 use App\Reports\PerformanceReport;
 use App\Reports\TaxReport;
+use App\Trading\Contracts\PriceFeed;
 use App\Trading\Live\LiveLimits;
 use App\Trading\Micro\MicroOverview;
 use App\Trading\PortfolioCharts;
@@ -141,7 +142,7 @@ class PortfolioController extends Controller
         return to_route('portfolios.index');
     }
 
-    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt, MicroOverview $micro): Response
+    public function show(Request $request, Portfolio $portfolio, PortfolioValuation $valuation, PerformanceReport $performance, TaxReport $tax, AgentActivity $activity, PortfolioCharts $charts, LiveLimits $limits, TradingHalt $halt, MicroOverview $micro, PriceFeed $prices): Response
     {
         abort_unless($portfolio->user_id === $request->user()->id, 403);
 
@@ -181,15 +182,21 @@ class PortfolioController extends Controller
                 'remaining_today' => round($limits->remainingToday($portfolio), 2),
                 'halted' => $halt->isHalted(),
             ] : null,
-            'positions' => fn () => $portfolio->openPositions()->with('asset')->get()->map(fn (Position $position) => [
-                'id' => $position->id,
-                'symbol' => $position->asset->symbol,
-                'qty' => $position->qty,
-                'avg_price' => $position->avg_price,
-                'stop_price' => $position->stop_price,
-                'last_price' => $holdings->get(preg_replace('/USDT$/', '', $position->asset->symbol))['price'] ?? null,
-                'value' => $holdings->get(preg_replace('/USDT$/', '', $position->asset->symbol))['value'] ?? null,
-            ]),
+            // Preço da última vela gravada (a mesma do canal `mercado`); a tela segue o canal depois.
+            'positions' => fn () => $portfolio->openPositions()->with('asset')->get()->map(function (Position $position) use ($prices, $holdings) {
+                $last = $prices->quote($position->asset)->price
+                    ?? $holdings->get(preg_replace('/USDT$/', '', $position->asset->symbol))['price'] ?? null;
+
+                return [
+                    'id' => $position->id,
+                    'symbol' => $position->asset->symbol,
+                    'qty' => $position->qty,
+                    'avg_price' => $position->avg_price,
+                    'stop_price' => $position->stop_price,
+                    'last_price' => $last,
+                    'value' => $last === null ? null : round($position->qty * $last, 8),
+                ];
+            }),
             'account_sync' => fn () => $portfolio->broker === 'binance' && $portfolio->mode === PortfolioMode::Live ? [
                 'synced_at' => $portfolio->synced_at?->toIso8601String(),
                 'dust' => $holdings->where('status', 'poeira')->values(),
@@ -216,7 +223,7 @@ class PortfolioController extends Controller
                 ->where('is_benchmark', false)
                 ->orderBy('symbol')
                 ->get(['id', 'symbol', 'name']),
-            'tracked_asset_ids' => $portfolio->assets()->pluck('assets.id')->values(),
+            'tracked_asset_ids' => fn () => $portfolio->assets()->pluck('assets.id')->values(),
         ]);
     }
 }
