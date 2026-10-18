@@ -39,6 +39,7 @@ class SystemSettings
         'forecast.enabled' => ['type' => 'bool'],
         'explorer.enabled' => ['type' => 'bool'],
         'explorer.ai.enabled' => ['type' => 'bool'],
+        'insights.ai.enabled' => ['type' => 'bool'],
     ];
 
     /**

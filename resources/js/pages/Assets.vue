@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import OpportunitiesPanel from '@/components/explorer/OpportunitiesPanel.vue';
 import Heading from '@/components/Heading.vue';
@@ -9,7 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { avisoFimNegociacao, dataCurta } from '@/lib/fimNegociacao';
 import { marketLabels } from '@/lib/trading';
-import { destroy, index, search, store, tradingEnd } from '@/routes/assets';
+import {
+    destroy,
+    index,
+    search,
+    show,
+    store,
+    tradingEnd,
+} from '@/routes/assets';
 import type {
     AssetRow,
     AssetSearchResult,
@@ -357,7 +364,16 @@ const grouped = computed(() =>
                             class="border-t"
                         >
                             <td class="px-4 py-2">
-                                <span class="font-medium">{{
+                                <Link
+                                    v-if="asset.market === 'crypto'"
+                                    :href="show(asset.id)"
+                                    class="font-medium underline-offset-4 hover:underline"
+                                    title="Histórico de preços, sentimento do mercado e análise do dia"
+                                    data-test="asset-link"
+                                >
+                                    {{ asset.symbol }}
+                                </Link>
+                                <span v-else class="font-medium">{{
                                     asset.symbol
                                 }}</span>
                                 <span

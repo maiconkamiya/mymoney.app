@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\AssetInsightController;
 use App\Http\Controllers\BrokerCredentialController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MicroOperationsController;
@@ -35,6 +36,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('ativos', [AssetController::class, 'index'])->name('assets.index');
     Route::get('ativos/busca', [AssetController::class, 'search'])->middleware('throttle:30,1')->name('assets.search');
     Route::post('ativos', [AssetController::class, 'store'])->middleware('throttle:20,1')->name('assets.store');
+    Route::get('ativos/{asset}', [AssetInsightController::class, 'show'])->whereNumber('asset')->name('assets.show');
+    Route::post('ativos/{asset}/analise', [AssetInsightController::class, 'store'])->whereNumber('asset')->middleware('throttle:6,1')->name('assets.insight');
     Route::put('ativos/{asset}/fim-negociacao', [AssetController::class, 'updateTradingEnd'])->name('assets.trading-end');
     Route::delete('ativos/{asset}', [AssetController::class, 'destroy'])->name('assets.destroy');
     Route::post('ativos/oportunidades/{opportunity}/acompanhar', [OpportunityController::class, 'track'])->middleware('throttle:20,1')->name('opportunities.track');
