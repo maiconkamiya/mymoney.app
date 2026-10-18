@@ -3,7 +3,9 @@
 namespace App\Trading\Micro;
 
 use App\Enums\Market;
+use App\Enums\MicroRule;
 use App\Models\Asset;
+use App\Models\MicroBacktest;
 use App\Models\MicroCycle;
 use App\Models\Portfolio;
 use App\Models\Position;
@@ -58,6 +60,12 @@ class MicroOverview
                 )
                 : null,
             'enabled' => $portfolio->micro_enabled,
+            'rule' => $portfolio->micro_rule->value,
+            'rules' => array_map(fn (MicroRule $rule) => [
+                'value' => $rule->value,
+                'label' => $rule->label(),
+                'backtest' => $this->backtest($rule),
+            ], MicroRule::cases()),
             'order_value' => $portfolio->micro_order_value,
             'net_margin_pct' => $portfolio->micro_net_margin_pct,
             'gross_margin_pct' => $gross,
@@ -128,8 +136,6 @@ class MicroOverview
     {
         $markedIds = $portfolio->micro_liquidate_asset_ids ?? [];
         $rows = [];
-        $hold = (int) config('trading.micro.max_hold_minutes');
-
         foreach ($portfolio->openPositions()->with('asset')->orderBy('id')->get() as $position) {
             $row = $this->trader->liquidation($portfolio, $position);
             $marked = in_array($position->asset_id, $markedIds, true);
@@ -146,7 +152,7 @@ class MicroOverview
                 'resting_sell_price' => $resting,
                 'sell_failure' => $this->trader->sellFailure($position),
                 'sell_skip' => $resting === null ? $this->trader->sellSkip($portfolio, $position) : null,
-                'odds' => $row['price'] === null ? null : ['target' => round($target, 8)] + $this->odds->estimate($position->asset, $row['price'], $target, $this->minutesLeft($portfolio, $position, $hold)),
+                'odds' => $row['price'] === null ? null : ['target' => round($target, 8)] + $this->odds->estimate($position->asset, $row['price'], $target, $this->minutesLeft($portfolio, $position)),
             ];
         }
 
@@ -161,10 +167,39 @@ class MicroOverview
      * The window the odds look at: what is left of the open cycle's time
      * limit, or the same limit for a position with no cycle.
      */
-    private function minutesLeft(Portfolio $portfolio, Position $position, int $hold): int
+    private function minutesLeft(Portfolio $portfolio, Position $position): int
     {
-        $opened = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->value('opened_at');
+        $cycle = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->first(['opened_at', 'max_hold_minutes']);
+        if ($cycle === null) {
+            return (int) config('trading.micro.max_hold_minutes');
+        }
 
-        return $opened === null ? $hold : max(1, $hold - (int) Carbon::parse($opened)->diffInMinutes(now()));
+        return max(1, ($cycle->max_hold_minutes ?? (int) config('trading.micro.max_hold_minutes')) - (int) $cycle->opened_at->diffInMinutes(now()));
+    }
+
+    /**
+     * The latest saved micro:backtest of a rule, as the card shows it.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function backtest(MicroRule $rule): ?array
+    {
+        $backtest = MicroBacktest::latestFor($rule);
+
+        if ($backtest === null) {
+            return null;
+        }
+
+        $validation = $backtest->summary['validation'] ?? [];
+
+        return [
+            'passed' => $backtest->passed,
+            'trades' => (int) ($validation['trades'] ?? 0),
+            'mean_pct' => isset($validation['mean_pct']) ? round((float) $validation['mean_pct'], 4) : null,
+            'win_rate' => isset($validation['win_rate']) ? round((float) $validation['win_rate'], 4) : null,
+            'failures' => array_values($backtest->summary['failures'] ?? []),
+            'days' => (int) ($backtest->params['days'] ?? 0),
+            'at' => $backtest->created_at->toIso8601String(),
+        ];
     }
 }

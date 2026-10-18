@@ -3,11 +3,14 @@
 namespace App\Http\Requests;
 
 use App\Enums\Market;
+use App\Enums\MicroRule;
+use App\Models\MicroBacktest;
 use App\Models\Portfolio;
 use App\Trading\Live\LiveLimits;
 use App\Trading\Micro\MicroTrader;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateMicroOperationsRequest extends FormRequest
 {
@@ -32,6 +35,7 @@ class UpdateMicroOperationsRequest extends FormRequest
 
         return [
             'micro_enabled' => ['required', 'boolean'],
+            'micro_rule' => ['sometimes', Rule::enum(MicroRule::class)],
             'micro_order_value' => ['required', 'numeric', 'min:'.$min, 'max:1000000'],
             'micro_daily_operations' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'micro_wallet_pct' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -55,6 +59,19 @@ class UpdateMicroOperationsRequest extends FormRequest
                     $validator->errors()->add('micro_enabled', 'Micro operações só existem em carteiras de cripto.');
 
                     return;
+                }
+
+                $rule = MicroRule::tryFrom((string) $this->input('micro_rule', $portfolio->micro_rule->value));
+
+                // A new rule reaches real money only after its latest backtest passed on the validation period.
+                if ($portfolio->isLive() && $rule !== null && $rule !== MicroRule::Scalp && $rule !== $portfolio->micro_rule) {
+                    $backtest = MicroBacktest::latestFor($rule);
+
+                    if ($backtest === null || ! $backtest->passed) {
+                        $validator->errors()->add('micro_rule', $backtest === null
+                            ? 'Esta regra ainda não tem backtest. Na carteira real ela só pode ser escolhida depois de passar no micro:backtest.'
+                            : 'Esta regra não passou no último backtest ('.$backtest->created_at->format('d/m H:i').'). Na carteira real ela só pode ser escolhida depois de passar.');
+                    }
                 }
 
                 if (! $portfolio->isLive() || ! $this->boolean('micro_enabled')) {

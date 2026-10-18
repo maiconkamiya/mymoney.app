@@ -10,6 +10,9 @@ final readonly class MicroSetup
     /**
      * @param  list<string>  $reasons  why it passes, or what blocks it
      * @param  list<array{key: string, label: string, ok: bool, detail: string}>  $checks  each entry condition
+     * @param  float|null  $targetPct  the rule's own target above the entry (null: the gross margin)
+     * @param  float|null  $stopPct  the rule's own stop below the entry (null: the gross margin times the stop ratio)
+     * @param  int|null  $maxHoldMinutes  the rule's own time limit (null: `trading.micro.max_hold_minutes`)
      */
     public function __construct(
         public float $price,
@@ -23,6 +26,9 @@ final readonly class MicroSetup
         public float $reachPct,
         public array $reasons,
         public array $checks = [],
+        public ?float $targetPct = null,
+        public ?float $stopPct = null,
+        public ?int $maxHoldMinutes = null,
     ) {}
 
     /**
@@ -42,6 +48,9 @@ final readonly class MicroSetup
             'entry' => $this->entry,
             'reasons' => $this->reasons,
             'checks' => $this->checks,
+            'target_pct' => $this->targetPct === null ? null : round($this->targetPct, 4),
+            'stop_pct' => $this->stopPct === null ? null : round($this->stopPct, 4),
+            'max_hold_minutes' => $this->maxHoldMinutes,
         ];
     }
 }

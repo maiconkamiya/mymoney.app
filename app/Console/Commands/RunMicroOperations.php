@@ -64,7 +64,7 @@ class RunMicroOperations extends Command
                 $this->line(sprintf('  %s  liquidar com lucro: custo %s, vende a partir de %s, preço agora %s', $position->asset->symbol, round($row['cost'], 8), round($row['sell_from'], 8), $row['price'] ?? 'sem cotação'));
             }
 
-            $this->line("  aporte {$portfolio->micro_order_value}, margem líquida {$portfolio->micro_net_margin_pct}%, alvo bruto {$gross}%, última execução: ".($trader->lastRun($portfolio) ?? 'nunca'));
+            $this->line("  regra {$portfolio->micro_rule->label()}, aporte {$portfolio->micro_order_value}, margem líquida {$portfolio->micro_net_margin_pct}%, alvo bruto {$gross}%, última execução: ".($trader->lastRun($portfolio) ?? 'nunca'));
 
             $evaluation = $ranker->evaluate($portfolio, $gross);
 

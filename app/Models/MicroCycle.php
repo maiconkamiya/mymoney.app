@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MicroRule;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float $fees
  * @property float|null $net_pnl
  * @property float $gross_margin_pct
+ * @property MicroRule $rule
+ * @property int|null $max_hold_minutes
  * @property string|null $exit_reason
  * @property array<string, mixed>|null $analysis
  * @property CarbonImmutable $opened_at
@@ -32,9 +35,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Asset $asset
  * @property-read Position|null $position
  */
-#[Fillable(['portfolio_id', 'asset_id', 'position_id', 'status', 'qty', 'entry_price', 'target_price', 'stop_price', 'exit_price', 'fees', 'net_pnl', 'gross_margin_pct', 'exit_reason', 'analysis', 'opened_at', 'closed_at'])]
+#[Fillable(['portfolio_id', 'asset_id', 'position_id', 'status', 'qty', 'entry_price', 'target_price', 'stop_price', 'exit_price', 'fees', 'net_pnl', 'gross_margin_pct', 'rule', 'max_hold_minutes', 'exit_reason', 'analysis', 'opened_at', 'closed_at'])]
 class MicroCycle extends Model
 {
+    /**
+     * Same default as the column, so a model created in memory already has its rule.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'rule' => 'scalp',
+    ];
+
     /**
      * @return array<string, string>
      */
@@ -49,6 +61,8 @@ class MicroCycle extends Model
             'fees' => 'float',
             'net_pnl' => 'float',
             'gross_margin_pct' => 'float',
+            'rule' => MicroRule::class,
+            'max_hold_minutes' => 'integer',
             'analysis' => 'array',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
