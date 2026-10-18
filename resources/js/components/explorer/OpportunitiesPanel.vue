@@ -188,7 +188,7 @@ function toggleAuto(id: number, enabled: boolean) {
                 </label>
 
                 <label
-                    v-if="selected"
+                    v-if="selected && explorer.agents_enabled"
                     class="flex items-start gap-2 text-sm leading-snug"
                 >
                     <input
@@ -305,6 +305,7 @@ function toggleAuto(id: number, enabled: boolean) {
                         }}
                     </Button>
                     <Button
+                        v-if="explorer.agents_enabled"
                         type="button"
                         size="sm"
                         :disabled="

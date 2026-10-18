@@ -224,6 +224,7 @@ class PortfolioController extends Controller
                 'weight' => $score->weight,
             ]),
             'tax_months' => fn () => $tax->months($portfolio),
+            'agents_enabled' => fn () => (bool) config('agents.enabled'),
             'agent_activity' => fn () => $activity->for($portfolio),
             'token_usage' => fn () => $tokens->for($portfolio),
             'charts' => fn () => $charts->for($portfolio),

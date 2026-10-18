@@ -2,6 +2,7 @@
 
 namespace App\Explorer;
 
+use App\Agents\SignalScanner;
 use App\Enums\Market;
 use App\Enums\PortfolioStatus;
 use App\Jobs\ExplorerSwarmJob;
@@ -41,7 +42,7 @@ class OpportunitySwarm
             ->where('ends_at', '>', now())
             ->get();
 
-        if ($portfolios->isEmpty() || $config['top'] <= 0) {
+        if (! SignalScanner::enabled() || $portfolios->isEmpty() || $config['top'] <= 0) {
             return [];
         }
 
@@ -98,10 +99,14 @@ class OpportunitySwarm
     /**
      * Envio pedido pelo dono da carteira na tela de Ativos.
      *
-     * @throws ValidationException quando a Binance não conhece o par
+     * @throws ValidationException quando a Binance não conhece o par ou os agentes estão desligados
      */
     public function manual(Opportunity $opportunity, Portfolio $portfolio, string $actor): Asset
     {
+        if (! SignalScanner::enabled()) {
+            throw ValidationException::withMessages(['symbol' => 'Os agentes em ação estão desligados em Configurações > Custos e serviços.']);
+        }
+
         $asset = $this->registry->discover($opportunity->symbol, $actor);
 
         if ($asset->tradingEnded()) {

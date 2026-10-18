@@ -37,6 +37,9 @@ class PortfolioChanged implements ShouldBroadcastNow
     /** Voto novo de um agente: os tokens consumidos pela carteira mudaram. */
     public const SCOPE_TOKENS = 'tokens';
 
+    /** A chave "Agentes em ação" mudou: os cards do enxame aparecem ou somem. */
+    public const SCOPE_SWARM = 'swarm';
+
     /**
      * @param  list<string>  $scopes
      */
