@@ -24,6 +24,7 @@ use App\Trading\Micro\MicroTrader;
 use App\Trading\PortfolioValuation;
 use App\Trading\PositionExits;
 use App\Trading\Risk\RiskGuard;
+use App\Trading\TradingHalt;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -460,6 +461,46 @@ class MicroOperationsTest extends TestCase
         $this->assertSame('micro_time', MicroCycle::oldest('id')->first()->exit_reason);
     }
 
+    public function test_the_resting_sale_of_an_ended_cycle_does_not_close_the_next_cycle()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+        $first = MicroCycle::sole();
+        $old = Order::where('side', OrderSide::Sell)->sole();
+        $this->assertSame($first->position_id, $old->position_id);
+
+        // The account sync ended the first cycle while its sale kept resting at the exchange (bug of #108).
+        $first->position->update(['closed_at' => now(), 'exit_reason' => 'conta']);
+        app(MicroTrader::class)->settle($portfolio);
+        app(MicroTrader::class)->run($portfolio);
+        $second = MicroCycle::where('status', 'open')->sole();
+        $own = Order::where('side', OrderSide::Sell)->whereKeyNot($old->id)->sole();
+        $qty = $second->position->qty;
+
+        // Only the old sale is reached: it fills and books its execution, the new cycle stays as it was.
+        $old->update(['price' => $own->price - 0.05]);
+        $this->advanceTo($own->price - 0.02);
+        app(PositionExits::class)->checkStopsAndTargets();
+        app(MicroTrader::class)->settle($portfolio);
+
+        $this->assertSame(OrderStatus::Filled, $old->fresh()->status);
+        $this->assertEqualsWithDelta($old->qty, $old->fills()->sum('qty'), 1e-8);
+        $this->assertSame(OrderStatus::Pending, $own->fresh()->status);
+        $this->assertSame('open', $second->fresh()->status);
+        $this->assertNull($second->position->fresh()->closed_at);
+        $this->assertEqualsWithDelta($qty, $second->position->fresh()->qty, 1e-8);
+
+        // Its own sale closes it at its own price.
+        $this->advanceTo($own->price + 0.01);
+        app(PositionExits::class)->checkStopsAndTargets();
+        app(MicroTrader::class)->settle($portfolio);
+
+        $second->refresh();
+        $this->assertSame('target', $second->exit_reason);
+        $this->assertEqualsWithDelta($own->price, $second->exit_price, 1e-8);
+    }
+
     /**
      * A real portfolio with micro operations on, and a fake Binance whose
      * resting sell answers `$sellState` when queried.
@@ -521,6 +562,26 @@ class MicroOperationsTest extends TestCase
         $cycle->refresh();
         $this->assertSame('closed', $cycle->status);
         $this->assertSame('target', $cycle->exit_reason);
+        $this->assertSame([], app(OrderReconciler::class)->reconcile());
+    }
+
+    public function test_with_the_general_halt_on_the_orders_are_still_read_and_reconciled()
+    {
+        $this->candles($this->asset);
+        $sellState = 'NEW';
+        $portfolio = $this->liveMicro($sellState);
+        app(MicroTrader::class)->run($portfolio);
+        app(TradingHalt::class)->halt('reconciler', 'teste');
+
+        // Reading the exchange is not sending: no "Parada geral acionada" divergence that halts again.
+        $this->assertSame([], app(OrderReconciler::class)->reconcile());
+
+        // A resting sale that executed during the halt is still booked.
+        $sellState = 'FILLED';
+        app(PositionExits::class)->checkStopsAndTargets();
+        $limit = Order::where('type', OrderType::Limit)->sole();
+        $this->assertSame(OrderStatus::Filled, $limit->status);
+        $this->assertEqualsWithDelta(0.1997, $limit->fills()->sum('qty'), 1e-8);
         $this->assertSame([], app(OrderReconciler::class)->reconcile());
     }
 

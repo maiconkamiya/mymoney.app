@@ -19,6 +19,7 @@ use App\Trading\Live\BinanceAccountSync;
 use App\Trading\Live\LiveAlerts;
 use App\Trading\Live\LiveTradingException;
 use App\Trading\Risk\RiskGuard;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -135,7 +136,7 @@ class OrderExecutor
             clientId: 'position-'.$position->id.'-'.$reason,
         );
 
-        $outcome = $this->submit($position->portfolio, $request, $position->signal, $actor, $reason);
+        $outcome = $this->submit($position->portfolio, $request, $position->signal, $actor, $reason, positionId: $position->id);
 
         if (is_string($outcome)) {
             $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'detail' => $outcome]);
@@ -198,15 +199,29 @@ class OrderExecutor
             clientId: 'position-'.$position->id.'-'.$reason,
         );
 
-        return $this->submit($position->portfolio, $request, null, $actor, $reason);
+        return $this->submit($position->portfolio, $request, null, $actor, $reason, positionId: $position->id);
     }
 
     /**
-     * Limit sells of the position still resting at the broker.
+     * Limit sells of the position still resting at the broker (and older ones
+     * that never recorded their position).
      *
      * @return Collection<int, Order>
      */
     public function restingSells(Position $position): Collection
+    {
+        return $this->pendingSells($position)
+            ->where(fn ($query) => $query->whereNull('position_id')->orWhere('position_id', $position->id))
+            ->get();
+    }
+
+    /**
+     * Every limit sell of the pair still resting, including those of a position
+     * that already closed (a cycle the account sync ended while its sale rested).
+     *
+     * @return Builder<Order>
+     */
+    private function pendingSells(Position $position): Builder
     {
         return Order::query()
             ->with('asset')
@@ -214,8 +229,7 @@ class OrderExecutor
             ->where('asset_id', $position->asset_id)
             ->where('side', OrderSide::Sell)
             ->where('type', OrderType::Limit)
-            ->where('status', OrderStatus::Pending)
-            ->get();
+            ->where('status', OrderStatus::Pending);
     }
 
     /**
@@ -224,7 +238,7 @@ class OrderExecutor
      */
     public function refreshResting(Position $position, string $actor): void
     {
-        foreach ($this->restingSells($position) as $order) {
+        foreach ($this->pendingSells($position)->get() as $order) {
             $this->settleResting($position->portfolio, $order, $this->restingState($position->portfolio, $order), $actor);
         }
     }
@@ -330,7 +344,7 @@ class OrderExecutor
                 'filled_at' => $result->filledAt,
             ]);
 
-            if ($result->filledQty <= 0 || ! $portfolio->openPositions()->where('asset_id', $order->asset_id)->exists()) {
+            if ($result->filledQty <= 0) {
                 return true;
             }
 
@@ -342,7 +356,7 @@ class OrderExecutor
             ]);
 
             $request = new OrderRequest(asset: $order->asset, side: OrderSide::Sell, qty: $result->filledQty, type: OrderType::Limit, limitPrice: $order->price);
-            $this->book($portfolio, $request, $result, null, $order->reason);
+            $this->book($portfolio, $request, $result, null, $order->reason, $fresh->position_id);
 
             return true;
         });
@@ -403,7 +417,7 @@ class OrderExecutor
      * Risk-check, send and book one order. Returns the order (filled or
      * rejected by the broker) or the reason the risk guard blocked it.
      */
-    private function submit(Portfolio $portfolio, OrderRequest $request, ?Signal $signal, string $actor, ?string $reason, bool $ownerSized = false): Order|string
+    private function submit(Portfolio $portfolio, OrderRequest $request, ?Signal $signal, string $actor, ?string $reason, bool $ownerSized = false, ?int $positionId = null): Order|string
     {
         if ($portfolio->isLive()) {
             $portfolio->refresh();
@@ -423,6 +437,7 @@ class OrderExecutor
             'portfolio_id' => $portfolio->id,
             'signal_id' => $signal?->id,
             'asset_id' => $request->asset->id,
+            'position_id' => $positionId,
             'broker' => $portfolio->broker,
             'side' => $request->side,
             'type' => $request->type,
@@ -440,7 +455,7 @@ class OrderExecutor
             $result = OrderResult::rejected($e->getMessage());
         }
 
-        DB::transaction(function () use ($order, $result, $signal, $portfolio, $request, $reason) {
+        DB::transaction(function () use ($order, $result, $signal, $portfolio, $request, $reason, $positionId) {
             $order->update([
                 'external_id' => $result->externalId,
                 'status' => $result->status,
@@ -461,7 +476,7 @@ class OrderExecutor
                 'executed_at' => $result->filledAt ?? now(),
             ]);
 
-            $this->book($portfolio, $request, $result, $signal, $reason);
+            $this->book($portfolio, $request, $result, $signal, $reason, $positionId);
         });
 
         AuditLog::record($actor, 'order.'.$order->status->value, $order, [
@@ -520,11 +535,20 @@ class OrderExecutor
         );
     }
 
-    private function book(Portfolio $portfolio, OrderRequest $request, OrderResult $result, ?Signal $signal, ?string $reason): void
+    /**
+     * A sell that names its position only reduces that one: the sale of a
+     * position already closed brings the cash in and leaves the open one alone
+     * (on a real portfolio the account sync fixes the quantity).
+     */
+    private function book(Portfolio $portfolio, OrderRequest $request, OrderResult $result, ?Signal $signal, ?string $reason, ?int $positionId = null): void
     {
         $value = $result->filledQty * $result->avgPrice;
 
-        $position = $portfolio->openPositions()->where('asset_id', $request->asset->id)->lockForUpdate()->first();
+        $position = $portfolio->openPositions()
+            ->where('asset_id', $request->asset->id)
+            ->when($request->side === OrderSide::Sell && $positionId !== null, fn ($query) => $query->whereKey($positionId))
+            ->lockForUpdate()
+            ->first();
 
         if ($request->side === OrderSide::Buy) {
             $portfolio->decrement('cash', $value + $result->fees);
@@ -555,6 +579,11 @@ class OrderExecutor
         }
 
         $portfolio->increment('cash', $value - $result->fees);
+
+        if ($position === null) {
+            return;
+        }
+
         $remaining = round($position->qty - $result->filledQty, 8);
 
         // What the step or the buy fee left behind (under 1 USDT) cannot be sold: the position is over.
