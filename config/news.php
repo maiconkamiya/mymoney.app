@@ -21,6 +21,9 @@ return [
         'infomoney' => ['driver' => 'rss', 'url' => 'https://www.infomoney.com.br/feed/', 'market' => 'b3'],
     ],
 
+    // B3 sources (market "b3") are collected and triaged only while this is on.
+    'b3_sources' => (bool) env('NEWS_B3_SOURCES', true),
+
     // Items at or above this relevance get the deeper analysis with the strong model.
     'deep_analysis_threshold' => 0.6,
 

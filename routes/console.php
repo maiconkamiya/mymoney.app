@@ -10,15 +10,18 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('market:sync-binance')->everyMinute()->withoutOverlapping();
-Schedule::command('market:sync-b3')->everyMinute()->weekdays()->withoutOverlapping();
-Schedule::command('market:sync-b3 --fundamentals')->dailyAt('07:00')->weekdays();
+Schedule::command('market:sync-b3')->everyMinute()->weekdays()->withoutOverlapping()->when(fn () => (bool) config('trading.b3_sync'));
+Schedule::command('market:sync-b3 --fundamentals')->dailyAt('07:00')->weekdays()->when(fn () => (bool) config('trading.b3_sync'));
 Schedule::command('positions:check-exits')->everyMinute()->withoutOverlapping();
 Schedule::command('micro:run')->everyMinute()->withoutOverlapping();
-Schedule::command('signals:scan')->cron('*/'.config('trading.scan_interval_minutes').' * * * *')->withoutOverlapping();
+$scanMinutes = (int) config('trading.scan_interval_minutes');
+Schedule::command('signals:scan')->cron($scanMinutes >= 60 ? '0 * * * *' : '*/'.$scanMinutes.' * * * *')->withoutOverlapping();
 Schedule::command('binance:sync')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('trading:reconcile')->everyFiveMinutes()->withoutOverlapping();
 
-foreach (array_filter(array_keys(config('news.sources')), is_string(...)) as $source) {
+$newsSources = array_filter(config('news.sources'), fn (array $source) => $source['market'] !== 'b3' || config('news.b3_sources'));
+
+foreach (array_filter(array_keys($newsSources), is_string(...)) as $source) {
     Schedule::job(new FetchNewsJob($source))->everyFiveMinutes();
 }
 

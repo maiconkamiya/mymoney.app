@@ -155,7 +155,10 @@ return [
     |
     */
 
-    'scan_interval_minutes' => max(1, min(59, (int) env('TRADING_SCAN_INTERVAL_MINUTES', 15))),
+    'scan_interval_minutes' => max(1, min(60, (int) env('TRADING_SCAN_INTERVAL_MINUTES', 15))),
+
+    // B3 quotes and fundamentals in the scheduler (off while only crypto is traded).
+    'b3_sync' => (bool) env('TRADING_B3_SYNC', true),
 
     'move_trigger' => [
         'enabled' => (bool) env('TRADING_MOVE_TRIGGER_ENABLED', true),

@@ -56,6 +56,17 @@ class NewsPipelineTest extends TestCase
         $this->assertSame(0, NewsItem::count());
     }
 
+    public function test_b3_sources_are_skipped_when_switched_off_in_the_settings()
+    {
+        config(['news.sources.fatos-relevantes.url' => 'https://feeds.test/fatos.xml', 'news.b3_sources' => false]);
+        Http::fake();
+
+        (new FetchNewsJob('fatos-relevantes'))->handle(app(NewsIngestor::class));
+
+        Http::assertNothingSent();
+        $this->assertSame(0, NewsItem::count());
+    }
+
     public function test_triage_attaches_known_assets_and_runs_deep_analysis_when_relevant()
     {
         $btc = Asset::factory()->create(['symbol' => 'BTCUSDT']);
