@@ -7,6 +7,7 @@ use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Models\Asset;
+use App\Models\AuditLog;
 use App\Models\BrokerCredential;
 use App\Models\Candle;
 use App\Models\MicroCycle;
@@ -20,6 +21,7 @@ use App\Trading\Live\OrderReconciler;
 use App\Trading\Micro\MicroCosts;
 use App\Trading\Micro\MicroOverview;
 use App\Trading\Micro\MicroRanker;
+use App\Trading\Micro\MicroTargetOdds;
 use App\Trading\Micro\MicroTrader;
 use App\Trading\PortfolioValuation;
 use App\Trading\PositionExits;
@@ -946,5 +948,109 @@ class MicroOperationsTest extends TestCase
         $this->actingAs(User::factory()->create())->get(route('portfolios.show', $portfolio))->assertForbidden();
         $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
             ->where('micro.liquidation.0.resting_sell_price', fn ($price) => abs($price - 100.5) < 0.01));
+    }
+
+    public function test_the_odds_count_how_often_the_pair_reached_the_distance_within_the_window()
+    {
+        $rows = [];
+
+        // 600 minutes at 100 with a 0.06% range; every 10th minute the high touches +0.6%.
+        for ($i = 0; $i < 600; $i++) {
+            $rows[] = ['asset_id' => $this->asset->id, 'timeframe' => '1m', 'open_at' => now()->startOfMinute()->subMinutes(599 - $i), 'open' => 100, 'high' => $i % 10 === 0 ? 100.6 : 100.03, 'low' => 99.97, 'close' => 100, 'volume' => 1];
+        }
+
+        Candle::insert($rows);
+        $odds = app(MicroTargetOdds::class);
+
+        $near = $odds->estimate($this->asset, 100, 100.5, 10);
+        $this->assertSame(100, $near['pct']);
+        $this->assertSame(0.5, $near['distance_pct']);
+        $this->assertStringContainsString('subiu 0,50% em até 10 min em 100% das vezes', $near['reason']);
+
+        $this->assertSame(50, $odds->estimate($this->asset, 100, 100.5, 5)['pct']);
+        $this->assertSame(0, $odds->estimate($this->asset, 100, 102, 30)['pct']);
+        $this->assertSame(100, $odds->estimate($this->asset, 101, 100.5, 30)['pct']);
+        $this->assertNull($odds->estimate(Asset::factory()->create(), 1, 1.01, 30)['pct']);
+    }
+
+    public function test_the_card_shows_the_odds_of_reaching_the_resting_sale()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        $this->boughtPosition($portfolio);
+        app(MicroTrader::class)->run($portfolio);
+
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
+            ->where('micro.liquidation.0.odds.target', fn ($target) => abs($target - 100.5) < 0.01)
+            ->where('micro.liquidation.0.odds.minutes', 60)
+            // Two hours of candles are too few to compare against a 60-minute window.
+            ->where('micro.liquidation.0.odds.pct', null)
+            ->where('micro.liquidation.0.odds.reason', fn ($reason) => str_contains($reason, 'Poucas velas'))
+            ->where('micro.sell_fee_rate', (float) config('trading.costs.crypto.fee_rate')));
+    }
+
+    public function test_liquidar_agora_cancels_the_resting_sale_and_sells_at_a_loss_and_other_users_get_403()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        $position = $this->boughtPosition($portfolio);
+        app(MicroTrader::class)->run($portfolio);
+        $resting = Order::where('status', OrderStatus::Pending)->where('side', OrderSide::Sell)->firstOrFail();
+        $this->advanceTo(99);
+
+        $this->actingAs(User::factory()->create())->post(route('portfolios.liquidate-now', $portfolio), ['asset_id' => $this->asset->id])
+            ->assertForbidden();
+        $this->assertNull($position->fresh()->closed_at);
+        $this->assertSame(OrderStatus::Pending, $resting->fresh()->status);
+
+        $this->actingAs($portfolio->user)->post(route('portfolios.liquidate-now', $portfolio), ['asset_id' => $this->asset->id])
+            ->assertRedirect();
+
+        $this->assertSame(OrderStatus::Cancelled, $resting->fresh()->status);
+        $position->refresh();
+        $this->assertNotNull($position->closed_at);
+        $this->assertSame('micro_manual', $position->exit_reason);
+        $sale = Order::where('reason', 'micro_manual')->firstOrFail();
+        $this->assertSame(OrderStatus::Filled, $sale->status);
+        $this->assertSame($position->id, $sale->position_id);
+        $this->assertDatabaseHas('audit_log', ['action' => 'micro.liquidated_now', 'subject_id' => $position->id]);
+        $log = AuditLog::where('action', 'micro.liquidated_now')->firstOrFail();
+        $this->assertLessThan(0, $log->payload['net_pnl']);
+    }
+
+    public function test_liquidar_agora_closes_the_open_cycle_as_sold_by_hand()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+        $cycle = MicroCycle::firstOrFail();
+        $this->advanceTo(99.9);
+
+        $this->actingAs($portfolio->user)->post(route('portfolios.liquidate-now', $portfolio), ['asset_id' => $this->asset->id])
+            ->assertRedirect();
+
+        $cycle->refresh();
+        $this->assertSame('closed', $cycle->status);
+        $this->assertSame('micro_manual', $cycle->exit_reason);
+        $this->assertLessThan(0, $cycle->net_pnl);
+    }
+
+    public function test_liquidar_agora_without_a_position_or_under_the_pair_minimum_sends_nothing()
+    {
+        config(['trading.live.enabled' => true]);
+        $this->asset->update(['lot_size' => '0.0001', 'min_qty' => '0.0001', 'min_notional' => '5']);
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['mode' => 'live', 'broker' => 'binance', 'micro_enabled' => false]);
+
+        $this->actingAs($portfolio->user)->post(route('portfolios.liquidate-now', $portfolio), ['asset_id' => $this->asset->id])
+            ->assertRedirect();
+
+        $position = $this->boughtPosition($portfolio, 0.04);
+        $outcome = app(MicroTrader::class)->liquidateNow($portfolio, $position, 'user:1');
+
+        $this->assertIsString($outcome);
+        $this->assertStringContainsString('abaixo do mínimo de 5.00 USDT', $outcome);
+        $this->assertNull($position->fresh()->closed_at);
+        Http::assertNothingSent();
     }
 }
