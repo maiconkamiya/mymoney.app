@@ -13,6 +13,7 @@ use App\Models\Candle;
 use App\News\Embeddings\Embedder;
 use App\News\Embeddings\FakeEmbedder;
 use App\News\Embeddings\HttpEmbedder;
+use App\Settings\SystemSettings;
 use App\Support\VersaoDoSistema;
 use App\Trading\CandlePriceFeed;
 use App\Trading\Contracts\PriceFeed;
@@ -22,6 +23,7 @@ use App\Trading\TradingHalt;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -65,6 +67,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // Switches from Configurações > Custos e serviços: on every boot and again before each job,
+        // so long-lived workers follow a change without a restart.
+        app(SystemSettings::class)->apply();
+        Queue::before(fn () => app(SystemSettings::class)->apply());
 
         PortfolioChangeBroadcaster::register();
 

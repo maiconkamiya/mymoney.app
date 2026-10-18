@@ -40,12 +40,12 @@ class LlmAgent
             .'Cite em evidence_ids os ids das notícias ou candles que sustentam o voto. '
             .'Preços de stop e alvo na moeda do ativo, ou null.';
 
-        $prompt = "Cenário:\n".json_encode($scenario->forRole($this->role), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        $prompt = "Cenário:\n".json_encode($scenario->forRole($this->role), self::jsonFlags());
 
         if ($priorVotes !== []) {
             $prompt .= "\n\nVotos da primeira rodada:\n".json_encode(array_map(fn (Vote $v) => [
                 'agent' => $v->agent->value, 'action' => $v->action->value, 'confidence' => $v->confidence, 'reasons' => $v->reasons,
-            ], $priorVotes), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+            ], $priorVotes), self::jsonFlags());
         }
 
         if ($objection !== null) {
@@ -128,6 +128,15 @@ class LlmAgent
         }
 
         return [$stop, $target];
+    }
+
+    /**
+     * How scenarios are written for the model: compact when the cost switch is on
+     * (same data, fewer input tokens), indented otherwise.
+     */
+    public static function jsonFlags(): int
+    {
+        return config('agents.compact_json') ? JSON_UNESCAPED_UNICODE : JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE;
     }
 
     /**

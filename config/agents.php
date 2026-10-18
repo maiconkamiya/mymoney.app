@@ -40,6 +40,17 @@ return [
     'timeout_seconds' => (int) env('AGENTS_TIMEOUT', 120),
 
     /*
+    | Cost switches (also in Configurações > Custos e serviços, which override
+    | these values): skip the Risk vote when the first round has no direction,
+    | skip the skeptic when the late-entry rule would block the buy anyway, and
+    | send the scenario as compact JSON (fewer input tokens).
+    */
+
+    'risk_needs_direction' => (bool) env('AGENTS_RISK_NEEDS_DIRECTION', false),
+    'skip_skeptic_on_late_entry' => (bool) env('AGENTS_SKIP_SKEPTIC_ON_LATE_ENTRY', false),
+    'compact_json' => (bool) env('AGENTS_COMPACT_JSON', false),
+
+    /*
     | US dollars per million tokens, used to record the cost of each vote.
     */
 
