@@ -29,6 +29,12 @@ const typed = ref('');
 const confirmed = computed(() => typed.value === 'CONFIRMO');
 const blocked = computed(() => props.portfolio.orders_blocked === true);
 const cur = (value: number) => money(value, props.portfolio.market);
+
+// Botões da carteira real: mantêm a rolagem e recarregam só os blocos que mudam.
+const liveFormOptions = {
+    preserveScroll: true,
+    only: ['portfolio', 'live', 'micro'],
+};
 </script>
 
 <template>
@@ -51,7 +57,7 @@ const cur = (value: number) => money(value, props.portfolio.market);
             <Form
                 v-bind="panic.form(portfolio.id)"
                 v-slot="{ processing }"
-                :options="{ preserveScroll: true }"
+                :options="liveFormOptions"
             >
                 <Button
                     variant="destructive"
@@ -102,7 +108,7 @@ const cur = (value: number) => money(value, props.portfolio.market);
             <Form
                 v-bind="release.form(portfolio.id)"
                 v-slot="{ processing }"
-                :options="{ preserveScroll: true }"
+                :options="liveFormOptions"
             >
                 <Button
                     variant="outline"
@@ -119,7 +125,7 @@ const cur = (value: number) => money(value, props.portfolio.market);
                 v-if="portfolio.auto_execute"
                 v-bind="update.form(portfolio.id)"
                 v-slot="{ processing }"
-                :options="{ preserveScroll: true }"
+                :options="liveFormOptions"
             >
                 <input type="hidden" name="auto_execute" value="0" />
                 <Button variant="outline" :disabled="processing">
@@ -140,7 +146,7 @@ const cur = (value: number) => money(value, props.portfolio.market);
                     <Form
                         v-bind="update.form(portfolio.id)"
                         v-slot="{ errors, processing }"
-                        :options="{ preserveScroll: true }"
+                        :options="liveFormOptions"
                         class="space-y-6"
                     >
                         <DialogHeader class="space-y-3">
@@ -198,7 +204,7 @@ const cur = (value: number) => money(value, props.portfolio.market);
 
             <Form
                 v-bind="update.form(portfolio.id)"
-                :options="{ preserveScroll: true }"
+                :options="liveFormOptions"
                 class="flex items-center gap-2 text-sm"
             >
                 <input

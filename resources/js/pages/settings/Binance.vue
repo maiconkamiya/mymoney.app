@@ -76,13 +76,17 @@ const date = (iso: string | null) =>
                 <Form
                     v-bind="BinanceController.sync.form()"
                     v-slot="{ errors, processing }"
+                    :options="{ preserveScroll: true }"
                 >
                     <Button variant="outline" :disabled="processing">
                         Sincronizar agora
                     </Button>
                     <InputError :message="errors.sync" />
                 </Form>
-                <Form v-bind="BinanceController.destroy.form()">
+                <Form
+                    v-bind="BinanceController.destroy.form()"
+                    :options="{ preserveScroll: true }"
+                >
                     <Button variant="destructive">Remover chave</Button>
                 </Form>
             </div>
@@ -91,6 +95,7 @@ const date = (iso: string | null) =>
         <Form
             v-bind="BinanceController.update.form()"
             class="max-w-xl space-y-4"
+            :options="{ preserveScroll: true }"
             reset-on-success
             v-slot="{ errors, processing }"
         >

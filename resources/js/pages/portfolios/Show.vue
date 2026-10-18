@@ -3,11 +3,15 @@ import { echoIsConfigured, useEcho } from '@laravel/echo-vue';
 import { Form, Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount } from 'vue';
 import { useMarketPrices } from '@/composables/useMarketPrices';
-import { usePortfolioRealtime } from '@/composables/usePortfolioRealtime';
+import {
+    realtimeProps,
+    usePortfolioRealtime,
+} from '@/composables/usePortfolioRealtime';
 import RealtimeIndicator from '@/components/portfolio/RealtimeIndicator.vue';
 import BinanceController from '@/actions/App/Http/Controllers/Settings/BinanceController';
 import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
+import InputError from '@/components/InputError.vue';
 import EditInitialCash from '@/components/portfolio/EditInitialCash.vue';
 import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
 import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
@@ -211,6 +215,7 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
             <Form
                 v-bind="update.form(portfolio.id)"
                 v-slot="{ errors, processing }"
+                :options="{ preserveScroll: true, only: ['portfolio'] }"
                 class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             >
                 <label class="flex items-start gap-2 text-sm">
@@ -397,8 +402,9 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     </span>
                     <Form
                         v-bind="BinanceController.sync.form()"
-                        v-slot="{ processing }"
-                        class="inline"
+                        v-slot="{ errors, processing }"
+                        :options="{ preserveScroll: true, only: realtimeProps }"
+                        class="inline-flex items-center gap-2"
                     >
                         <Button
                             type="submit"
@@ -406,8 +412,13 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                             variant="outline"
                             :disabled="processing"
                         >
-                            Sincronizar agora
+                            {{
+                                processing
+                                    ? 'Sincronizando...'
+                                    : 'Sincronizar agora'
+                            }}
                         </Button>
+                        <InputError :message="errors.sync" />
                     </Form>
                 </div>
                 <p v-if="account_sync.dust.length > 0">
