@@ -100,6 +100,38 @@ class SignalPipelineTest extends TestCase
         $this->assertSame(SignalStage::Executed, $executed->stage, (string) $executed->decision_reason);
     }
 
+    public function test_buy_after_a_stretched_rise_is_rejected_as_a_late_entry()
+    {
+        $fake = $this->agentsVote('buy', 0.8);
+        $asset = Asset::factory()->create(['lot_size' => '0.001']);
+
+        for ($i = 240; $i >= 1; $i--) {
+            $this->quote($asset, $i > 60 ? 100 : 100 + (61 - $i) * 0.5, now()->subMinutes($i));
+        }
+
+        $this->quote($asset, 130.5);
+        $this->provideAgentInputs($asset);
+        Portfolio::factory()->create(['market' => $asset->market, 'auto_execute' => true]);
+
+        $signal = app(SignalScanner::class)->scan($asset)[0]->fresh();
+
+        $this->assertSame(SignalStage::Rejected, $signal->stage);
+        $this->assertStringStartsWith('Entrada tardia:', $signal->decision_reason);
+        $this->assertSame(0, $signal->orders()->count());
+        $this->assertTrue($signal->calculation['late_entry']['blocked']);
+        $this->assertLessThan(1.5, $signal->calculation['late_entry']['reward_risk']);
+
+        // Risk and the Skeptic read the extension; the others (besides the Technical agent) do not.
+        $extensionFor = fn (string $role) => collect($fake->calls)
+            ->filter(fn (array $call) => str_contains($call['system'], $role))
+            ->every(fn (array $call) => str_contains($call['prompt'], '"extension"'));
+        $this->assertTrue($extensionFor('agente de risco'));
+        $this->assertTrue($extensionFor('Você é o cético'));
+        $this->assertFalse(collect($fake->calls)
+            ->filter(fn (array $call) => str_contains($call['system'], 'analista de notícias'))
+            ->contains(fn (array $call) => str_contains($call['prompt'], '"extension"')));
+    }
+
     public function test_all_hold_skips_the_challenge_round_and_rejects()
     {
         $fake = $this->agentsVote('hold', 0);

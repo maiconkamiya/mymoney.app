@@ -45,7 +45,9 @@ final readonly class Scenario
 
     /**
      * What one agent gets to read. The Technical agent works from the chart
-     * reading and the latest candles only; the others never see the chart.
+     * reading and the latest candles only; the others never see the chart,
+     * except Risk and the Skeptic, who get its "extension" (probable ceiling
+     * and how stretched the rise is) to judge a late entry.
      *
      * @return array<string, mixed>
      */
@@ -55,6 +57,10 @@ final readonly class Scenario
 
         if ($role !== AgentRole::Technical) {
             unset($data['chart']);
+
+            if (in_array($role, [AgentRole::Risk, AgentRole::Skeptic], true)) {
+                $data['extension'] = $this->chart['extension'] ?? null;
+            }
 
             return $data;
         }

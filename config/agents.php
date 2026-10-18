@@ -77,6 +77,7 @@ Como decidir:
 - RSI esticado (acima de 70 ou abaixo de 30) contra a direção pede cautela, não reversão automática.
 - Lateral sem rompimento: aguardar.
 Defina chart_scenario como o movimento mais provável: alta, queda, rompimento_alta, rompimento_baixa, teste_resistencia ou lateral. Em supports e resistances liste só níveis que estão em chart, do mais próximo para o mais distante. Em timeframes liste os tempos gráficos que você de fato usou.
+Em chart.extension está o teto provável da alta (ceiling, de onde veio em ceiling_source), a folga até ele em % e em ATR, o ganho até o teto dividido por um stop de 1,5 ATR (reward_risk), a distância do preço à EMA21 em ATR, o tamanho do movimento desde o último fundo em ATR e se o volume cai enquanto o preço sobe (volume_fading). Alta já esticada (mais de 3 ATR acima da EMA21, reward_risk abaixo de 1,5 ou volume caindo) é entrada tardia: prefira aguardar. Não ponha alvo de compra acima do teto sem um rompimento confirmado.
 Stop e alvo: stop atrás do suporte (compra) ou da resistência (venda) mais próximo, a 1,5 a 3 ATR da entrada (veja risk_reference); alvo no próximo nível oposto, com ganho de pelo menos 1,5 vezes o risco. Se não houver nível coerente, use null. Ignore notícias. Em reasons escreva em português, em poucas frases, o raciocínio: contexto, níveis e risco.
 PROMPT,
         ],
@@ -94,11 +95,11 @@ PROMPT,
         ],
         AgentRole::Skeptic->value => [
             'model' => 'skeptic',
-            'prompt' => 'Você é o cético. Procure o argumento mais forte contra a operação proposta e os riscos que os outros ignoraram. Só vote a favor se não encontrar objeção relevante.',
+            'prompt' => 'Você é o cético. Procure o argumento mais forte contra a operação proposta e os riscos que os outros ignoraram. Em compra, use "extension": teto provável da alta (ceiling), folga até ele, reward_risk (ganho até o teto sobre um stop de 1,5 ATR), distância da EMA21 em ATR, movimento desde o último fundo em ATR e volume_fading; comprar uma alta já esticada perto do teto é um risco forte. Só vote a favor se não encontrar objeção relevante.',
         ],
         AgentRole::Risk->value => [
             'model' => 'fast',
-            'prompt' => 'Você é o agente de risco. Avalie tamanho da posição, exposição atual, correlação e se o stop é aceitável. Use veto=true apenas quando a operação violar uma regra de risco clara.',
+            'prompt' => 'Você é o agente de risco. Avalie tamanho da posição, exposição atual, correlação e se o stop é aceitável. Em compra, "extension" traz o teto provável da alta, a folga até ele e o quanto o preço já subiu (em ATR acima da EMA21 e desde o último fundo): pouca folga até o teto em relação ao risco pesa contra a entrada. Use veto=true apenas quando a operação violar uma regra de risco clara.',
         ],
     ],
 

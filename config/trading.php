@@ -126,6 +126,19 @@ return [
         'min_voters' => max(1, (int) env('TRADING_CONSENSUS_MIN_VOTERS', 3)),
     ],
 
+    /*
+    | Fixed rule against buying a rise too late (signals of the agents only;
+    | micro operations do not use it): the room up to the probable ceiling must
+    | pay this many times the risk to the stop, and the price may sit at most
+    | this many ATR above the 21-period EMA.
+    */
+
+    'late_entry' => [
+        'enabled' => (bool) env('TRADING_LATE_ENTRY_ENABLED', true),
+        'min_reward_risk' => (float) env('TRADING_LATE_ENTRY_MIN_REWARD_RISK', 1.5),
+        'max_ema21_atr' => (float) env('TRADING_LATE_ENTRY_MAX_EMA21_ATR', 3.0),
+    ],
+
     'signal_ttl_minutes' => (int) env('TRADING_SIGNAL_TTL_MINUTES', 60),
 
     /*

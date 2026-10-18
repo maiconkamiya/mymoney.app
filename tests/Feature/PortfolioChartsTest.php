@@ -6,10 +6,12 @@ use App\Enums\Market;
 use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
+use App\Enums\SignalStage;
 use App\Models\Asset;
 use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
+use App\Models\Signal;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -73,6 +75,32 @@ class PortfolioChartsTest extends TestCase
             ->assertJsonPath('assets.1.position.target_price', 50.25)
             ->assertJsonPath('assets.1.position.sell_registered', false)
             ->assertJsonPath('assets.1.position.stop_price', null);
+    }
+
+    public function test_ceiling_line_comes_from_the_latest_recent_buy_signal()
+    {
+        $user = User::factory()->create();
+        $portfolio = Portfolio::factory()->for($user)->create(['market' => Market::Crypto]);
+        $btc = Asset::factory()->create(['symbol' => 'BTCUSDT', 'market' => Market::Crypto, 'quote_currency' => 'USDT']);
+        $eth = Asset::factory()->create(['symbol' => 'ETHUSDT', 'market' => Market::Crypto, 'quote_currency' => 'USDT']);
+        $signal = fn (Asset $asset, float $ceiling, ?OrderSide $side = OrderSide::Buy) => Signal::create([
+            'portfolio_id' => $portfolio->id, 'asset_id' => $asset->id, 'stage' => SignalStage::Rejected, 'side' => $side,
+            'scenario' => ['chart' => ['extension' => ['ceiling' => $ceiling]]],
+        ]);
+
+        $signal($btc, 101);
+        $signal($btc, 102.5);
+        $signal($btc, 90, OrderSide::Sell);
+        $this->travel(-3)->hours();
+        $signal($eth, 60);
+        $this->travelBack();
+
+        $this->actingAs($user)->getJson(route('portfolios.charts', $portfolio))
+            ->assertOk()
+            ->assertJsonPath('assets.0.symbol', 'BTCUSDT')
+            ->assertJsonPath('assets.0.ceiling', 102.5)
+            ->assertJsonPath('assets.1.symbol', 'ETHUSDT')
+            ->assertJsonPath('assets.1.ceiling', null);
     }
 
     public function test_charts_endpoint_returns_json_for_the_owner_only()

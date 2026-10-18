@@ -24,11 +24,12 @@ class ChartAnalyzer
     /**
      * @param  list<Bar>  $bars  1-minute bars, oldest first, none after $now
      * @param  int  $now  unix seconds
-     * @return array{usable: bool, timeframes: array<string, array<string, mixed>>, omitted: array<string, string>, alignment: string|null, risk_reference: array<string, mixed>|null}
+     * @return array{usable: bool, timeframes: array<string, array<string, mixed>>, omitted: array<string, string>, alignment: string|null, risk_reference: array<string, mixed>|null, extension: array<string, mixed>|null}
      */
     public function analyze(array $bars, int $now): array
     {
         $timeframes = [];
+        $series = [];
         $omitted = [];
 
         foreach (Timeframes::MINUTES as $label => $minutes) {
@@ -40,7 +41,8 @@ class ChartAnalyzer
                 continue;
             }
 
-            $timeframes[$label] = $this->timeframe(array_slice($aggregated, -self::LOOKBACK), $minutes, $now);
+            $series[$label] = array_slice($aggregated, -self::LOOKBACK);
+            $timeframes[$label] = $this->timeframe($series[$label], $minutes, $now);
         }
 
         return [
@@ -49,6 +51,7 @@ class ChartAnalyzer
             'omitted' => $omitted,
             'alignment' => $timeframes === [] ? null : $this->alignment($timeframes),
             'risk_reference' => $this->riskReference($timeframes),
+            'extension' => $this->extension($timeframes, $series, $now),
         ];
     }
 
@@ -222,6 +225,113 @@ class ChartAnalyzer
         }
 
         return null;
+    }
+
+    /**
+     * How far a rise can still go and how stretched it already is, read on the
+     * same timeframe that sizes the stop (1 h, else 15 m, else 5 m).
+     *
+     * The probable ceiling is the nearest resistance with two or more touches
+     * on any timeframe; without one, the high of the 1 h or 4 h range; without
+     * that, the price plus 2 ATR. reward_risk compares the room up to the
+     * ceiling with the reference stop of 1.5 ATR.
+     *
+     * @param  array<string, array<string, mixed>>  $timeframes
+     * @param  array<string, list<Bar>>  $series
+     * @return array<string, mixed>|null
+     */
+    private function extension(array $timeframes, array $series, int $now): ?array
+    {
+        $label = null;
+
+        foreach (['1h', '15m', '5m'] as $candidate) {
+            if (isset($timeframes[$candidate]) && $timeframes[$candidate]['atr'] > 0) {
+                $label = $candidate;
+
+                break;
+            }
+        }
+
+        if ($label === null) {
+            return null;
+        }
+
+        $reading = $timeframes[$label];
+        $price = (float) $reading['close'];
+        $atr = (float) $reading['atr'];
+
+        [$ceiling, $source] = $this->ceiling($timeframes, $price, $atr);
+        $bars = $series[$label];
+        $recentLow = $this->extreme(array_slice($bars, -20), 'l');
+
+        return [
+            'timeframe' => $label,
+            'atr' => $this->round($atr, $price),
+            'ceiling' => $this->round($ceiling, $price),
+            'ceiling_source' => $source,
+            'room_pct' => round(($ceiling - $price) / $price * 100, 2),
+            'room_atr' => round(($ceiling - $price) / $atr, 2),
+            'reward_risk' => round(($ceiling - $price) / ($atr * 1.5), 2),
+            'ema21_distance_atr' => $reading['ema21'] === null ? null : round(($price - $reading['ema21']) / $atr, 2),
+            'move_from_low_atr' => round(($price - $recentLow) / $atr, 2),
+            'volume_fading' => $this->volumeFading($bars, Timeframes::MINUTES[$label], $now),
+        ];
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $timeframes
+     * @return array{0: float, 1: string}
+     */
+    private function ceiling(array $timeframes, float $price, float $atr): array
+    {
+        $resistances = [];
+
+        foreach ($timeframes as $reading) {
+            foreach ($reading['resistances'] as $level) {
+                if ($level['price'] > $price && $level['touches'] >= 2) {
+                    $resistances[] = (float) $level['price'];
+                }
+            }
+        }
+
+        if ($resistances !== []) {
+            return [min($resistances), 'resistencia'];
+        }
+
+        foreach (['1h', '4h'] as $label) {
+            if (isset($timeframes[$label]) && $timeframes[$label]['range_high'] > $price) {
+                return [(float) $timeframes[$label]['range_high'], 'maxima_'.$label];
+            }
+        }
+
+        return [$price + 2 * $atr, 'atr'];
+    }
+
+    /**
+     * True when the price rose over the last 5 closed bars on less volume than
+     * the 15 before them (under 80 %): a rise running out of buyers.
+     *
+     * @param  list<Bar>  $bars
+     */
+    private function volumeFading(array $bars, int $minutes, int $now): ?bool
+    {
+        $closed = $bars[count($bars) - 1]['t'] + $minutes * 60 <= $now ? $bars : array_slice($bars, 0, -1);
+
+        if (count($closed) < 21) {
+            return null;
+        }
+
+        $recent = array_slice($closed, -5);
+        $before = array_slice($closed, -20, 15);
+        $average = fn (array $list) => array_sum(array_column($list, 'v')) / count($list);
+
+        if ($average($before) <= 0) {
+            return null;
+        }
+
+        $rising = $recent[4]['c'] > $closed[count($closed) - 6]['c'];
+
+        return $rising && $average($recent) < $average($before) * 0.8;
     }
 
     /**

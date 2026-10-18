@@ -63,6 +63,19 @@ export type SignalCalculation = {
     min_voters: number;
     agreeing: number;
     quorum: number;
+    late_entry?: {
+        ceiling: number;
+        ceiling_source: string | null;
+        room_pct: number | null;
+        stop: number;
+        reward_risk: number;
+        min_reward_risk: number;
+        ema21_distance_atr: number | null;
+        max_ema21_atr: number;
+        move_from_low_atr: number | null;
+        volume_fading: boolean | null;
+        blocked: boolean;
+    };
 };
 
 export type SignalRow = {
@@ -234,6 +247,8 @@ export type ChartAsset = {
     name: string | null;
     quote_currency: string;
     series: ChartCandle[];
+    /** Teto provável da alta no último sinal de compra das últimas 2 horas. */
+    ceiling: number | null;
     position: {
         qty: number;
         avg_price: number;
