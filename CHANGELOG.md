@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.58] - 2026-10-18
+
+### Alterado
+
+- **Carteira com sidebar.** A tela da carteira ocupa a largura toda da janela. "Ativos em tempo real", "Agentes em ação", "Desempenho" e "Sinais" ficam no conteúdo principal; os demais cards (execução com dinheiro real, micro operações, posições abertas, ativos acompanhados, execução dos sinais e excluir carteira) passam para uma coluna à direita, em seções que abrem uma por vez. A tela lembra a seção aberta em cada carteira. Em telas estreitas a coluna vai para baixo do conteúdo. Nada muda no funcionamento dos cards, e eles continuam atualizando em tempo real mesmo fechados.
+
 ## [0.3.57] - 2026-10-18
 
 ### Adicionado

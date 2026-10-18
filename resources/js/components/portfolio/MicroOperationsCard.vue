@@ -177,7 +177,7 @@ const time = (iso: string) =>
             sempre.
         </p>
 
-        <div class="grid gap-3 sm:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 @xl:grid-cols-4">
             <div class="rounded-xl border p-3">
                 <p class="text-xs text-muted-foreground">
                     Custo da ida e volta
@@ -229,7 +229,7 @@ const time = (iso: string) =>
             v-bind="microRoute.form(portfolio.id)"
             v-slot="{ errors, processing }"
             :options="{ preserveScroll: true, only: ['portfolio', 'micro'] }"
-            class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"
+            class="grid gap-4 @sm:grid-cols-2 @3xl:grid-cols-5"
         >
             <div class="grid gap-2">
                 <Label for="micro_order_value">
@@ -328,7 +328,7 @@ const time = (iso: string) =>
             </div>
 
             <div
-                class="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-5"
+                class="flex flex-wrap items-center gap-4 @sm:col-span-2 @3xl:col-span-5"
             >
                 <input type="hidden" name="micro_enabled" value="0" />
                 <label class="flex items-center gap-2 text-sm">
