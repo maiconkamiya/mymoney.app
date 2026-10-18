@@ -289,6 +289,7 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     :market="portfolio.market"
                     :performance="performance"
                     :agent-scores="agent_scores"
+                    :show-agent-scores="agents_enabled"
                     :tax-months="tax_months"
                 />
 

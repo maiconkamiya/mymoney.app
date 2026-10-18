@@ -6,10 +6,12 @@ use App\Agents\Llm\FakeLlmClient;
 use App\Agents\Llm\LlmClient;
 use App\Agents\SignalPipeline;
 use App\Agents\SignalScanner;
+use App\Enums\AgentRole;
 use App\Enums\SignalStage;
 use App\Events\PortfolioChanged;
 use App\Jobs\AnalyzeSignalJob;
 use App\Jobs\TriageNewsJob;
+use App\Models\AgentScore;
 use App\Models\Asset;
 use App\Models\NewsItem;
 use App\Models\Portfolio;
@@ -99,6 +101,10 @@ class AgentsSwitchTest extends TestCase
     {
         $user = User::factory()->create();
         $portfolio = Portfolio::factory()->for($user)->create();
+        AgentScore::query()->create(['agent' => AgentRole::Technical, 'market' => $portfolio->market, 'signals' => 12, 'hits' => 7, 'hit_rate' => 0.58, 'weight' => 1.1]);
+
+        $this->actingAs($user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page->has('agent_scores', 1));
+
         Event::fake([PortfolioChanged::class]);
 
         $this->actingAs($user)->put(route('system-settings.update'), ['agents__enabled' => false])->assertSessionHasNoErrors();
@@ -109,6 +115,7 @@ class AgentsSwitchTest extends TestCase
 
         $this->actingAs($user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
             ->where('agents_enabled', false)
+            ->where('agent_scores', [])
             ->reloadOnly('agents_enabled', fn (Assert $reload) => $reload->where('agents_enabled', false)->missing('signals')));
 
         $this->actingAs($user)->get(route('assets.index'))->assertInertia(fn (Assert $page) => $page

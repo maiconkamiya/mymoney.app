@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.73] - 2026-10-18
+
+### Alterado
+
+- **Placar dos agentes some com os agentes desligados.** Com a chave "Agentes em ação" desligada em Configurações > Custos e serviços, o "Placar dos agentes" sai da seção Desempenho da carteira. Ao religar a chave, ele volta sem recarregar a página.
+
 ## [0.3.72] - 2026-10-18
 
 ### Adicionado

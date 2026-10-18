@@ -216,7 +216,8 @@ class PortfolioController extends Controller
             'signals' => $latestSignals,
             'signals_total' => fn () => $portfolio->signals()->count(),
             'performance' => fn () => $performance->build($portfolio),
-            'agent_scores' => fn () => AgentScore::query()->where('market', $portfolio->market)->orderByDesc('hit_rate')->get()->map(fn (AgentScore $score) => [
+            // Placar oculto com os agentes em ação desligados.
+            'agent_scores' => fn () => ! config('agents.enabled') ? [] : AgentScore::query()->where('market', $portfolio->market)->orderByDesc('hit_rate')->get()->map(fn (AgentScore $score) => [
                 'agent' => $score->agent->value,
                 'signals' => $score->signals,
                 'hits' => $score->hits,

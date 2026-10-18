@@ -31,6 +31,7 @@ export const scopeProps: Record<PortfolioScope, string[]> = {
     swarm: [
         'agents_enabled',
         'agent_activity',
+        'agent_scores',
         'token_usage',
         'signals',
         'signals_total',
