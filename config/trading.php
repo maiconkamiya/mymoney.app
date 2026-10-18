@@ -228,6 +228,13 @@ return [
             'min_target_costs' => 4.0,
         ],
 
+        // Regra "Atual + alta em 24 h e 4 h": a leitura de 1 minuto da regra atual e, além dela, o preço
+        // acima do fechamento de `day_minutes` e de `recent_minutes` atrás (estudo de 2026-10-18, #172).
+        'uptrend' => [
+            'day_minutes' => 1440,
+            'recent_minutes' => 240,
+        ],
+
         // micro:backtest: parte final do período usada só para validar, e o que a validação exige.
         'backtest' => [
             'validation_share' => 0.3,

@@ -143,10 +143,11 @@ class MicroBacktestTest extends TestCase
         $this->artisan('micro:backtest', ['--days' => 2, '--save' => true])
             ->expectsOutputToContain('Atual (1 minuto)')
             ->expectsOutputToContain('Tendência com recuo')
+            ->expectsOutputToContain('Atual + alta em 24 h e 4 h')
             ->expectsOutputToContain('NÃO PASSOU')
             ->assertSuccessful();
 
-        $this->assertSame(2, MicroBacktest::count());
+        $this->assertSame(3, MicroBacktest::count());
         $this->assertFalse(MicroBacktest::latestFor(MicroRule::TrendPullback)->passed);
         $this->assertSame(['DOGEUSDT'], MicroBacktest::latestFor(MicroRule::Scalp)->params['symbols']);
 

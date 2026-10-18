@@ -68,9 +68,11 @@ class MicroRanker
                 $setup = $this->rules->read($rule, $rows, $grossMarginPct);
 
                 if ($setup === null) {
-                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => $rule === MicroRule::Scalp
-                        ? 'Poucos candles para ler o gráfico (precisa de 40 minutos).'
-                        : 'Poucos candles para ler o gráfico (a regra de tendência precisa de 22 horas de velas de 1 minuto).'];
+                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => match ($rule) {
+                        MicroRule::Scalp => 'Poucos candles para ler o gráfico (precisa de 40 minutos).',
+                        MicroRule::TrendPullback => 'Poucos candles para ler o gráfico (a regra de tendência precisa de 22 horas de velas de 1 minuto).',
+                        MicroRule::ScalpUptrend => 'Poucos candles para ler o gráfico (a alta em 24 h precisa de 24 horas de velas de 1 minuto).',
+                    }];
 
                     return null;
                 }

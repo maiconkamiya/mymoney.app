@@ -4,11 +4,23 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.77] - 2026-10-18
+## [0.3.79] - 2026-10-18
 
 ### Adicionado
 
 - **Clonar a carteira como simulada.** Na lateral da carteira, a seção "Clonar como simulada" cria uma carteira simulada com os mesmos ativos acompanhados e o mesmo card Micro operações (aporte, operações por dia, margem, meta e perda do dia, regra de entrada), começando com o patrimônio de agora em caixa. As micro operações já nascem ligadas e os sinais dos agentes esperam a sua confirmação. Posições, ordens, histórico, credencial da Binance e a execução real ficam na carteira de origem: nenhuma ordem da simulada vai à corretora. Ao confirmar, a tela abre a carteira nova sem recarregar.
+
+## [0.3.78] - 2026-10-18
+
+### Adicionado
+
+- **Regra de entrada "Atual + alta em 24 h e 4 h" nas micro operações.** No card Micro operações, o campo "Regra de entrada" ganha uma terceira opção: a regra atual, com as mesmas saídas, que só compra se o par estiver acima do preço de 24 horas atrás e de 4 horas atrás. Os cards de Pares em foco mostram essa quinta condição com ✓ ou ✗ e a variação de cada período. Na carteira simulada pode ser escolhida já; na carteira real só depois de passar no backtest semanal. As carteiras existentes continuam na regra atual.
+
+## [0.3.77] - 2026-10-18
+
+### Corrigido
+
+- **Taxa da venda no alvo das micro operações.** Quando a venda limitada no alvo executava na Binance, a taxa dela ficava zerada, e o Líquido do histórico, o resultado do dia, a meta e a perda máxima do dia pareciam melhores do que eram. Agora o app lê a taxa que a Binance cobrou, convertida para USDT quando ela vem em BNB ou na própria moeda; se a Binance não informar, conta a taxa padrão de 0,1% em vez de zero. As vendas antigas que ficaram sem taxa são corrigidas uma vez com `php artisan binance:fill-fees` (use `--dry-run` para ver antes o que muda).
 
 ## [0.3.76] - 2026-10-18
 
