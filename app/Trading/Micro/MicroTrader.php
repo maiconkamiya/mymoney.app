@@ -652,13 +652,22 @@ class MicroTrader
             return sprintf('o limite de %d%% do saldo da carteira para micro operações está em uso (%.2f de %.2f USDT); uma nova ordem de %.2f espera uma venda devolver saldo.', $budget['pct'], $budget['used'], $budget['limit'], $portfolio->micro_order_value);
         }
 
-        $decision = $this->risk->check($portfolio, $this->buyRequest($portfolio, $asset, $setup, $this->costs->grossMarginPct($portfolio->micro_net_margin_pct)), ownerSized: true);
+        $gross = $this->costs->grossMarginPct($portfolio->micro_net_margin_pct);
+        $stopPct = $this->rules->exits($setup, $gross)['stop_pct'];
+        $cover = $this->stopCoverValue($portfolio, $asset, $stopPct);
+
+        // The sale at the stop must still reach the pair's minimum, or the stop could not sell (#175).
+        if ($cover > $portfolio->micro_order_value * 1.1) {
+            return sprintf('aporte não cobre o stop: para a venda no stop de %.2f%% ainda valer o mínimo de %.2f USDT do par, a compra precisa de %.2f USDT, mais de 10%% acima do aporte de %.2f.', $stopPct, (float) $asset->min_notional, $cover, $portfolio->micro_order_value);
+        }
+
+        $decision = $this->risk->check($portfolio, $this->buyRequest($portfolio, $asset, $setup, $gross), ownerSized: true);
 
         if (! $decision->allowed) {
             return 'guarda de risco: '.$decision->summary();
         }
 
-        $wanted = $this->entryQty($portfolio, $asset, $setup->price) * $setup->price;
+        $wanted = $this->entryQty($portfolio, $asset, $setup->price, $stopPct) * $setup->price;
         $minimum = max(self::minOrderValue($portfolio), $portfolio->isLive() ? (float) $asset->min_notional : 0.0);
 
         if ($wanted > $portfolio->micro_order_value * 1.1) {
@@ -669,6 +678,10 @@ class MicroTrader
 
         if ($value < $minimum * 0.99) {
             return sprintf('a ordem de %.2f USDT seria reduzida para %.2f USDT, abaixo do mínimo de %.2f USDT, e não é enviada. %s Falta saldo disponível ou o teto real por ordem está baixo.', $portfolio->micro_order_value, $value, $minimum, $decision->summary());
+        }
+
+        if ($value < $cover - 1e-9) {
+            return sprintf('aporte não cobre o stop: a ordem seria reduzida para %.2f USDT, e a venda no stop de %.2f%% ficaria abaixo do mínimo de %.2f USDT do par. %s', $value, $stopPct, (float) $asset->min_notional, $decision->summary());
         }
 
         return null;
@@ -696,20 +709,51 @@ class MicroTrader
      * value never falls under the minimum order (a floor to the step turned
      * 5 USDT into 4.9 and the exchange refused it), and at least the pair's
      * minimum quantity and, on a real portfolio, its minimum order value plus
-     * a 1% margin for the price moving before the fill.
+     * a 1% margin for the price moving before the fill, and enough for the
+     * sale at the stop to still reach that minimum (see stopCoverValue).
      */
-    private function entryQty(Portfolio $portfolio, Asset $asset, float $price): float
+    private function entryQty(Portfolio $portfolio, Asset $asset, float $price, float $stopPct): float
     {
         $value = $portfolio->micro_order_value;
 
         if ($portfolio->isLive()) {
-            $value = max($value, (float) $asset->min_notional * 1.01);
+            $value = max($value, (float) $asset->min_notional * 1.01, $this->stopCoverValue($portfolio, $asset, $stopPct));
         }
 
         $qty = max($value / $price, (float) $asset->min_qty);
         $step = (float) $asset->lot_size;
 
         return $step > 0 ? ceil(round($qty / $step, 8)) * $step : $qty;
+    }
+
+    /**
+     * Smallest purchase whose sale at the stop, after the price slips past it,
+     * still reaches the pair's minimum order: value × (1 − stop − slippage) ≥
+     * min_notional. Below it Binance refuses the market sale and the stop
+     * cannot sell. Zero on a simulated portfolio, which has no such minimum.
+     */
+    public function stopCoverValue(Portfolio $portfolio, Asset $asset, float $stopPct): float
+    {
+        $minimum = (float) $asset->min_notional;
+
+        if (! $portfolio->isLive() || $minimum <= 0) {
+            return 0.0;
+        }
+
+        $kept = 1 - ($stopPct + (float) config('trading.micro.stop_slippage_pct')) / 100;
+
+        return $kept > 0 ? $minimum / $kept : INF;
+    }
+
+    /**
+     * What the card and "Posições abertas" show for a real position that is
+     * worth less than the pair's minimum now: the app cannot sell it at market.
+     */
+    public function belowMinimumNotice(Position $position, ?float $price): ?string
+    {
+        return $this->executor->belowMinimum($position, $price) !== null
+            ? 'Abaixo do mínimo da Binance: o app não consegue vender; saída só pelo alvo ou pela conversão de saldo pequeno na Binance.'
+            : null;
     }
 
     /**
@@ -746,11 +790,13 @@ class MicroTrader
 
     private function buyRequest(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): OrderRequest
     {
+        $stopPct = $this->rules->exits($setup, $grossPct)['stop_pct'];
+
         return new OrderRequest(
             asset: $asset,
             side: OrderSide::Buy,
-            qty: $this->entryQty($portfolio, $asset, $setup->price),
-            stopPrice: $setup->price * (1 - $this->rules->exits($setup, $grossPct)['stop_pct'] / 100),
+            qty: $this->entryQty($portfolio, $asset, $setup->price, $stopPct),
+            stopPrice: $setup->price * (1 - $stopPct / 100),
             clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHi'),
         );
     }

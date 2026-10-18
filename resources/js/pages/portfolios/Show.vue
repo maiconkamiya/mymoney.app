@@ -538,6 +538,28 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                 </p>
                             </li>
                         </ul>
+                        <ul
+                            v-if="
+                                positions.some(
+                                    (position) => position.below_minimum,
+                                )
+                            "
+                            class="mt-3 space-y-2 text-xs"
+                        >
+                            <li
+                                v-for="position in positions.filter(
+                                    (row) => row.below_minimum,
+                                )"
+                                :key="position.id"
+                                class="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-amber-400"
+                                :data-test="`position-${position.symbol}-below-minimum`"
+                            >
+                                <span class="font-medium">{{
+                                    position.symbol
+                                }}</span>
+                                · {{ position.below_minimum }}
+                            </li>
+                        </ul>
 
                         <div
                             v-if="account_sync"
