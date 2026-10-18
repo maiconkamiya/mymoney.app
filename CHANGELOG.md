@@ -4,6 +4,15 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.54] - 2026-10-18
+
+### Adicionado
+
+- **Explorador de oportunidades na tela Ativos.** A cada 15 minutos o sistema olha todos os pares em USDT da Binance e mostra as 10 melhores oportunidades fora dos ativos acompanhados, com nota, motivo, volume e spread. Ficam de fora moedas estáveis, tokens alavancados, pares com pouco volume ou spread largo e altas que já dispararam ou estão esticadas. Uma IA barata explica cada par em uma frase.
+- **Acompanhar ou mandar aos agentes com um clique.** "Acompanhar" coloca o par nos ativos acompanhados da carteira escolhida e baixa 30 dias de velas. "Mandar aos agentes" pede uma análise completa do par uma vez, sem acompanhar.
+- **Envio automático das 3 melhores, por carteira.** Ligando a opção na tela Ativos, as 3 melhores de cada varredura vão sozinhas aos agentes daquela carteira, com nota mínima, no máximo 12 envios por dia e uma vez a cada 6 horas por par. O explorador nunca compra: a compra, se vier, passa pelo consenso, pela guarda de risco e pelos limites da carteira real.
+- **Pares achados não entram sozinhos nas carteiras.** Um par cadastrado só pelo explorador aparece como "Achado", não entra nas carteiras que acompanham todos os ativos nem nas micro operações, e sai sozinho depois de 24 horas fora do topo se ninguém o acompanhar.
+
 ## [0.3.53] - 2026-10-18
 
 ### Corrigido

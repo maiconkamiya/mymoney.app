@@ -33,7 +33,7 @@ class AssetRegistry
     /**
      * @throws ValidationException quando o símbolo é inválido, já cadastrado ou a fonte não o conhece
      */
-    public function add(Market $market, string $symbol, string $actor): Asset
+    public function add(Market $market, string $symbol, string $actor, bool $discovered = false): Asset
     {
         $symbol = strtoupper(trim($symbol));
 
@@ -51,13 +51,30 @@ class AssetRegistry
         };
 
         $asset = $existing ?? new Asset(['market' => $market, 'symbol' => $symbol]);
-        $asset->fill($attributes + ['active' => true, 'is_benchmark' => false])->save();
+        $asset->fill($attributes + ['active' => true, 'is_benchmark' => false, 'discovered' => $discovered])->save();
 
-        AuditLog::record($actor, 'asset.created', $asset, ['symbol' => $symbol, 'market' => $market->value, 'reactivated' => $existing !== null]);
+        AuditLog::record($actor, 'asset.created', $asset, ['symbol' => $symbol, 'market' => $market->value, 'reactivated' => $existing !== null, 'discovered' => $discovered]);
 
         BackfillAssetCandlesJob::dispatch($asset->id);
 
         return $asset;
+    }
+
+    /**
+     * O par cripto cadastrado e ativo; quando não está, cadastra como achado do
+     * explorador, que não entra no "acompanha todos" das carteiras.
+     *
+     * @throws ValidationException quando a Binance não conhece o par
+     */
+    public function discover(string $symbol, string $actor): Asset
+    {
+        $existing = Asset::query()->where('market', Market::Crypto)->where('symbol', strtoupper($symbol))->where('active', true)->first();
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        return $this->add(Market::Crypto, $symbol, $actor, discovered: true);
     }
 
     /**

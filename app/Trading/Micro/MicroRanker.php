@@ -86,9 +86,9 @@ class MicroRanker
     {
         $tracked = $portfolio->assets()->pluck('assets.id');
 
-        // Sem ativos marcados na carteira, ela acompanha todos.
+        // Sem ativos marcados na carteira, ela acompanha todos, menos os achados só pelo explorador.
         return Asset::query()
-            ->when($tracked->isNotEmpty(), fn ($query) => $query->whereIn('id', $tracked))
+            ->when($tracked->isNotEmpty(), fn ($query) => $query->whereIn('id', $tracked), fn ($query) => $query->where('discovered', false))
             ->where('market', Market::Crypto)
             ->where('active', true)
             ->where('is_benchmark', false)

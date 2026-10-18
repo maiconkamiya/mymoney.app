@@ -6,6 +6,9 @@ use App\Enums\Market;
 use App\MarketData\BinanceSymbols;
 use App\MarketData\BrapiB3;
 use App\Models\Asset;
+use App\Models\Opportunity;
+use App\Models\OpportunityScan;
+use App\Models\Portfolio;
 use App\Trading\Assets\AssetRegistry;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -18,7 +21,7 @@ use Inertia\Response;
 
 class AssetController extends Controller
 {
-    public function index(AssetRegistry $registry): Response
+    public function index(Request $request, AssetRegistry $registry): Response
     {
         $assets = Asset::query()
             ->where('active', true)
@@ -35,10 +38,74 @@ class AssetController extends Controller
                 'tick_size' => $asset->tick_size,
                 'min_qty' => $asset->min_qty,
                 'min_notional' => $asset->min_notional,
+                'discovered' => $asset->discovered,
                 'blockers' => $registry->blockers($asset),
             ]);
 
-        return Inertia::render('Assets', ['assets' => $assets]);
+        return Inertia::render('Assets', [
+            'assets' => $assets,
+            'explorer' => fn () => $this->explorer($request),
+        ]);
+    }
+
+    /**
+     * A última varredura do explorador e as carteiras de cripto do usuário, para os botões.
+     *
+     * @return array<string, mixed>
+     */
+    private function explorer(Request $request): array
+    {
+        $scan = OpportunityScan::query()->whereNull('error')->latest('id')->first();
+        $failed = OpportunityScan::query()->latest('id')->first();
+        $registered = Asset::query()->where('market', Market::Crypto)->where('active', true)->pluck('discovered', 'symbol');
+
+        return [
+            'enabled' => (bool) config('explorer.enabled'),
+            'interval_minutes' => (int) config('explorer.interval_minutes'),
+            'swarm_top' => (int) config('explorer.swarm.top'),
+            'swarm_min_score' => (float) config('explorer.swarm.min_score'),
+            'swarm_max_per_day' => (int) config('explorer.swarm.max_per_day'),
+            'swarm_cooldown_hours' => (int) config('explorer.swarm.cooldown_hours'),
+            'scanned_at' => $scan?->created_at->toIso8601String(),
+            'pairs_seen' => $scan?->pairs_seen,
+            'pairs_passed' => $scan?->pairs_passed,
+            'ai_model' => $scan?->ai_model,
+            'error' => $failed?->error,
+            'opportunities' => $scan === null ? [] : $scan->opportunities->map(fn (Opportunity $o) => [
+                'id' => $o->id,
+                'rank' => $o->rank,
+                'symbol' => $o->symbol,
+                'base' => $o->base,
+                'score' => $o->score,
+                'price' => $o->price,
+                'change_24h_pct' => $o->change_24h_pct,
+                'quote_volume' => $o->quote_volume,
+                'spread_pct' => $o->spread_pct,
+                'volume_accel' => $o->volume_accel,
+                'breakout' => $o->breakout,
+                'extension_atr' => $o->extension_atr,
+                'reasons' => $o->reasons,
+                'ai_note' => $o->ai_note,
+                'swarm_sent_at' => $o->swarm_sent_at?->toIso8601String(),
+                'status' => match ($registered->get($o->symbol)) {
+                    null => null,
+                    true => 'discovered',
+                    default => 'registered',
+                },
+            ])->values(),
+            'portfolios' => Portfolio::query()
+                ->where('user_id', $request->user()->id)
+                ->where('market', Market::Crypto)
+                ->orderBy('name')
+                ->get()
+                ->map(fn (Portfolio $p) => [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'mode' => $p->mode->value,
+                    'running' => $p->isRunning(),
+                    'auto_swarm' => $p->explorer_auto_swarm,
+                ])->values(),
+        ];
     }
 
     /**
