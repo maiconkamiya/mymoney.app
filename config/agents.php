@@ -37,6 +37,14 @@ return [
 
     'driver' => env('AGENTS_DRIVER', 'fake'),
 
+    /*
+    | Master switch of the swarm ("Agentes em ação" in Custos e serviços). Off,
+    | no signal is opened or analyzed; micro operations and the exits of open
+    | positions do not depend on it.
+    */
+
+    'enabled' => (bool) env('AGENTS_ENABLED', true),
+
     'timeout_seconds' => (int) env('AGENTS_TIMEOUT', 120),
 
     /*

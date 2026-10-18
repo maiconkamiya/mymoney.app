@@ -18,7 +18,8 @@ class TriageNewsJob implements ShouldQueue
     {
         $news = NewsItem::find($this->newsItemId);
 
-        if ($news === null || $news->triaged_at !== null) {
+        // The triage only feeds the swarm: with the agents off, Haiku is not called.
+        if ($news === null || $news->triaged_at !== null || ! SignalScanner::enabled()) {
             return;
         }
 

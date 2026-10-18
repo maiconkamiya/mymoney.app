@@ -12,7 +12,8 @@ export type PortfolioScope =
     | 'assets'
     | 'charts'
     | 'agents'
-    | 'tokens';
+    | 'tokens'
+    | 'swarm';
 
 // Cada escopo do evento `portfolio.changed` recarrega só as props que ele afeta.
 export const scopeProps: Record<PortfolioScope, string[]> = {
@@ -26,6 +27,14 @@ export const scopeProps: Record<PortfolioScope, string[]> = {
     charts: [],
     agents: ['agent_scores'],
     tokens: ['token_usage'],
+    // Chave "Agentes em ação" em Custos e serviços.
+    swarm: [
+        'agents_enabled',
+        'agent_activity',
+        'token_usage',
+        'signals',
+        'signals_total',
+    ],
 };
 
 /** Todos os blocos que o canal mantém em dia: recarregados juntos quando a conexão volta. */

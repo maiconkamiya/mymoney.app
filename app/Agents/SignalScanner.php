@@ -35,7 +35,7 @@ class SignalScanner
             ->get()
             ->each(fn (Signal $signal) => $signal->isExpired() && $signal->expire());
 
-        if (! $this->tradable($asset)) {
+        if (! self::enabled() || ! $this->tradable($asset)) {
             return [];
         }
 
@@ -64,7 +64,8 @@ class SignalScanner
      */
     public function scanPortfolio(Portfolio $portfolio, Asset $asset, ?string $reason = null): ?Signal
     {
-        if (! $portfolio->isRunning()
+        if (! self::enabled()
+            || ! $portfolio->isRunning()
             || $portfolio->market !== $asset->market
             || $portfolio->starts_at->isFuture()
             || $portfolio->ends_at->isPast()
@@ -73,6 +74,14 @@ class SignalScanner
         }
 
         return $this->open($portfolio, $asset, $reason);
+    }
+
+    /**
+     * The "Agentes em ação" switch: off, no signal is opened from any trigger.
+     */
+    public static function enabled(): bool
+    {
+        return (bool) config('agents.enabled');
     }
 
     private function open(Portfolio $portfolio, Asset $asset, ?string $reason): ?Signal

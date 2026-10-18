@@ -449,6 +449,7 @@ export type ExplorerData = {
     swarm_min_score: number;
     swarm_max_per_day: number;
     swarm_cooldown_hours: number;
+    agents_enabled: boolean;
     scanned_at: string | null;
     pairs_seen: number | null;
     pairs_passed: number | null;

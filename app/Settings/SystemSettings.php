@@ -2,9 +2,12 @@
 
 namespace App\Settings;
 
+use App\Events\PortfolioChanged;
 use App\Models\AuditLog;
+use App\Models\Portfolio;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Trading\PortfolioChangeBroadcaster;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
@@ -25,6 +28,7 @@ class SystemSettings
      * @var array<string, array{type: 'bool'}|array{type: 'choice', options: list<string|int>}>
      */
     public const SETTINGS = [
+        'agents.enabled' => ['type' => 'bool'],
         'agents.models.skeptic' => ['type' => 'choice', 'options' => ['claude-opus-5-5', 'claude-sonnet-5-5']],
         'trading.scan_interval_minutes' => ['type' => 'choice', 'options' => [15, 30, 60]],
         'agents.risk_needs_direction' => ['type' => 'bool'],
@@ -98,6 +102,11 @@ class SystemSettings
         Cache::forget(self::CACHE_KEY);
         AuditLog::record('user:'.$user->id, 'system_settings.updated', payload: ['changes' => $changes]);
         $this->apply();
+
+        // Carteiras abertas mostram ou escondem os cards do enxame sem recarregar.
+        if (array_key_exists('agents.enabled', $changes)) {
+            Portfolio::query()->pluck('id')->each(fn (int $id) => PortfolioChangeBroadcaster::notify($id, [PortfolioChanged::SCOPE_SWARM]));
+        }
     }
 
     /**

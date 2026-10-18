@@ -61,6 +61,7 @@ class AssetController extends Controller
 
         return [
             'enabled' => (bool) config('explorer.enabled'),
+            'agents_enabled' => (bool) config('agents.enabled'),
             'interval_minutes' => (int) config('explorer.interval_minutes'),
             'swarm_top' => (int) config('explorer.swarm.top'),
             'swarm_min_score' => (float) config('explorer.swarm.min_score'),

@@ -38,6 +38,13 @@ class SignalPipeline
             return null;
         }
 
+        // Switched off while the signal waited in the queue: no model is called.
+        if (! SignalScanner::enabled()) {
+            $signal->moveTo(SignalStage::Rejected, 'Agentes em ação desligados em Custos e serviços.');
+
+            return null;
+        }
+
         $this->broadcaster->cycleStarted($signal);
         $scenario = $this->scenarios->build($signal);
 
