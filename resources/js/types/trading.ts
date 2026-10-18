@@ -328,7 +328,12 @@ export type MicroBacktestSummary = {
 };
 
 export type MicroRuleOption = {
-    value: 'scalp' | 'trend_pullback' | 'scalp_uptrend';
+    value:
+        | 'scalp'
+        | 'trend_pullback'
+        | 'scalp_uptrend'
+        | 'breakout'
+        | 'breakout_pressure';
     label: string;
     backtest: MicroBacktestSummary | null;
 };

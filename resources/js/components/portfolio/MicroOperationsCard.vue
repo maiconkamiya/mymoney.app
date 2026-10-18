@@ -397,6 +397,24 @@ const time = (iso: string, seconds = false) =>
                         horas atrás. Na carteira real só pode ser escolhida
                         depois de passar no backtest.
                     </template>
+                    <template v-else-if="chosenRuleOption.value === 'breakout'">
+                        Espera 30 minutos de velas pequenas e compra quando uma
+                        vela fecha acima da máxima com volume alto; alvo pela
+                        altura da faixa, stop abaixo do meio dela, até 1 hora (a
+                        margem líquida acima não vale aqui). Na carteira real só
+                        pode ser escolhida depois de passar no backtest.
+                    </template>
+                    <template
+                        v-else-if="
+                            chosenRuleOption.value === 'breakout_pressure'
+                        "
+                    >
+                        Compra antes do rompimento: faixa de 30 minutos
+                        comprimida, mínimas subindo, máxima testada várias vezes
+                        e volume crescendo; stop abaixo da última mínima, até 1
+                        hora (a margem líquida acima não vale aqui). Na carteira
+                        real só pode ser escolhida depois de passar no backtest.
+                    </template>
                     <template v-else>
                         Compra no recuo de uma alta de 1 hora; alvo e stop pela
                         volatilidade de 15 minutos (a margem líquida acima não

@@ -13,7 +13,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('micro:backtest
-    {--rule=all : scalp (regra atual), trend_pullback (tendência com recuo), scalp_uptrend (atual + alta em 24 h e 4 h) ou all}
+    {--rule=all : scalp (regra atual), trend_pullback (tendência com recuo), scalp_uptrend (atual + alta em 24 h e 4 h), breakout (rompimento confirmado), breakout_pressure (pressão antes do rompimento) ou all}
     {--symbols= : pares separados por vírgula (padrão: todos os de cripto ativos)}
     {--days=30 : dias de velas de 1 minuto até agora}
     {--net-margin=0.2 : margem líquida da regra atual, em %}
@@ -29,7 +29,7 @@ class BacktestMicroOperations extends Command
         $rules = $option === 'all' ? MicroRule::cases() : [is_string($option) ? MicroRule::tryFrom($option) : null];
 
         if (in_array(null, $rules, true)) {
-            $this->error('Regra desconhecida. Use scalp, trend_pullback, scalp_uptrend ou all.');
+            $this->error('Regra desconhecida. Use scalp, trend_pullback, scalp_uptrend, breakout, breakout_pressure ou all.');
 
             return self::INVALID;
         }
@@ -71,7 +71,7 @@ class BacktestMicroOperations extends Command
     }
 
     /**
-     * @param  non-empty-array<string, non-empty-list<array{t: int, open: float, high: float, low: float, close: float}>>  $series
+     * @param  non-empty-array<string, non-empty-list<array{t: int, open: float, high: float, low: float, close: float, volume: float}>>  $series
      * @param  array<string, mixed>  $params
      * @return array<string, mixed>
      */
@@ -170,7 +170,7 @@ class BacktestMicroOperations extends Command
     /**
      * Candles of the active crypto pairs (or the chosen ones) in the period, oldest first.
      *
-     * @return array<string, non-empty-list<array{t: int, open: float, high: float, low: float, close: float}>>
+     * @return array<string, non-empty-list<array{t: int, open: float, high: float, low: float, close: float, volume: float}>>
      */
     private function candles(int $days): array
     {
@@ -191,12 +191,12 @@ class BacktestMicroOperations extends Command
                 ->where('timeframe', '1m')
                 ->where('open_at', '>=', now()->subDays($days))
                 ->orderBy('open_at')
-                ->get(['open_at', 'open', 'high', 'low', 'close']);
+                ->get(['open_at', 'open', 'high', 'low', 'close', 'volume']);
 
             $candles = [];
 
             foreach ($rows as $row) {
-                $candles[] = ['t' => (int) strtotime((string) $row->open_at), 'open' => (float) $row->open, 'high' => (float) $row->high, 'low' => (float) $row->low, 'close' => (float) $row->close];
+                $candles[] = ['t' => (int) strtotime((string) $row->open_at), 'open' => (float) $row->open, 'high' => (float) $row->high, 'low' => (float) $row->low, 'close' => (float) $row->close, 'volume' => (float) $row->volume];
             }
 
             if (count($candles) >= 60) {
