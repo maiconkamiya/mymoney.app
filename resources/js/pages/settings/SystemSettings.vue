@@ -32,6 +32,11 @@ const groups: { title: string; description: string; items: Item[] }[] = [
             'O enxame é quase todo o gasto com IA. As economias são estimativas sobre esse gasto.',
         items: [
             {
+                key: 'agents__enabled',
+                title: 'Agentes em ação',
+                help: 'Desligado, o enxame não analisa mais nenhum par: nem a varredura, nem o gatilho de preço, nem as notícias, nem o explorador. Some o gasto de IA dos sinais e os cards do enxame saem da carteira. As micro operações não usam IA e seguem iguais; posições já abertas seguem com stop e alvo.',
+            },
+            {
                 key: 'agents__models__skeptic',
                 title: 'Modelo do Cético',
                 help: 'Sonnet custa metade do Opus por token: cerca de 30% a menos no gasto de IA. O Cético procura objeções num cenário pronto, tarefa que o Sonnet faz bem.',

@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.71] - 2026-10-18
+
+### Adicionado
+
+- **Chave "Agentes em ação" em Configurações > Custos e serviços.** Desligada, o enxame de IA para de analisar pares: nem a varredura, nem o gatilho de movimento de preço, nem as notícias, nem o explorador chamam mais os agentes, e o gasto de IA dos sinais vai a zero. Na carteira somem os cards "Agentes em ação", "Tokens da IA" e "Sinais" (este fica enquanto houver sinal aprovado esperando) e, na carteira simulada, a seção "Execução dos sinais"; no lugar fica uma linha discreta com o link para a configuração. Na tela Ativos, "Mandar aos agentes" e o envio automático saem de cena. As micro operações não usam IA e seguem iguais, e as posições já abertas pelos agentes continuam com stop e alvo. Ligar ou desligar vale na hora, e a carteira aberta se atualiza sem recarregar a página. A chave começa ligada.
+
 ## [0.3.70] - 2026-10-18
 
 ### Adicionado

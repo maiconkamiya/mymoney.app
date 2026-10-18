@@ -384,6 +384,23 @@ class ExplorerTest extends TestCase
         $this->actingAs($user)->post(route('opportunities.swarm', $opportunity), ['portfolio_id' => $paused->id])->assertSessionHasErrors('portfolio_id');
     }
 
+    public function test_agentes_desligados_nao_recebem_par_do_explorador(): void
+    {
+        Queue::fake();
+        $this->fakeBinance();
+        config(['explorer.swarm.min_score' => 0, 'agents.enabled' => false]);
+        $user = User::factory()->create();
+        $portfolio = Portfolio::factory()->for($user)->create(['explorer_auto_swarm' => true]);
+
+        $this->assertSame([], app(OpportunityExplorer::class)->run()['swarmed']);
+
+        $opportunity = Opportunity::query()->where('symbol', 'ROSEUSDT')->firstOrFail();
+        $this->actingAs($user)->post(route('opportunities.swarm', $opportunity), ['portfolio_id' => $portfolio->id])->assertSessionHasErrors('symbol');
+
+        Queue::assertNotPushed(ExplorerSwarmJob::class);
+        $this->assertNull($opportunity->fresh()->swarm_sent_at);
+    }
+
     public function test_dono_liga_o_envio_automatico(): void
     {
         $user = User::factory()->create();

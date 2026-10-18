@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { marketLabels, money, percent } from '@/lib/trading';
 import { index, update } from '@/routes/portfolios';
 import { signals as portfolioSignals } from '@/routes/portfolios';
+import { edit as systemSettings } from '@/routes/system-settings';
 import type {
     AccountSync,
     AgentActivity,
@@ -56,6 +57,7 @@ const props = defineProps<{
     performance: Performance;
     agent_scores: AgentScoreRow[];
     tax_months: TaxMonth[];
+    agents_enabled: boolean;
     agent_activity: AgentActivity;
     token_usage: TokenUsage;
     charts: PortfolioCharts;
@@ -102,6 +104,16 @@ const equity = computed(
 );
 
 const result = computed(() => equity.value / props.portfolio.initial_cash - 1);
+
+// Agentes desligados em Custos e serviços: os cards do enxame somem. Sinais só
+// fica enquanto algum aprovado espera confirmação ou execução.
+const showSignals = computed(
+    () =>
+        props.agents_enabled ||
+        props.signals.some((signal) =>
+            ['approved', 'confirmed'].includes(signal.stage),
+        ),
+);
 
 // Sidebar: uma seção aberta por vez, lembrada por carteira neste navegador.
 const section = useOpenSection(
@@ -250,12 +262,26 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     />
                 </div>
 
-                <AgentSwarmCard
-                    :portfolio-id="portfolio.id"
-                    :initial="agent_activity"
-                />
+                <template v-if="agents_enabled">
+                    <AgentSwarmCard
+                        :portfolio-id="portfolio.id"
+                        :initial="agent_activity"
+                    />
 
-                <TokenUsageCard :usage="token_usage" />
+                    <TokenUsageCard :usage="token_usage" />
+                </template>
+                <p
+                    v-else
+                    class="-mt-4 text-xs text-muted-foreground"
+                    data-test="agents-disabled"
+                >
+                    Agentes em ação desligados em
+                    <Link
+                        :href="systemSettings()"
+                        class="underline underline-offset-4 hover:text-foreground"
+                        >Custos e serviços</Link
+                    >. Posições já abertas seguem com stop e alvo.
+                </p>
 
                 <PerformancePanel
                     :portfolio-id="portfolio.id"
@@ -265,7 +291,7 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                     :tax-months="tax_months"
                 />
 
-                <section>
+                <section v-if="showSignals" data-test="signals-section">
                     <Heading
                         variant="small"
                         title="Sinais"
@@ -527,7 +553,7 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                 </SidebarSection>
 
                 <SidebarSection
-                    v-if="portfolio.mode !== 'live'"
+                    v-if="portfolio.mode !== 'live' && agents_enabled"
                     title="Execução dos sinais"
                     :hint="
                         portfolio.auto_execute
