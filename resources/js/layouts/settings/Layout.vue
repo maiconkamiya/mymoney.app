@@ -9,6 +9,7 @@ import { edit as editBinance } from '@/routes/binance';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
+import { edit as editSystemSettings } from '@/routes/system-settings';
 import type { NavItem } from '@/types';
 
 const sidebarNavItems: NavItem[] = [
@@ -23,6 +24,10 @@ const sidebarNavItems: NavItem[] = [
     {
         title: 'Binance',
         href: editBinance(),
+    },
+    {
+        title: 'Custos e serviços',
+        href: editSystemSettings(),
     },
     {
         title: 'Aparência',

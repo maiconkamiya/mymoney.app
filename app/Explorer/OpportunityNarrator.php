@@ -4,6 +4,7 @@ namespace App\Explorer;
 
 use App\Agents\Llm\LlmClient;
 use App\Agents\Llm\LlmResponse;
+use App\Agents\LlmAgent;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -44,7 +45,7 @@ class OpportunityNarrator
                     .'Os números foram calculados por código; não invente outros. Prefira volume acelerando, rompimento recente e preço ainda perto da média; '
                     .'desconfie de alta sem volume e de preço já esticado. Em items, devolva cada símbolo uma vez, do melhor para o pior, '
                     .'com note: uma frase curta em português explicando o porquê, sem travessões.',
-                "Pares ranqueados pela nota do código:\n".json_encode($table, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+                "Pares ranqueados pela nota do código:\n".json_encode($table, LlmAgent::jsonFlags()),
                 self::schema(),
             );
         } catch (Throwable $e) {

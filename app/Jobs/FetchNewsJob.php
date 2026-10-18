@@ -22,6 +22,10 @@ class FetchNewsJob implements ShouldQueue
             return; // source configured but switched off (no feed URL)
         }
 
+        if (($config['market'] ?? null) === 'b3' && ! config('news.b3_sources')) {
+            return; // B3 sources turned off in the settings
+        }
+
         $feed = match ($config['driver']) {
             'rss' => new RssNewsSource($config['url']),
             default => throw new InvalidArgumentException("Fonte de notícias [{$this->source}] com driver desconhecido."),

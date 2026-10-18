@@ -4,6 +4,26 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.67] - 2026-10-18
+
+### Alterado
+
+- **Gráficos novos, feitos com o ApexCharts.** Os gráficos de "Ativos em tempo real" e de "Desempenho" na carteira, e o gráfico do mercado no Painel e na página inicial, ganharam o mesmo visual, com dica ao passar o mouse mostrando a hora e o preço (ou a data e o patrimônio). Seguem o tema claro ou escuro e continuam se atualizando sozinhos, sem recarregar a página.
+- **Linha ou velas nos ativos da carteira.** Um seletor "Linha | Velas" em "Ativos em tempo real" troca todos os gráficos entre a linha de fechamento e as velas de 1 minuto; a escolha fica lembrada no navegador.
+- **Preço médio, stop, alvo (ou venda) e teto sempre à vista.** O gráfico ajusta a escala para que essas linhas nunca fiquem fora dele, e os rótulos ganharam fundo para não serem cortados pela linha do preço.
+
+## [0.3.66] - 2026-10-18
+
+### Adicionado
+
+- **Custos e serviços em Configurações.** Uma página nova liga e desliga o que gasta IA e as rotinas sem uso, sem deploy: modelo do Cético (Opus ou Sonnet), intervalo da varredura do enxame (15, 30 ou 60 min), Risco só quando há compra ou venda na primeira rodada, pular o Cético quando a regra de entrada tardia já barraria a compra, cenário compacto (menos tokens), frase do explorador, explorador de oportunidades, serviço de previsão, cotações da B3 e notícias da B3. Cada chave explica quanto economiza e o que se perde. Nada muda até alguém mexer: tudo começa como estava. Só o administrador do sistema altera, e cada mudança fica no registro de auditoria. A guarda de risco, os limites de dinheiro real e o Parar tudo não mudam por aqui.
+
+## [0.3.65] - 2026-10-18
+
+### Adicionado
+
+- **Tokens da IA na carteira.** Abaixo de "Agentes em ação", um quadro mostra quantos tokens os agentes gastaram nos sinais da carteira hoje, na semana, no mês e a estimativa do mês (a média diária do mês projetada até o último dia), com o custo em dólar e o número de chamadas. Passe o mouse para ver entrada e saída separadas. Os números se atualizam sozinhos a cada voto novo, sem recarregar a tela, e contam desde a primeira chamada gravada na carteira. O explorador de oportunidades e a triagem de notícias são da conta toda e não entram nesse total.
+
 ## [0.3.64] - 2026-10-18
 
 ### Alterado
