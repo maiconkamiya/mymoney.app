@@ -29,6 +29,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('portfolios/{portfolio}/saldo-inicial', PortfolioInitialCashController::class)->name('portfolios.initial-cash');
     Route::put('portfolios/{portfolio}/micro-operacoes', [MicroOperationsController::class, 'update'])->name('portfolios.micro');
     Route::put('portfolios/{portfolio}/micro-operacoes/liquidar', [MicroOperationsController::class, 'liquidate'])->name('portfolios.liquidate');
+    Route::post('portfolios/{portfolio}/micro-operacoes/liquidar-agora', [MicroOperationsController::class, 'liquidateNow'])->name('portfolios.liquidate-now');
     Route::put('portfolios/{portfolio}/ativos', [PortfolioAssetsController::class, 'update'])->name('portfolios.assets.update');
     Route::get('ativos', [AssetController::class, 'index'])->name('assets.index');
     Route::get('ativos/busca', [AssetController::class, 'search'])->middleware('throttle:30,1')->name('assets.search');

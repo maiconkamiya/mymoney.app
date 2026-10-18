@@ -394,7 +394,7 @@ class MicroTrader
             }
 
             $cycle = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->first();
-            $price = $cycle !== null ? (float) $cycle->target_price : $this->costBasis($portfolio, $position) * (1 + $gross / 100);
+            $price = $this->plannedSellPrice($portfolio, $position, $gross);
 
             $sell = $this->executor->placeRestingSell($position, $price, 'target', self::ACTOR);
 
@@ -420,6 +420,72 @@ class MicroTrader
         }
 
         return $placed;
+    }
+
+    /**
+     * Where the position is meant to be sold: the open cycle's target, or what
+     * was paid plus the round trip plus the card's net margin.
+     */
+    public function plannedSellPrice(Portfolio $portfolio, Position $position, ?float $grossPct = null): float
+    {
+        $target = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->value('target_price');
+
+        return $target !== null
+            ? (float) $target
+            : $this->costBasis($portfolio, $position) * (1 + ($grossPct ?? $this->costs->grossMarginPct($portfolio->micro_net_margin_pct)) / 100);
+    }
+
+    /**
+     * The owner's "Liquidar agora": cancel the resting sale and sell the whole
+     * position at market, even at a loss. It goes through the executor, so the
+     * risk guard, the live switch and "Parar tudo" still apply; the click and
+     * its confirmation are the owner's approval of this one order.
+     *
+     * @return Order|string the filled sale, or why it did not go out
+     */
+    public function liquidateNow(Portfolio $portfolio, Position $position, string $actor): Order|string
+    {
+        if ($position->closed_at !== null || $position->portfolio_id !== $portfolio->id) {
+            return 'A posição já foi encerrada.';
+        }
+
+        $position->loadMissing(['asset', 'portfolio']);
+
+        if ($portfolio->isLive()) {
+            $this->refreshFilters($position->asset);
+            $position->asset->refresh();
+        }
+
+        $row = $this->liquidation($portfolio, $position);
+        $minimum = $portfolio->isLive() ? (float) $position->asset->min_notional : 0.0;
+
+        if ($row['price'] !== null && $position->qty * $row['price'] < $minimum) {
+            return sprintf('A posição vale %.2f USDT, abaixo do mínimo de %.2f USDT do par: a corretora não aceita a venda.', $position->qty * $row['price'], $minimum);
+        }
+
+        $sale = $this->executor->closePosition($position, 'micro_manual', $actor, $blocked);
+
+        if ($sale === null) {
+            return $blocked ?? 'A venda não saiu.';
+        }
+
+        if ($sale->status !== OrderStatus::Filled) {
+            return 'Corretora recusou: '.($sale->reject_reason ?? 'sem motivo informado');
+        }
+
+        $this->settle($portfolio);
+        Cache::forget($this->sellFailureKey($position));
+
+        AuditLog::record($actor, 'micro.liquidated_now', $position, [
+            'portfolio_id' => $portfolio->id,
+            'symbol' => $position->asset->symbol,
+            'cost' => $row['cost'],
+            'price' => $sale->price,
+            'qty' => $sale->qty,
+            'net_pnl' => $sale->price === null ? null : round((float) $sale->qty * ((float) $sale->price - $row['cost']) - (float) $sale->fees, 8),
+        ]);
+
+        return $sale;
     }
 
     /**

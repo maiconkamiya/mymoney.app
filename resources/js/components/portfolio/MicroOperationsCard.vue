@@ -2,16 +2,32 @@
 import { Form, router } from '@inertiajs/vue3';
 import { echoIsConfigured } from '@laravel/echo-vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { liquidate as liquidateAction } from '@/actions/App/Http/Controllers/MicroOperationsController';
+import {
+    liquidate as liquidateAction,
+    liquidateNow as liquidateNowAction,
+} from '@/actions/App/Http/Controllers/MicroOperationsController';
 import InputError from '@/components/InputError.vue';
 import { useMarketPrices } from '@/composables/useMarketPrices';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { money } from '@/lib/trading';
 import { micro as microRoute } from '@/routes/portfolios';
-import type { MicroOverview, PortfolioSummary } from '@/types';
+import type {
+    MicroLiquidationRow,
+    MicroOverview,
+    PortfolioSummary,
+} from '@/types';
 
 const props = defineProps<{
     portfolio: PortfolioSummary;
@@ -67,6 +83,55 @@ function toggleLiquidation(assetId: number, liquidate: boolean) {
     );
 }
 
+// "Liquidar agora": a confirmação mostra o resultado estimado pelo preço ao vivo, inclusive negativo.
+const sellingId = ref<number | null>(null);
+const selling = ref(false);
+const sellingRow = computed(
+    () =>
+        liquidation.value.find((row) => row.asset_id === sellingId.value) ??
+        null,
+);
+
+function estimate(row: MicroLiquidationRow) {
+    if (row.price === null || row.cost === null || row.qty <= 0) {
+        return null;
+    }
+
+    const value = row.qty * row.price;
+    const net =
+        row.qty * (row.price - row.cost) - value * props.micro.sell_fee_rate;
+
+    return { value, net, pct: (net / (row.qty * row.cost)) * 100 };
+}
+
+const sellingEstimate = computed(() =>
+    sellingRow.value ? estimate(sellingRow.value) : null,
+);
+
+function liquidateNow() {
+    if (sellingId.value === null) {
+        return;
+    }
+
+    selling.value = true;
+
+    router.post(
+        liquidateNowAction.url(props.portfolio.id),
+        { asset_id: sellingId.value },
+        {
+            preserveScroll: true,
+            only: ['portfolio', 'micro', 'positions'],
+            onFinish: () => {
+                selling.value = false;
+                sellingId.value = null;
+            },
+        },
+    );
+}
+
+const oddsTone = (pct: number | null) =>
+    pct === null ? '' : pct >= 60 ? 'text-up' : pct < 30 ? 'text-down' : '';
+
 const price = (value: number | null) =>
     value === null
         ? 'sem cotação'
@@ -79,6 +144,7 @@ const exitLabels: Record<string, string> = {
     period_end: 'Fim do período',
     sold: 'Vendida',
     micro_liquidate: 'Liquidado com lucro',
+    micro_manual: 'Liquidado à mão',
     conta: 'Saiu da conta',
 };
 
@@ -416,24 +482,162 @@ const time = (iso: string) =>
                             Nova tentativa às
                             {{ time(row.sell_failure.retry_at) }}.
                         </span>
+                        <span
+                            v-if="row.qty > 0 && row.odds"
+                            class="flex flex-col gap-0.5"
+                            :data-test="`micro-odds-${row.symbol}`"
+                        >
+                            <span class="tabular-nums">
+                                Chance de alcançar o alvo de
+                                {{ price(row.odds.target) }} em
+                                {{ row.odds.minutes }} min:
+                                <span
+                                    class="font-medium"
+                                    :class="oddsTone(row.odds.pct)"
+                                    >{{
+                                        row.odds.pct === null
+                                            ? 'sem dados'
+                                            : `${row.odds.pct}%`
+                                    }}</span
+                                >
+                                <span
+                                    v-if="row.odds.distance_pct > 0"
+                                    class="text-muted-foreground"
+                                >
+                                    · faltam
+                                    {{
+                                        row.odds.distance_pct.toLocaleString(
+                                            'pt-BR',
+                                            { maximumFractionDigits: 2 },
+                                        )
+                                    }}%<template
+                                        v-if="row.odds.distance_atr !== null"
+                                    >
+                                        ({{
+                                            row.odds.distance_atr.toLocaleString(
+                                                'pt-BR',
+                                                { maximumFractionDigits: 1 },
+                                            )
+                                        }}
+                                        ATR de 1 min)</template
+                                    >
+                                </span>
+                            </span>
+                            <span class="text-xs text-muted-foreground">
+                                {{ row.odds.reason }}
+                            </span>
+                        </span>
                     </div>
-                    <Button
-                        type="button"
-                        size="sm"
-                        :variant="row.marked ? 'outline' : 'secondary'"
-                        :disabled="toggling === row.asset_id"
-                        :data-test="`micro-liquidate-${row.symbol}`"
-                        @click="toggleLiquidation(row.asset_id, !row.marked)"
-                    >
-                        {{
-                            row.marked
-                                ? 'Voltar a comprar'
-                                : 'Liquidar com lucro'
-                        }}
-                    </Button>
+                    <div class="flex flex-wrap gap-2">
+                        <Button
+                            type="button"
+                            size="sm"
+                            :variant="row.marked ? 'outline' : 'secondary'"
+                            :disabled="toggling === row.asset_id"
+                            :data-test="`micro-liquidate-${row.symbol}`"
+                            @click="
+                                toggleLiquidation(row.asset_id, !row.marked)
+                            "
+                        >
+                            {{
+                                row.marked
+                                    ? 'Voltar a comprar'
+                                    : 'Liquidar com lucro'
+                            }}
+                        </Button>
+                        <Button
+                            v-if="row.qty > 0"
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            class="text-destructive"
+                            :disabled="selling"
+                            :data-test="`micro-liquidate-now-${row.symbol}`"
+                            @click="sellingId = row.asset_id"
+                        >
+                            Liquidar agora
+                        </Button>
+                    </div>
                 </li>
             </ul>
         </div>
+
+        <Dialog
+            :open="sellingId !== null"
+            @update:open="(open) => !open && !selling && (sellingId = null)"
+        >
+            <DialogContent v-if="sellingRow">
+                <DialogHeader class="space-y-3">
+                    <DialogTitle>
+                        Vender {{ sellingRow.symbol }} agora a mercado?
+                    </DialogTitle>
+                    <DialogDescription>
+                        A venda registrada na corretora é cancelada e toda a
+                        posição é vendida pelo preço de agora, mesmo com
+                        prejuízo. A guarda de risco e o "Parar tudo" continuam
+                        valendo.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <dl
+                    class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm tabular-nums"
+                    data-test="micro-liquidate-now-estimate"
+                >
+                    <dt class="text-muted-foreground">Quantidade</dt>
+                    <dd>{{ sellingRow.qty }}</dd>
+                    <dt class="text-muted-foreground">Custo</dt>
+                    <dd>{{ price(sellingRow.cost) }}</dd>
+                    <dt class="text-muted-foreground">Preço agora</dt>
+                    <dd>{{ price(sellingRow.price) }}</dd>
+                    <template v-if="sellingEstimate">
+                        <dt class="text-muted-foreground">Recebe cerca de</dt>
+                        <dd>
+                            {{ money(sellingEstimate.value, portfolio.market) }}
+                            USDT
+                        </dd>
+                        <dt class="text-muted-foreground">
+                            Resultado estimado
+                        </dt>
+                        <dd
+                            class="font-medium"
+                            :class="
+                                sellingEstimate.net >= 0
+                                    ? 'text-up'
+                                    : 'text-down'
+                            "
+                        >
+                            {{ money(sellingEstimate.net, portfolio.market) }}
+                            USDT ({{
+                                sellingEstimate.pct.toLocaleString('pt-BR', {
+                                    maximumFractionDigits: 2,
+                                })
+                            }}%)
+                        </dd>
+                    </template>
+                </dl>
+                <p class="text-xs text-muted-foreground">
+                    Estimativa com a taxa de venda; o preço executado pode
+                    variar um pouco.
+                </p>
+
+                <DialogFooter class="gap-2">
+                    <DialogClose as-child>
+                        <Button variant="secondary" :disabled="selling">
+                            Cancelar
+                        </Button>
+                    </DialogClose>
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        :disabled="selling"
+                        data-test="micro-liquidate-now-confirm"
+                        @click="liquidateNow"
+                    >
+                        Vender agora
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
         <div class="overflow-x-auto">
             <table class="w-full text-sm" data-test="micro-cycles">

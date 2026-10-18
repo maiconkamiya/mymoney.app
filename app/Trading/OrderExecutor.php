@@ -108,11 +108,12 @@ class OrderExecutor
      * they still pass the live switch, the halt and the credential checks.
      * The sell goes through the same risk guard and broker as any other order.
      */
-    public function closePosition(Position $position, string $reason, string $actor): ?Order
+    public function closePosition(Position $position, string $reason, string $actor, ?string &$blocked = null): ?Order
     {
         // A resting limit sell locks the coins: it goes first, and what it already sold counts.
         if (! $this->cancelResting($position, $actor)) {
-            $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'detail' => 'A venda limitada aberta não pôde ser cancelada na corretora.']);
+            $blocked = 'A venda limitada aberta não pôde ser cancelada na corretora.';
+            $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'detail' => $blocked]);
 
             return null;
         }
@@ -140,6 +141,7 @@ class OrderExecutor
         $outcome = $this->submit($position->portfolio, $request, $position->signal, $actor, $reason, positionId: $position->id);
 
         if (is_string($outcome)) {
+            $blocked = $outcome;
             $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'detail' => $outcome]);
 
             return null;
