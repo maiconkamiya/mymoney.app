@@ -871,9 +871,19 @@ class MicroOperationsTest extends TestCase
         $this->assertSame(0, Order::where('side', OrderSide::Sell)->count());
     }
 
+    /**
+     * The production cache serializes values and refuses objects (serializable_classes false).
+     */
+    private function serializingCache(): void
+    {
+        config(['cache.stores.array.serialize' => true]);
+        Cache::forgetDriver('array');
+    }
+
     public function test_a_refused_real_sale_is_shown_on_the_card_and_tried_again()
     {
         config(['trading.live.enabled' => true]);
+        $this->serializingCache();
         // DUSK-like pair: step 1, minimum 5 USDT.
         $this->asset->update(['lot_size' => '1', 'tick_size' => '0.0001', 'min_qty' => '1', 'min_notional' => '5']);
         $this->candles($this->asset, 100.0);
@@ -902,6 +912,9 @@ class MicroOperationsTest extends TestCase
         $row = collect(app(MicroOverview::class)->for($portfolio)['liquidation'])->firstWhere('symbol', 'DOGEUSDT');
         $this->assertStringContainsString('Saldo insuficiente', $row['sell_failure']['reason']);
         $this->assertNull($row['resting_sell_price']);
+        // Kept as text: the cache does not bring objects back.
+        $this->assertIsString(Cache::get('micro:sell-failure:'.$position->id)['retry_at']);
+        $this->assertSame(now()->addMinute()->subSeconds(5)->toIso8601String(), $row['sell_failure']['retry_at']);
 
         // Each minute the quote stays fresh, as the market collector keeps it.
         $minute = function () {
@@ -925,6 +938,26 @@ class MicroOperationsTest extends TestCase
         $this->assertEqualsWithDelta(100.5, $resting->price, 0.001);
         Http::assertSent(fn (Request $request) => $request->method() === 'POST' && str_contains($request->url(), 'quantity=39&') && str_contains($request->url(), 'type=LIMIT'));
         $this->assertNull(app(MicroTrader::class)->sellFailure($position));
+    }
+
+    public function test_a_sale_failure_left_in_the_cache_by_an_old_version_is_forgotten_and_the_sale_tried_again()
+    {
+        $this->serializingCache();
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        $position = $this->boughtPosition($portfolio);
+
+        // Up to 0.3.74 the retry time went in as a Carbon object, which comes back broken.
+        Cache::put('micro:sell-failure:'.$position->id, ['reason' => 'corretora recusou', 'at' => now()->toIso8601String(), 'retry_at' => now()->addMinutes(10), 'attempts' => 3], now()->addDay());
+        $this->assertInstanceOf(\__PHP_Incomplete_Class::class, Cache::get('micro:sell-failure:'.$position->id)['retry_at']);
+
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertOk();
+        $this->assertNull(app(MicroTrader::class)->sellFailure($position));
+        $this->assertFalse(Cache::has('micro:sell-failure:'.$position->id));
+
+        Cache::put('micro:sell-failure:'.$position->id, ['reason' => 'x', 'at' => 'x', 'retry_at' => now()->addMinutes(10), 'attempts' => 3], now()->addDay());
+        $this->assertSame(1, app(MicroTrader::class)->registerSells($portfolio));
+        $this->assertSame(1, Order::where('side', OrderSide::Sell)->where('status', OrderStatus::Pending)->count());
     }
 
     public function test_the_risk_guard_cuts_a_sale_at_its_own_position_and_on_the_pair_step()
