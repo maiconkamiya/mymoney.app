@@ -4,12 +4,18 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.79] - 2026-10-18
+## [0.3.80] - 2026-10-18
 
 ### Corrigido
 
 - **O stop das micro operações volta a vender na carteira real.** Com aporte de 5 USDT, a compra ficava só 1% acima do mínimo de 5 USDT da Binance, e qualquer queda maior deixava a venda no stop abaixo do mínimo: a Binance não aceita e a posição ficava presa. Agora a compra é dimensionada para a venda no stop ainda valer o mínimo, com 0,5% de folga para o deslize (com stop de 1% a compra vai a cerca de 5,08 USDT; com aporte maior, nada muda). Se o aporte não permitir isso, o par não entra e Pares em foco e o `micro:run --explain` mostram o motivo "aporte não cobre o stop".
 - **Aviso de posição abaixo do mínimo da Binance.** Uma posição que já caiu abaixo do mínimo mostra no card de Micro operações e em Posições abertas: "Abaixo do mínimo da Binance: o app não consegue vender; saída só pelo alvo ou pela conversão de saldo pequeno na Binance". A venda limitada no alvo continua registrada, e o aviso de venda bloqueada no registro de auditoria deixa de se repetir a cada minuto.
+
+## [0.3.79] - 2026-10-18
+
+### Adicionado
+
+- **Clonar a carteira como simulada.** Na lateral da carteira, a seção "Clonar como simulada" cria uma carteira simulada com os mesmos ativos acompanhados e o mesmo card Micro operações (aporte, operações por dia, margem, meta e perda do dia, regra de entrada), começando com o patrimônio de agora em caixa. As micro operações já nascem ligadas e os sinais dos agentes esperam a sua confirmação. Posições, ordens, histórico, credencial da Binance e a execução real ficam na carteira de origem: nenhuma ordem da simulada vai à corretora. Ao confirmar, a tela abre a carteira nova sem recarregar.
 
 ## [0.3.78] - 2026-10-18
 

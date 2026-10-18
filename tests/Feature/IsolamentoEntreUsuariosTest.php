@@ -32,6 +32,7 @@ class IsolamentoEntreUsuariosTest extends TestCase
         $this->actingAs($intruder)->getJson(route('portfolios.charts', $portfolio))->assertForbidden();
         $this->actingAs($intruder)->get(route('portfolios.reports.tax', $portfolio))->assertForbidden();
         $this->actingAs($intruder)->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '1', 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2])->assertForbidden();
+        $this->actingAs($intruder)->post(route('portfolios.clone', $portfolio))->assertForbidden();
         $this->actingAs($intruder)->post(route('signals.confirm', $signal))->assertForbidden();
         $this->actingAs($intruder)->post(route('signals.reject', $signal))->assertForbidden();
     }
