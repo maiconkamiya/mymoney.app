@@ -63,8 +63,11 @@ def walk_forward(
         test = data.iloc[test_start:test_end]
         if train["label"].nunique() < 2 or test.empty:
             continue
-        clf = make_classifier().fit(train[features], train["label"])
-        probs.append(clf.predict_proba(test[features])[:, 1])
+        # As primeiras janelas têm poucas velas por ativo: variável de janela longa (ret_240...) pode vir
+        # toda vazia no treino, e o gradiente não aceita coluna sem nenhum valor.
+        usable = [name for name in features if train[name].notna().any()]
+        clf = make_classifier().fit(train[usable], train["label"])
+        probs.append(clf.predict_proba(test[usable])[:, 1])
         fold_sizes.append(len(test))
         allowed.append(trade_filter(test) if trade_filter else np.ones(len(test), dtype=bool))
         labels.append(test["label"].to_numpy())

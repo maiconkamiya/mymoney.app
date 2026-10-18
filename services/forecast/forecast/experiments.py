@@ -54,13 +54,15 @@ class PlattCalibrated:
 
     def fit(self, features: pd.DataFrame, label: pd.Series) -> "PlattCalibrated":
         cut = int(len(features) * (1 - self.calibration_share))
-        self.base = new_classifier().fit(features.iloc[:cut], label.iloc[:cut])
-        raw = self._logit(self.base.predict_proba(features.iloc[cut:])[:, 1])
+        # Dos primeiros 80% pode faltar uma variável inteira (janela longa); ela sai do modelo base.
+        self.columns = [name for name in features.columns if features.iloc[:cut][name].notna().any()]
+        self.base = new_classifier().fit(features.iloc[:cut][self.columns], label.iloc[:cut])
+        raw = self._logit(self.base.predict_proba(features.iloc[cut:][self.columns])[:, 1])
         self.platt = LogisticRegression().fit(raw, label.iloc[cut:])
         return self
 
     def predict_proba(self, features: pd.DataFrame) -> np.ndarray:
-        raw = self._logit(self.base.predict_proba(features)[:, 1])
+        raw = self._logit(self.base.predict_proba(features[self.columns])[:, 1])
         return self.platt.predict_proba(raw)
 
     @staticmethod
