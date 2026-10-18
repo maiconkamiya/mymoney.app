@@ -238,6 +238,9 @@ export type ChartAsset = {
         qty: number;
         avg_price: number;
         stop_price: number | null;
+        /** Venda registrada na corretora, ou o alvo da posição sem ela. */
+        target_price: number | null;
+        sell_registered: boolean;
     } | null;
 };
 

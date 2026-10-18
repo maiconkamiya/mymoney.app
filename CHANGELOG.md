@@ -4,12 +4,22 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.49] - 2026-10-18
+## [0.3.50] - 2026-10-18
 
 ### Corrigido
 
 - **"Sincronizar agora" não recarrega mais a tela inteira.** A carteira fica onde estava e só os blocos que mudam (saldo, posições, sincronização com a Binance, micro operações) são atualizados. O mesmo vale para "Executar sinais aprovados sem confirmação", os botões da execução real ("Parar tudo", liberar ordens, CONFIRMO, aviso por e-mail) e o "Salvar" dos ativos acompanhados. Se a sincronização falhar, o motivo aparece ao lado do botão.
 - **Telas abertas a partir da carteira também não recarregam.** O filtro do histórico de sinais e os botões da tela da Binance (sincronizar, trocar e remover a chave) mantêm a rolagem e o que estava na tela.
+
+## [0.3.49] - 2026-10-18
+
+### Corrigido
+
+- **Linhas dos gráficos em tempo real acompanham as micro operações.** O preço médio e o stop dos gráficos de "Ativos em tempo real" só mudavam com F5. Agora, quando a micro operação compra, registra a venda, muda o stop ou fecha o ciclo, as linhas se redesenham sozinhas na hora, sem recarregar a página.
+
+### Adicionado
+
+- **Linha do alvo no gráfico.** Cada posição aberta mostra também a linha verde do preço de saída: "venda" com o preço da ordem registrada na Binance, ou "alvo" quando ainda não há ordem registrada.
 
 ## [0.3.48] - 2026-10-18
 
