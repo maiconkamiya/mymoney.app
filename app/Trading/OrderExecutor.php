@@ -168,11 +168,20 @@ class OrderExecutor
         // so the broker looks it up first; the coins it may have sold no longer show in the balance (#198).
         $unknown = $position->portfolio->isLive() ? UnknownSales::for($position->id) : null;
         $step = (float) $position->asset->lot_size;
+        $qty = $unknown === null ? $this->sellableQty($position) : ($step > 0 ? floor(round($position->qty / $step, 8)) * $step : $position->qty);
+
+        // What really goes out may be under the minimum even when the whole position was not (fee
+        // taken in the coin, step): the exchange would refuse it, so it is not sent (#200).
+        if (($blocked = $this->belowMinimum($position, $this->prices->quote($position->asset)?->price, $qty)) !== null) {
+            $this->logCloseBlocked($position, $actor, ['reason' => $reason, 'code' => 'below_minimum', 'detail' => $blocked]);
+
+            return null;
+        }
 
         $request = new OrderRequest(
             asset: $position->asset,
             side: OrderSide::Sell,
-            qty: $unknown === null ? $this->sellableQty($position) : ($step > 0 ? floor(round($position->qty / $step, 8)) * $step : $position->qty),
+            qty: $qty,
             clientId: $unknown ?? 'position-'.$position->id.'-'.$reason,
             positionId: $position->id,
         );
@@ -526,9 +535,10 @@ class OrderExecutor
                 $free = null;
             }
 
-            if ($free !== null && $free > 0) {
-                $qty = min($qty, $free);
-            }
+            // Without the balance, the fee the exchange may have taken in the coin is left out (#200).
+            $qty = $free !== null && $free > 0
+                ? min($qty, $free)
+                : $qty * (1 - (float) config('trading.costs.crypto.fee_rate'));
         }
 
         $step = (float) $asset->lot_size;
@@ -539,9 +549,10 @@ class OrderExecutor
     /**
      * Why a market sale of the whole position would be refused by the exchange
      * for being under the pair's minimum order value, or null. Counts only the
-     * whole steps of the position: that is what can be sold.
+     * whole steps of what can be sold: the given quantity, else the resting
+     * sale's (already net of the fee taken in the coin), else the position.
      */
-    public function belowMinimum(Position $position, ?float $price): ?string
+    public function belowMinimum(Position $position, ?float $price, ?float $qty = null): ?string
     {
         $asset = $position->asset;
         $minimum = $position->portfolio->isLive() ? (float) $asset->min_notional : 0.0;
@@ -550,8 +561,13 @@ class OrderExecutor
             return null;
         }
 
+        if ($qty === null) {
+            $resting = (float) $this->restingSells($position)->sum('qty');
+            $qty = $resting > 0 ? min($position->qty, $resting) : $position->qty;
+        }
+
         $step = (float) $asset->lot_size;
-        $qty = $step > 0 ? floor(round($position->qty / $step, 8)) * $step : $position->qty;
+        $qty = $step > 0 ? floor(round($qty / $step, 8)) * $step : $qty;
 
         return $qty * $price < $minimum
             ? sprintf('A venda de %s %s a %s vale %.2f USDT, abaixo do mínimo de %.2f USDT do par: a corretora não aceita.', $qty, $asset->symbol, $price, $qty * $price, $minimum)
