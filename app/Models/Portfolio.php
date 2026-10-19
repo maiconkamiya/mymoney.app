@@ -52,6 +52,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property float|null $micro_daily_loss_limit
  * @property list<int>|null $micro_liquidate_asset_ids
  * @property bool $explorer_auto_swarm
+ * @property bool $explorer_follow
+ * @property int $explorer_follow_size
+ * @property int $explorer_follow_min_hours
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read User $user
@@ -64,7 +67,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  * @property-read Collection<int, MicroCycle> $microCycles
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'explorer_auto_swarm'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'explorer_auto_swarm', 'explorer_follow', 'explorer_follow_size', 'explorer_follow_min_hours'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -108,6 +111,9 @@ class Portfolio extends Model
             'micro_daily_loss_limit' => 'float',
             'micro_liquidate_asset_ids' => 'array',
             'explorer_auto_swarm' => 'boolean',
+            'explorer_follow' => 'boolean',
+            'explorer_follow_size' => 'integer',
+            'explorer_follow_min_hours' => 'integer',
         ];
     }
 

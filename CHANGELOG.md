@@ -4,11 +4,17 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.84] - 2026-10-19
+
+### Adicionado
+
+- **Escore de rompimento de alta no explorador.** Na tela Ativos, cada par da lista de Oportunidades ganha um escore de 0 a 100 com a chance de rompimento de alta, calculado sem IA e sem custo com os mesmos sinais das regras de rompimento das micro operações: compressão da faixa, volume da última hora contra a média, toques na resistência com mínimas subindo, posição no canal e abertura da faixa. Cada sinal aparece embaixo do par com uma barra e o número que o gerou (passe o mouse para a explicação). A lista passa a ser ordenada por esse escore, e o par a partir do limiar ganha a marca **Recomendado**. A opção "Seguir o explorador" da carteira passa a seguir essa mesma ordem, e o motivo de cada entrada mostra o escore de rompimento no lugar da nota. O limiar começa em 60 e muda em Configurações > Custos e serviços, "Limiar de rompimento recomendado". Os pesos e o limiar ainda não foram calibrados com dados reais.
+
 ## [0.3.83] - 2026-10-19
 
 ### Adicionado
 
-- **Escore de rompimento de alta no explorador.** Na tela Ativos, cada par da lista de Oportunidades ganha um escore de 0 a 100 com a chance de rompimento de alta, calculado sem IA e sem custo com os mesmos sinais das regras de rompimento das micro operações: compressão da faixa, volume da última hora contra a média, toques na resistência com mínimas subindo, posição no canal e abertura da faixa. Cada sinal aparece embaixo do par com uma barra e o número que o gerou (passe o mouse para a explicação). A lista passa a ser ordenada por esse escore, e o par a partir do limiar ganha a marca **Recomendado**. O limiar começa em 60 e muda em Configurações > Custos e serviços, "Limiar de rompimento recomendado". Os pesos e o limiar ainda não foram calibrados com dados reais.
+- **Seguir o explorador.** Na lateral da carteira de cripto, em "Ativos acompanhados", a opção "Seguir o explorador" mantém os ativos acompanhados no top 20 do explorador: a cada varredura entram os mais bem colocados e sai quem caiu do ranking. O número de ativos (20 por padrão) e a permanência mínima antes de sair (2 horas por padrão) podem ser trocados. Um ativo com posição aberta, ciclo micro aberto, ordem pendente ou sinal dos agentes em andamento não sai até isso terminar, e sair da lista nunca vende nada. Pares com fim de negociação marcado não entram. As últimas entradas e saídas aparecem no card com o motivo (posição e nota no explorador). Enquanto a opção estiver ligada, a lista manual fica só para leitura; ao desligar, a lista atual fica como está. Começa desligada em todas as carteiras. O explorador não usa IA por carteira, mas com os agentes em ação ligados cada ativo acompanhado entra na varredura do enxame, e o card avisa disso.
 
 ## [0.3.82] - 2026-10-18
 

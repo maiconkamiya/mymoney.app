@@ -524,3 +524,22 @@ export type TokenUsage = {
         days_in_month: number;
     };
 };
+
+export type ExplorerFollowChange = {
+    at: string;
+    kind: 'added' | 'removed';
+    symbol: string;
+    reason: string;
+};
+
+export type ExplorerFollow = {
+    enabled: boolean;
+    size: number;
+    min_hours: number;
+    max_size: number;
+    min_score: number;
+    explorer_enabled: boolean;
+    interval_minutes: number;
+    last_scan_at: string | null;
+    history: ExplorerFollowChange[];
+};

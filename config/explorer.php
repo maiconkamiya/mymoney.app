@@ -84,6 +84,21 @@ return [
         'max_per_day' => (int) env('EXPLORER_SWARM_MAX_PER_DAY', 12),
     ],
 
+    /*
+    | "Seguir o explorador" na carteira: os ativos acompanhados viram o ranking
+    | da varredura, até `size` pares. Sai quem caiu do ranking depois de
+    | `min_hours` na lista, nunca com posição, ciclo micro, ordem ou sinal em
+    | andamento. Sem IA por carteira.
+    */
+
+    'follow' => [
+        'size' => (int) env('EXPLORER_FOLLOW_SIZE', 20),
+        'max_size' => (int) env('EXPLORER_FOLLOW_MAX_SIZE', 50),
+        'min_hours' => (int) env('EXPLORER_FOLLOW_MIN_HOURS', 2),
+        // Nota mínima para entrar; 0 = vale só a posição no ranking.
+        'min_score' => (float) env('EXPLORER_FOLLOW_MIN_SCORE', 0),
+    ],
+
     // Pares cadastrados só pelo explorador saem sozinhos depois disso, se ninguém acompanhou.
     'discovered_ttl_hours' => (int) env('EXPLORER_DISCOVERED_TTL_HOURS', 24),
 

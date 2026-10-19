@@ -1,7 +1,7 @@
 {
     "$schema": "https://www.schemastore.org/package.json",
     "name": "mymoney",
-    "version": "0.3.83",
+    "version": "0.3.84",
     "private": true,
     "type": "module",
     "scripts": {

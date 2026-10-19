@@ -21,6 +21,7 @@ import AssetChartsCard from '@/components/portfolio/AssetChartsCard.vue';
 import AgentSwarmCard from '@/components/portfolio/AgentSwarmCard.vue';
 import TokenUsageCard from '@/components/portfolio/TokenUsageCard.vue';
 import TrackedAssetsCard from '@/components/portfolio/TrackedAssetsCard.vue';
+import ExplorerFollowCard from '@/components/portfolio/ExplorerFollowCard.vue';
 import BrokerOrdersList from '@/components/portfolio/BrokerOrdersList.vue';
 import LiveExecutionCard from '@/components/portfolio/LiveExecutionCard.vue';
 import MicroOperationsCard from '@/components/portfolio/MicroOperationsCard.vue';
@@ -39,6 +40,7 @@ import type {
     AgentActivity,
     AgentScoreRow,
     AvailableAsset,
+    ExplorerFollow,
     LiveInfo,
     MicroOverview,
     Performance,
@@ -65,6 +67,7 @@ const props = defineProps<{
     charts: PortfolioCharts;
     available_assets: AvailableAsset[];
     tracked_asset_ids: number[];
+    explorer_follow: ExplorerFollow | null;
     live: LiveInfo | null;
     micro: MicroOverview | null;
 }>();
@@ -617,15 +620,29 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
 
                 <SidebarSection
                     title="Ativos acompanhados"
-                    :hint="`${tracked_asset_ids.length} ativo(s)`"
+                    :hint="
+                        explorer_follow?.enabled
+                            ? `${tracked_asset_ids.length} ativo(s), seguindo o explorador`
+                            : `${tracked_asset_ids.length} ativo(s)`
+                    "
                     :open="section.open.value === 'tracked'"
                     @toggle="section.toggle('tracked')"
                 >
-                    <TrackedAssetsCard
-                        :portfolio-id="portfolio.id"
-                        :available="available_assets"
-                        :tracked="tracked_asset_ids"
-                    />
+                    <div class="space-y-3">
+                        <ExplorerFollowCard
+                            v-if="explorer_follow"
+                            :portfolio-id="portfolio.id"
+                            :follow="explorer_follow"
+                            :tracked-count="tracked_asset_ids.length"
+                            :agents-enabled="agents_enabled"
+                        />
+                        <TrackedAssetsCard
+                            :portfolio-id="portfolio.id"
+                            :available="available_assets"
+                            :tracked="tracked_asset_ids"
+                            :locked="explorer_follow?.enabled ?? false"
+                        />
+                    </div>
                 </SidebarSection>
 
                 <SidebarSection

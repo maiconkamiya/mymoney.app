@@ -12,6 +12,8 @@ const props = defineProps<{
     portfolioId: number;
     available: AvailableAsset[];
     tracked: number[];
+    // Seguindo o explorador: a lista é dele, só leitura aqui.
+    locked?: boolean;
 }>();
 
 const selected = ref<number[]>([...props.tracked]);
@@ -62,9 +64,11 @@ function save() {
                 <h2 class="font-medium">Ativos acompanhados</h2>
                 <p class="text-sm text-muted-foreground">
                     {{
-                        selected.length === 0
-                            ? 'Nenhum marcado: a carteira acompanha todos os ativos cadastrados do mercado.'
-                            : `${selected.length} marcado(s): só esses entram nos sinais desta carteira.`
+                        locked
+                            ? `${selected.length} marcado(s) pelo explorador. Desligue "Seguir o explorador" para escolher à mão.`
+                            : selected.length === 0
+                              ? 'Nenhum marcado: a carteira acompanha todos os ativos cadastrados do mercado.'
+                              : `${selected.length} marcado(s): só esses entram nos sinais desta carteira.`
                     }}
                     <Link
                         :href="assetsIndex()"
@@ -74,7 +78,7 @@ function save() {
                     </Link>
                 </p>
             </div>
-            <div class="flex gap-2">
+            <div v-if="!locked" class="flex gap-2">
                 <Button
                     type="button"
                     size="sm"
@@ -100,10 +104,18 @@ function save() {
             <label
                 v-for="asset in available"
                 :key="asset.id"
-                class="flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-sm"
-                :class="selected.includes(asset.id) ? 'border-primary' : ''"
+                class="flex items-center gap-2 rounded-lg border px-2 py-1.5 text-sm"
+                :class="[
+                    selected.includes(asset.id) ? 'border-primary' : '',
+                    locked ? 'cursor-default' : 'cursor-pointer',
+                ]"
             >
-                <input v-model="selected" type="checkbox" :value="asset.id" />
+                <input
+                    v-model="selected"
+                    type="checkbox"
+                    :value="asset.id"
+                    :disabled="locked"
+                />
                 {{ asset.symbol }}
                 <span
                     v-if="asset.trading_ends_on"
