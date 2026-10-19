@@ -59,11 +59,11 @@ return [
         'min_score' => (int) env('EXPLORER_BREAKOUT_MIN_SCORE', 60),
         'order_by' => env('EXPLORER_ORDER_BY', 'breakout'),
         'weights' => [
-            'compression' => 0.25,
+            'compression' => 0.30,
             'volume' => 0.25,
-            'structure' => 0.20,
-            'donchian' => 0.15,
-            'expansion' => 0.15,
+            'structure' => 0.30,
+            'donchian' => 0.10,
+            'expansion' => 0.05,
         ],
     ],
 

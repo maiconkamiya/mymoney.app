@@ -108,7 +108,7 @@ const BREAKOUT_PARTS: {
         label: 'Volume',
         short: (c) => `${number(c.value)}x a média`,
         detail: (c) =>
-            `Volume da última hora fechada ${number(c.value)}x a média recente.`,
+            `Volume das últimas 3 horas fechadas ${number(c.value)}x a média das 12 h antes.`,
     },
     {
         key: 'structure',

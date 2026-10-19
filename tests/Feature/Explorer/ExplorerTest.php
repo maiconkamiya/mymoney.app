@@ -260,24 +260,30 @@ class ExplorerTest extends TestCase
         return $bars;
     }
 
-    public function test_escore_de_rompimento_premia_compressao_toques_volume_e_rompimento(): void
+    public function test_escore_de_rompimento_premia_a_pressao_antes_do_rompimento(): void
     {
         $scorer = app(BreakoutScore::class);
 
         $fire = $scorer->score($this->squeeze(true));
-        $quiet = $scorer->score($this->squeeze(false));
+        $pressure = $scorer->score($this->squeeze(false));
+        // Queda constante com velas do mesmo tamanho: nem compressão, nem resistência, nem volume.
+        $falling = $scorer->score(array_map(fn (int $i) => ['high' => 1.1 - 0.002 * $i, 'low' => 1.06 - 0.002 * $i, 'close' => 1.07 - 0.002 * $i, 'volume' => 100.0], range(0, 47)));
 
         $this->assertNotNull($fire);
-        $this->assertNotNull($quiet);
+        $this->assertNotNull($pressure);
+        $this->assertNotNull($falling);
         $this->assertGreaterThanOrEqual(80, $fire['breakout_score']);
-        $this->assertLessThan(60, $quiet['breakout_score']);
+        $this->assertGreaterThan($pressure['breakout_score'], $fire['breakout_score']);
+        // A pressão antes do rompimento pesa mais que a confirmação: a caixa comprimida já vale bem.
+        $this->assertGreaterThanOrEqual(50, $pressure['breakout_score']);
+        $this->assertLessThan(25, $falling['breakout_score']);
         $this->assertSame(['compression', 'volume', 'structure', 'donchian', 'expansion'], array_keys($fire['breakout_components']));
-        $this->assertEqualsWithDelta(4.0, $fire['breakout_components']['volume']['value'], 0.01);
+        $this->assertEqualsWithDelta(2.0, $fire['breakout_components']['volume']['value'], 0.01, 'Média de 400, 100 e 100 contra 100 na caixa.');
         $this->assertSame(1.0, $fire['breakout_components']['donchian']['score']);
         $this->assertGreaterThan(0, $fire['breakout_components']['donchian']['value'], 'Fechou acima da máxima da caixa.');
         $this->assertSame(12.0, $fire['breakout_components']['structure']['value'], 'Toda vela da caixa tocou a máxima.');
         $this->assertLessThan(0.5, $fire['breakout_components']['compression']['value']);
-        $this->assertSame(0.25, $fire['breakout_components']['compression']['weight']);
+        $this->assertSame(0.3, $fire['breakout_components']['compression']['weight']);
 
         $this->assertNull($scorer->score(array_slice($this->squeeze(true), -20)), 'Sem caixa e contexto não há escore.');
     }
@@ -308,7 +314,7 @@ class ExplorerTest extends TestCase
         $this->assertSame(['ROSEUSDT', 'KAVAUSDT'], $rows->pluck('symbol')->all());
         $this->assertGreaterThan($rows[1]->breakout_score, $rows[0]->breakout_score);
         $this->assertSame('Volume forte.', $rows[0]->ai_note);
-        $this->assertEqualsWithDelta(4.0, $rows[0]->breakout_components['volume']['value'] ?? 0, 0.01);
+        $this->assertEqualsWithDelta(2.0, $rows[0]->breakout_components['volume']['value'] ?? 0, 0.01);
 
         config(['explorer.breakout.min_score' => (int) floor($rows[0]->breakout_score)]);
         $this->assertTrue($rows[0]->isRecommended());

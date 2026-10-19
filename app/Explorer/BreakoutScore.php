@@ -21,8 +21,11 @@ class BreakoutScore
     /** Faixa média da caixa nesta fração do contexto, ou menos, vale compressão total. */
     private const FULL_SQUEEZE = 0.4;
 
-    /** Volume da última hora nesta razão da média da caixa, ou mais, vale nota cheia. */
-    private const FULL_VOLUME = 3.0;
+    /** Horas fechadas mais recentes cujo volume médio é comparado com a caixa. */
+    private const VOLUME_RECENT_BARS = 3;
+
+    /** Volume recente nesta razão da média da caixa, ou mais, vale nota cheia. */
+    private const FULL_VOLUME = 2.5;
 
     /** Toques na máxima da caixa que valem nota cheia na estrutura. */
     private const FULL_TOUCHES = 3;
@@ -41,7 +44,7 @@ class BreakoutScore
         $signals = $this->signals->measure($closed, [
             'box' => self::BOX_BARS,
             'context' => self::CONTEXT_BARS,
-            'volume_recent' => 1,
+            'volume_recent' => self::VOLUME_RECENT_BARS,
         ]);
 
         if ($signals === null) {
@@ -57,7 +60,8 @@ class BreakoutScore
 
         $parts = [
             'compression' => [$this->clamp((1 - $squeeze) / (1 - self::FULL_SQUEEZE)), $squeeze],
-            'volume' => [$this->clamp(($signals['volume_ratio'] - 1) / (self::FULL_VOLUME - 1)), $signals['volume_ratio']],
+            // Volume crescendo nas últimas horas é pressão; uma vela isolada de volume é o rompimento já feito.
+            'volume' => [$this->clamp(($signals['volume_rise'] - 1) / (self::FULL_VOLUME - 1)), $signals['volume_rise']],
             'structure' => [
                 0.6 * min($signals['touches'] / self::FULL_TOUCHES, 1) + 0.4 * ($signals['rising_lows'] ? 1 : 0),
                 (float) $signals['touches'],
