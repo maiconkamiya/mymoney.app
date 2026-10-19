@@ -40,6 +40,7 @@ class SystemSettings
         'forecast.enabled' => ['type' => 'bool'],
         'explorer.enabled' => ['type' => 'bool'],
         'explorer.ai.enabled' => ['type' => 'bool'],
+        'explorer.breakout.min_score' => ['type' => 'choice', 'options' => [50, 60, 70, 80]],
         'insights.ai.enabled' => ['type' => 'bool'],
     ];
 

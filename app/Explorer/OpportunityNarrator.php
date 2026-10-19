@@ -30,6 +30,7 @@ class OpportunityNarrator
         $table = array_map(fn (array $row) => [
             'symbol' => $row['symbol'],
             'score' => $row['score'],
+            'breakout_score_0_100' => $row['breakout_score'] ?? null,
             'change_24h_pct' => $row['change_pct'],
             'quote_volume_usdt' => round($row['quote_volume']),
             'spread_pct' => $row['spread_pct'],

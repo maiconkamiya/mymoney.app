@@ -7,7 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { swarm, track } from '@/routes/opportunities';
 import { explorer as explorerRoute } from '@/routes/portfolios';
-import type { ExplorerData, Opportunity } from '@/types';
+import type {
+    BreakoutComponent,
+    BreakoutComponentKey,
+    ExplorerData,
+    Opportunity,
+} from '@/types';
 
 const props = defineProps<{
     explorer: ExplorerData;
@@ -84,6 +89,67 @@ const price = (value: number) =>
         value,
     );
 
+/** Os sinais do escore de rompimento, na ordem em que aparecem na lista. */
+const BREAKOUT_PARTS: {
+    key: BreakoutComponentKey;
+    label: string;
+    short: (c: BreakoutComponent) => string;
+    detail: (c: BreakoutComponent) => string;
+}[] = [
+    {
+        key: 'compression',
+        label: 'Compressão',
+        short: (c) => `faixa ${number(c.value, 2)}x`,
+        detail: (c) =>
+            `Faixa das últimas velas ${number(c.value, 2)}x a média: quanto menor, mais comprimido antes de romper.`,
+    },
+    {
+        key: 'volume',
+        label: 'Volume',
+        short: (c) => `${number(c.value)}x a média`,
+        detail: (c) =>
+            `Volume da última hora fechada ${number(c.value)}x a média recente.`,
+    },
+    {
+        key: 'structure',
+        label: 'Estrutura',
+        short: (c) =>
+            `${number(c.value, 0)} ${c.value === 1 ? 'toque' : 'toques'}`,
+        detail: (c) =>
+            `Resistência testada ${number(c.value, 0)} vezes, com mínimas subindo contra ela.`,
+    },
+    {
+        key: 'donchian',
+        label: 'Canal',
+        short: (c) => `${c.value >= 0 ? '+' : ''}${number(c.value, 2)}%`,
+        detail: (c) =>
+            c.value >= 0
+                ? `Fechou ${number(c.value, 2)}% acima da máxima do canal de Donchian.`
+                : `Fechou ${number(-c.value, 2)}% abaixo da máxima do canal de Donchian.`,
+    },
+    {
+        key: 'expansion',
+        label: 'ATR',
+        short: (c) => `${number(c.value)}x`,
+        detail: (c) =>
+            `A última vela andou ${number(c.value)}x o ATR: a faixa está abrindo.`,
+    },
+];
+
+function breakoutParts(o: Opportunity) {
+    const components = o.breakout_components;
+
+    if (components === null) {
+        return [];
+    }
+
+    return BREAKOUT_PARTS.filter((p) => components[p.key]).map((p) => ({
+        ...p,
+        component: components[p.key],
+        title: `${p.detail(components[p.key])} Peso ${number(components[p.key].weight * 100, 0)}% no escore.`,
+    }));
+}
+
 function sentRecently(o: Opportunity): boolean {
     return (
         o.swarm_sent_at !== null &&
@@ -134,7 +200,7 @@ function toggleAuto(id: number, enabled: boolean) {
         <Heading
             variant="small"
             title="Oportunidades"
-            :description="`Pares USDT da Binance fora dos acompanhados, ranqueados a cada ${explorer.interval_minutes} min por volume, aceleração, rompimento e distância da média. O explorador nunca compra.`"
+            :description="`Pares USDT da Binance fora dos acompanhados, ranqueados a cada ${explorer.interval_minutes} min pelo escore de rompimento de alta (compressão, volume, estrutura, canal e ATR, sem IA). Recomendado a partir de ${explorer.breakout_min_score}. O explorador nunca compra.`"
         />
 
         <div
@@ -244,16 +310,37 @@ function toggleAuto(id: number, enabled: boolean) {
                 :key="o.id"
                 class="grid gap-3 p-4 md:grid-cols-[3rem_minmax(0,1fr)_auto] md:items-center"
             >
-                <div class="flex items-center gap-3 md:flex-col md:gap-0">
-                    <span class="text-2xl font-semibold tabular-nums">{{
-                        number(o.score, 0)
+                <div
+                    class="flex items-baseline gap-3 md:flex-col md:items-center md:gap-0"
+                    :title="`Escore de rompimento de alta, de 0 a 100. Recomendado a partir de ${explorer.breakout_min_score}. Nota do explorador: ${number(o.score, 0)}.`"
+                >
+                    <span
+                        class="text-2xl font-semibold tabular-nums"
+                        :class="o.recommended ? 'text-emerald-500' : ''"
+                        >{{
+                            o.breakout_score === null
+                                ? number(o.score, 0)
+                                : number(o.breakout_score, 0)
+                        }}</span
+                    >
+                    <span class="text-xs text-muted-foreground">{{
+                        o.breakout_score === null ? 'nota' : 'rompimento'
                     }}</span>
-                    <span class="text-xs text-muted-foreground">nota</span>
+                    <span
+                        v-if="o.breakout_score !== null"
+                        class="text-xs text-muted-foreground tabular-nums"
+                        >nota {{ number(o.score, 0) }}</span
+                    >
                 </div>
 
                 <div class="min-w-0 space-y-1.5">
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span class="font-medium">{{ o.symbol }}</span>
+                        <Badge
+                            v-if="o.recommended"
+                            class="bg-emerald-500/15 text-emerald-500"
+                            >Recomendado</Badge
+                        >
                         <span class="text-sm tabular-nums">{{
                             price(o.price)
                         }}</span>
@@ -277,6 +364,42 @@ function toggleAuto(id: number, enabled: boolean) {
                     <p class="text-sm text-muted-foreground">
                         {{ o.ai_note ?? o.reasons.join(' ') }}
                     </p>
+                    <ul
+                        v-if="o.breakout_components"
+                        class="grid grid-cols-5 gap-2 pt-1"
+                        aria-label="Sinais do escore de rompimento"
+                    >
+                        <li
+                            v-for="part in breakoutParts(o)"
+                            :key="part.key"
+                            class="min-w-0 space-y-1"
+                            :title="part.title"
+                        >
+                            <div
+                                class="flex items-baseline justify-between gap-1 text-[11px] text-muted-foreground"
+                            >
+                                <span class="truncate">{{ part.label }}</span>
+                                <span class="text-foreground tabular-nums">{{
+                                    number(part.component.score * 100, 0)
+                                }}</span>
+                            </div>
+                            <div
+                                class="h-1 overflow-hidden rounded-full bg-muted"
+                            >
+                                <div
+                                    class="h-full rounded-full bg-emerald-500/80 transition-[width] duration-500"
+                                    :style="{
+                                        width: `${Math.round(part.component.score * 100)}%`,
+                                    }"
+                                />
+                            </div>
+                            <p
+                                class="truncate text-[11px] text-muted-foreground tabular-nums"
+                            >
+                                {{ part.short(part.component) }}
+                            </p>
+                        </li>
+                    </ul>
                     <p class="text-xs text-muted-foreground tabular-nums">
                         Volume {{ volume(o.quote_volume) }} USDT, spread
                         {{ number(o.spread_pct, 2) }}%<template

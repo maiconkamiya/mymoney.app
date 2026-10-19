@@ -44,7 +44,8 @@ class SystemSettingsController extends Controller
             $field = $this->field($key);
 
             if (array_key_exists($field, $data)) {
-                $values[$key] = $key === 'trading.scan_interval_minutes' ? (int) $data[$field] : $data[$field];
+                // Escolhas numéricas voltam do formulário como texto.
+                $values[$key] = $setting['type'] === 'choice' && is_int($setting['options'][0]) ? (int) $data[$field] : $data[$field];
             }
         }
 
