@@ -40,40 +40,10 @@ class MicroRanker
 
         $ready = $this->assets($portfolio)
             ->map(function (Asset $asset) use ($grossMarginPct, $maxAge, $rule, $lookback, &$skipped) {
-                $candles = Candle::query()
-                    ->where('asset_id', $asset->id)
-                    ->where('timeframe', '1m')
-                    ->where('open_at', '>=', now()->subMinutes($lookback))
-                    ->orderBy('open_at')
-                    ->get();
+                $setup = $this->readAsset($asset, $rule, $lookback, $maxAge, $grossMarginPct);
 
-                if ($candles->isEmpty()) {
-                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => 'Sem candles de 1 minuto nas últimas horas (coletor da Binance parado?).'];
-
-                    return null;
-                }
-
-                if ($candles->last()->open_at->copy()->addMinute()->diffInSeconds(now(), false) > $maxAge) {
-                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => 'Candles atrasados: o último tem mais de '.$maxAge.' segundos.'];
-
-                    return null;
-                }
-
-                $rows = [];
-
-                foreach ($candles as $candle) {
-                    $rows[] = ['high' => (float) $candle->high, 'low' => (float) $candle->low, 'close' => (float) $candle->close, 'volume' => (float) $candle->volume];
-                }
-
-                $setup = $this->rules->read($rule, $rows, $grossMarginPct);
-
-                if ($setup === null) {
-                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => match ($rule) {
-                        MicroRule::Scalp => 'Poucos candles para ler o gráfico (precisa de 40 minutos).',
-                        MicroRule::TrendPullback => 'Poucos candles para ler o gráfico (a regra de tendência precisa de 22 horas de velas de 1 minuto).',
-                        MicroRule::ScalpUptrend => 'Poucos candles para ler o gráfico (a alta em 24 h precisa de 24 horas de velas de 1 minuto).',
-                        MicroRule::Breakout, MicroRule::BreakoutPressure => 'Poucos candles para ler o gráfico (as regras de rompimento precisam de 2 h e meia de velas de 1 minuto).',
-                    }];
+                if (is_string($setup)) {
+                    $skipped[] = ['symbol' => $asset->symbol, 'reason' => $setup];
 
                     return null;
                 }
@@ -85,6 +55,52 @@ class MicroRanker
             ->values();
 
         return ['ready' => $ready, 'skipped' => $skipped];
+    }
+
+    /**
+     * Reads one pair again from the freshest candles, so the buy goes out on the
+     * chart of now and not on the one read before every other pair (#196).
+     * Null when the pair has no reading any more.
+     */
+    public function reread(Portfolio $portfolio, Asset $asset, float $grossMarginPct): ?MicroSetup
+    {
+        $setup = $this->readAsset($asset, $portfolio->micro_rule, $this->rules->lookbackMinutes($portfolio->micro_rule), (int) config('trading.micro.max_candle_age_seconds'), $grossMarginPct);
+
+        return is_string($setup) ? null : $setup;
+    }
+
+    /**
+     * The chart reading of one pair, or why it has none.
+     */
+    private function readAsset(Asset $asset, MicroRule $rule, int $lookback, int $maxAge, float $grossMarginPct): MicroSetup|string
+    {
+        $candles = Candle::query()
+            ->where('asset_id', $asset->id)
+            ->where('timeframe', '1m')
+            ->where('open_at', '>=', now()->subMinutes($lookback))
+            ->orderBy('open_at')
+            ->get();
+
+        if ($candles->isEmpty()) {
+            return 'Sem candles de 1 minuto nas últimas horas (coletor da Binance parado?).';
+        }
+
+        if ($candles->last()->open_at->copy()->addMinute()->diffInSeconds(now(), false) > $maxAge) {
+            return 'Candles atrasados: o último tem mais de '.$maxAge.' segundos.';
+        }
+
+        $rows = [];
+
+        foreach ($candles as $candle) {
+            $rows[] = ['high' => (float) $candle->high, 'low' => (float) $candle->low, 'close' => (float) $candle->close, 'volume' => (float) $candle->volume];
+        }
+
+        return $this->rules->read($rule, $rows, $grossMarginPct) ?? match ($rule) {
+            MicroRule::Scalp => 'Poucos candles para ler o gráfico (precisa de 40 minutos).',
+            MicroRule::TrendPullback => 'Poucos candles para ler o gráfico (a regra de tendência precisa de 22 horas de velas de 1 minuto).',
+            MicroRule::ScalpUptrend => 'Poucos candles para ler o gráfico (a alta em 24 h precisa de 24 horas de velas de 1 minuto).',
+            MicroRule::Breakout, MicroRule::BreakoutPressure => 'Poucos candles para ler o gráfico (as regras de rompimento precisam de 2 h e meia de velas de 1 minuto).',
+        };
     }
 
     /**
