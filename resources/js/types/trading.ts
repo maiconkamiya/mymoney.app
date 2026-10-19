@@ -302,9 +302,12 @@ export type PortfolioCharts = {
 export type MicroCycleRow = {
     id: number;
     symbol: string;
-    status: 'open' | 'closed';
+    status: 'pending' | 'open' | 'closed';
     qty: number;
     entry_price: number;
+    suggested_price: number | null;
+    entry_mode: 'limit' | 'market' | null;
+    expires_at: string | null;
     target_price: number;
     stop_price: number;
     exit_price: number | null;
@@ -342,6 +345,9 @@ export type MicroOverview = {
     enabled: boolean;
     rule: MicroRuleOption['value'];
     rules: MicroRuleOption[];
+    entry_mode: 'limit' | 'market';
+    limit_seconds: number;
+    limit_seconds_range: [number, number];
     order_value: number;
     net_margin_pct: number;
     gross_margin_pct: number;
@@ -370,6 +376,7 @@ export type MicroOverview = {
         wins: number;
         net_pnl: number;
         fees: number;
+        limits_expired: number;
     };
     focus: MicroFocusRow[];
     cycles: MicroCycleRow[];
@@ -386,6 +393,15 @@ export type MicroFocusRow = {
     reason: string;
     blocked: string | null;
     checks?: { key: string; label: string; ok: boolean; detail: string }[];
+    suggestion?: MicroSuggestion | null;
+};
+
+export type MicroSuggestion = {
+    mode: 'limit' | 'market';
+    price: number;
+    reference: number;
+    discount_pct: number;
+    seconds: number | null;
 };
 
 export type MicroLiquidationRow = {

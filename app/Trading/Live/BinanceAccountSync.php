@@ -160,8 +160,15 @@ class BinanceAccountSync
 
             $open = $portfolio->openPositions()->get()->keyBy('asset_id');
 
+            // A micro limit buy still resting books its own fill: the coins it bought are not read as a new position.
+            $buying = Order::query()->where('portfolio_id', $portfolio->id)->where('side', OrderSide::Buy)->where('type', OrderType::Limit)->where('status', OrderStatus::Pending)->pluck('asset_id')->all();
+
             foreach ($held as $assetId => [$asset, $qty, $price]) {
                 $position = $open->get($assetId);
+
+                if (in_array($assetId, $buying, true)) {
+                    continue;
+                }
 
                 if ($position === null) {
                     // O custo real não vem da conta: o preço de agora é o melhor ponto de partida.

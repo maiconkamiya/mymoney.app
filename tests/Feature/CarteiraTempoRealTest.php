@@ -87,7 +87,7 @@ class CarteiraTempoRealTest extends TestCase
 
     public function test_cada_rodada_do_motor_avisa_as_micro_operacoes()
     {
-        $portfolio = Portfolio::factory()->create(['micro_enabled' => true, 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2]);
+        $portfolio = Portfolio::factory()->create(['micro_enabled' => true, 'micro_entry_mode' => 'market', 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2]);
         Portfolio::factory()->create(['micro_enabled' => false]);
         Event::fake([PortfolioChanged::class]);
 

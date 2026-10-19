@@ -62,6 +62,11 @@ class PaperBroker implements Broker
             if (! $crosses) {
                 return new OrderResult(OrderStatus::Pending, externalId: 'paper-'.Str::ulid());
             }
+
+            // As Binance's LIMIT_MAKER: a limit that would execute on arrival is refused, not filled.
+            if ($order->postOnly) {
+                return OrderResult::rejected('A ordem limitada executaria na hora (preço já no limite).');
+            }
         }
 
         $fees = $qty * $price * $costs['fee_rate'] + ($costs['brokerage_per_order'] ?? 0);

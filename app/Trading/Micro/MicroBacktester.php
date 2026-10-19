@@ -7,23 +7,41 @@ use App\Enums\MicroRule;
 /**
  * Replays an entry rule over stored 1-minute candles, minute by minute, with
  * the engine's own reading (MicroRules) and exits. Each decision sees only the
- * candles closed up to that minute; the buy fills at the next candle's open
- * plus slippage; the target is a resting limit sell; the stop and the time
+ * candles closed up to that minute. A market buy fills at the next candle's
+ * open plus slippage. A limit buy (the engine's default, #187) is placed at
+ * the suggested price (MicroEntryPrice) and fills at it, or at the open when
+ * a candle opens below it, if one of the next `limit_minutes` candles reaches
+ * it; otherwise it expires and the next decision comes after it. In the fill
+ * candle only the stop counts (the order inside the minute is unknown: the
+ * worse case), the target from the next one. The target is a resting limit sell; the stop and the time
  * limit sell at market minus slippage. When the stop and the target fall in
  * the same candle, the stop counts (the worse case). One trade at a time per
  * pair, with the engine's pause after a stop.
  */
 class MicroBacktester
 {
-    public function __construct(private readonly MicroRules $rules) {}
+    private int $unfilled = 0;
+
+    public function __construct(
+        private readonly MicroRules $rules,
+        private readonly MicroEntryPrice $entryPrice,
+    ) {}
+
+    /**
+     * Limit buys of the last simulate() call that expired without executing.
+     */
+    public function lastUnfilled(): int
+    {
+        return $this->unfilled;
+    }
 
     /**
      * With `random` on, entries happen at random minutes (about 1 in 30) with
      * the rule's own exits: the baseline the rule has to beat.
      *
      * @param  list<array{t: int, open: float, high: float, low: float, close: float, volume?: float}>  $candles  oldest first, t in Unix seconds
-     * @param  array{net_margin_pct: float, fee_rate: float, slippage_bps: float, cooldown_minutes: int, random?: bool, seed?: int}  $options
-     * @return list<array{opened_at: int, exit: string, net_pct: float, minutes: int}>
+     * @param  array{net_margin_pct: float, fee_rate: float, slippage_bps: float, cooldown_minutes: int, random?: bool, seed?: int, entry?: string, limit_minutes?: int}  $options
+     * @return list<array{opened_at: int, exit: string, net_pct: float, minutes: int, entry: string}>
      */
     public function simulate(MicroRule $rule, array $candles, array $options): array
     {
@@ -33,6 +51,9 @@ class MicroBacktester
         $gross = $options['net_margin_pct'] + $roundTrip;
         $lookback = $this->rules->lookbackMinutes($rule);
         $random = $options['random'] ?? false;
+        $limitEntry = ($options['entry'] ?? 'market') === 'limit';
+        $limitMinutes = max(1, (int) ($options['limit_minutes'] ?? 1));
+        $this->unfilled = 0;
 
         if ($random) {
             mt_srand($options['seed'] ?? 42);
@@ -55,19 +76,46 @@ class MicroBacktester
             }
 
             $exits = $this->rules->exits($setup, $gross);
-            $first = $candles[$t + 1];
-            $entry = $first['open'] * (1 + $slip);
+            $from = $t + 1;
+
+            if ($limitEntry) {
+                $limit = $this->entryPrice->suggest($setup);
+                $from = null;
+
+                for ($j = $t + 1; $j <= min($t + $limitMinutes, $count - 1); $j++) {
+                    if ($candles[$j]['low'] <= $limit) {
+                        $from = $j;
+
+                        break;
+                    }
+                }
+
+                if ($from === null) {
+                    $this->unfilled++;
+                    $resumeAt = $t + $limitMinutes;
+
+                    continue;
+                }
+
+                $entry = min($limit, $candles[$from]['open']);
+            } else {
+                $entry = $candles[$from]['open'] * (1 + $slip);
+            }
+
+            $first = $candles[$from];
             $target = $entry * (1 + $exits['target_pct'] / 100);
             $stop = $entry * (1 - $exits['stop_pct'] / 100);
             $deadline = $first['t'] + $exits['max_hold_minutes'] * 60;
             $closed = null;
 
-            for ($i = $t + 1; $i < $count; $i++) {
+            for ($i = $from; $i < $count; $i++) {
                 $candle = $candles[$i];
 
                 if ($candle['low'] <= $stop) {
                     // A gap below the stop sells at the open, not at the stop.
                     $closed = ['exit' => 'stop', 'price' => min($stop, $candle['open']) * (1 - $slip), 'at' => $i];
+                } elseif ($limitEntry && $i === $from) {
+                    // The limit filled inside this candle: its high may have come before the fill.
                 } elseif ($candle['high'] >= $target) {
                     $closed = ['exit' => 'target', 'price' => $target, 'at' => $i];
                 } elseif ($deadline <= $candle['t'] + 60) {
@@ -88,6 +136,7 @@ class MicroBacktester
                 'exit' => $closed['exit'],
                 'net_pct' => ($closed['price'] / $entry - 1) * 100 - 2 * $feePct,
                 'minutes' => intdiv($candles[$closed['at']]['t'] - $first['t'], 60) + 1,
+                'entry' => $limitEntry ? 'limit' : 'market',
             ];
 
             $resumeAt = $closed['at'] + 1 + ($closed['exit'] === 'stop' ? $options['cooldown_minutes'] : 0);

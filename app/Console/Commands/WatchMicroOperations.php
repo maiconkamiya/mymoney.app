@@ -71,7 +71,8 @@ class WatchMicroOperations extends Command
     }
 
     /**
-     * One look at the portfolio, holding its lock: sells the cycles whose
+     * One look at the portfolio, holding its lock: books the limit buys that
+     * executed (or cancels the expired ones), sells the cycles whose
      * price crossed the stop or the target, then runs the whole engine
      * (books, time limit, resting sales, entries) when it is due or when a
      * cycle just closed and freed room for a new one.
@@ -80,6 +81,9 @@ class WatchMicroOperations extends Command
     {
         $now = microtime(true);
         $closed = 0;
+
+        // A limit buy that executed starts its cycle within the second; an expired one is cancelled.
+        $started = $trader->pendingBuys($portfolio);
 
         if ($portfolio->micro_enabled && $portfolio->isRunning()) {
             // A sale that did not go out (refused, under the minimum) waits a few seconds, not one.
@@ -97,11 +101,11 @@ class WatchMicroOperations extends Command
             $this->triggered = array_filter($this->triggered, fn (float $at) => $now - $at < 60);
         }
 
-        $opened = 0;
+        $opened = $started;
 
         if ($closed > 0 || $now - ($this->ran[$portfolio->id] ?? 0.0) >= (int) config('trading.micro.realtime.entry_seconds')) {
             $this->ran[$portfolio->id] = $now;
-            $opened = $trader->run($portfolio);
+            $opened += $trader->run($portfolio);
         }
 
         if ($closed + $opened > 0) {
@@ -122,7 +126,8 @@ class WatchMicroOperations extends Command
     {
         return Portfolio::query()
             ->where('market', Market::Crypto)
-            ->where(fn ($query) => $query->where('micro_enabled', true)->orWhereNotNull('micro_liquidate_asset_ids'))
+            // A limit buy left waiting when the mode was switched off still has to be cancelled.
+            ->where(fn ($query) => $query->where('micro_enabled', true)->orWhereNotNull('micro_liquidate_asset_ids')->orWhereHas('microCycles', fn ($cycles) => $cycles->where('status', 'pending')))
             ->get();
     }
 }

@@ -39,6 +39,8 @@ class UpdateMicroOperationsRequest extends FormRequest
             'micro_order_value' => ['required', 'numeric', 'min:'.$min, 'max:1000000'],
             'micro_daily_operations' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'micro_wallet_pct' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'micro_entry_mode' => ['sometimes', Rule::in(['limit', 'market'])],
+            'micro_limit_seconds' => ['sometimes', 'integer', 'min:'.(int) config('trading.micro.limit.min_seconds'), 'max:'.(int) config('trading.micro.limit.max_seconds')],
             'micro_net_margin_pct' => ['required', 'numeric', 'min:0.05', 'max:5'],
             'micro_daily_target' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'micro_daily_loss_limit' => ['nullable', 'numeric', 'min:0', 'max:1000000'],

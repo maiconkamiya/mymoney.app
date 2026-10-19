@@ -4,6 +4,15 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.86] - 2026-10-19
+
+### Alterado
+
+- **Micro operações compram no preço sugerido, com ordem limitada.** Antes o motor só dizia "pode entrar" e comprava a mercado; entre a leitura do gráfico e a ordem o preço andava, e a compra saía na alta. Agora o motor calcula um preço de compra: meia faixa média por minuto abaixo do menor entre o último fechamento e o preço de agora, nunca abaixo do suporte e nunca acima do último preço. A compra vai como ordem limitada nesse preço e fica na Binance esperando o recuo. Se não executar no prazo (60 segundos por padrão, de 10 a 600, no campo "Validade da compra limitada" do card), é cancelada e o par é reavaliado na passada seguinte. O alvo e o stop passam a contar do preço realmente pago. Se no fim do prazo só uma parte tiver executado e ela ficar abaixo do mínimo de venda do par, o app completa o restante a mercado para a posição poder ser vendida. A compra limitada nunca executa na hora acima do preço sugerido e paga a taxa menor de quem deixa a ordem no livro. Na carteira simulada ela executa quando o preço do stream toca o limite. O campo "Entrada" do card permite voltar à compra a mercado; o padrão de todas as carteiras passa a ser a limitada.
+- **Preço sugerido na tela.** Os cards de Pares em foco mostram o preço da compra limitada, quanto ele fica abaixo do preço atual e a validade. O histórico de ciclos mostra a compra esperando o preço e, em cada ciclo, o preço sugerido ao lado do pago. O card conta quantas compras limitadas venceram sem executar no dia, e o `micro:run --explain` mostra o preço sugerido de cada par.
+- **"Parar tudo" também cancela as compras limitadas** que as micro operações deixaram na Binance, e a sincronização da conta não confunde a moeda de uma compra limitada em andamento com posição nova. Compra limitada cancelada depois de executar em parte continua contando no teto diário de ordens reais.
+- **Backtest com a entrada limitada.** O `micro:backtest` passa a simular a compra limitada no preço sugerido (opção `--entry=market` repete o teste antigo). Com velas de 1 minuto a validade é contada em velas inteiras, e na vela em que a limitada executa só o stop conta, porque não dá para saber se a máxima veio antes ou depois da compra.
+
 ## [0.3.85] - 2026-10-19
 
 ### Corrigido

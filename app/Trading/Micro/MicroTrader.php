@@ -4,6 +4,7 @@ namespace App\Trading\Micro;
 
 use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\MarketData\BinanceSymbols;
 use App\Models\Asset;
 use App\Models\AuditLog;
@@ -24,6 +25,11 @@ use Illuminate\Support\Facades\Cache;
  * Runs the "Micro operações" mode of one portfolio, once a minute: closes the
  * books of finished cycles, forces out the ones held too long, and opens new
  * ones on the most volatile pairs whose chart allows an entry.
+ *
+ * The buy is a limit order at the suggested price (MicroEntryPrice), valid
+ * for the seconds chosen on the card: the cycle waits as "pending" until it
+ * executes, and is dropped when it expires unfilled (a market buy remains as
+ * an option on the card). Target and stop count from the price really paid.
  *
  * Right after the buy a limit sell rests at the target on the exchange; the
  * regular exits job books its fill, and the stop or the time limit cancel it
@@ -46,6 +52,7 @@ class MicroTrader
         private readonly RiskGuard $risk,
         private readonly BinanceSymbols $symbols,
         private readonly PriceFeed $prices,
+        private readonly MicroEntryPrice $entryPrice,
     ) {}
 
     /**
@@ -55,6 +62,9 @@ class MicroTrader
     {
         // The owner's "liquidar com lucro" works even with the mode off: it only sells.
         $this->liquidate($portfolio);
+
+        // Books the limit buys that executed and cancels the expired ones, even with the mode off.
+        $this->pendingBuys($portfolio);
 
         if (! $portfolio->micro_enabled) {
             return 0;
@@ -71,13 +81,14 @@ class MicroTrader
         }
 
         $gross = $this->costs->grossMarginPct($portfolio->micro_net_margin_pct);
-        $open = $portfolio->microCycles()->where('status', 'open')->count();
+        $open = $portfolio->microCycles()->whereIn('status', ['open', 'pending'])->count();
+        $waiting = $portfolio->microCycles()->where('status', 'pending')->count();
         $opened = 0;
 
         $blocks = [];
 
         foreach ($this->ranker->rank($portfolio, $gross) as $row) {
-            if ($portfolio->micro_daily_operations !== null && $this->openedToday($portfolio) >= $portfolio->micro_daily_operations) {
+            if ($portfolio->micro_daily_operations !== null && $this->openedToday($portfolio) + $waiting >= $portfolio->micro_daily_operations) {
                 break;
             }
 
@@ -98,6 +109,7 @@ class MicroTrader
             if ($this->open($portfolio, $row['asset'], $row['setup'], $gross)) {
                 $open++;
                 $opened++;
+                $waiting = $portfolio->microCycles()->where('status', 'pending')->count();
             } elseif (($failure = Cache::get($this->blockKey($portfolio))) !== null) {
                 $blocks[] = $failure;
             }
@@ -623,6 +635,12 @@ class MicroTrader
             return 'já há '.$openCycles.' ciclos abertos (máximo '.(int) config('trading.micro.max_open_cycles').').';
         }
 
+        $pending = $portfolio->microCycles()->where('asset_id', $asset->id)->where('status', 'pending')->first(['expires_at']);
+
+        if ($pending !== null) {
+            return 'já tem uma compra limitada esperando neste par'.($pending->expires_at !== null ? ' (vale até '.$pending->expires_at->format('H:i:s').').' : '.');
+        }
+
         $position = $portfolio->openPositions()->where('asset_id', $asset->id)->first();
 
         if ($position !== null) {
@@ -663,20 +681,21 @@ class MicroTrader
             return sprintf('aporte não cobre o stop: para a venda no stop de %.2f%% ainda valer o mínimo de %.2f USDT do par, a compra precisa de %.2f USDT, mais de 10%% acima do aporte de %.2f.', $stopPct, (float) $asset->min_notional, $cover, $portfolio->micro_order_value);
         }
 
-        $decision = $this->risk->check($portfolio, $this->buyRequest($portfolio, $asset, $setup, $gross), ownerSized: true);
+        $price = $this->entryLimit($portfolio, $asset, $setup) ?? $setup->price;
+        $decision = $this->risk->check($portfolio, $this->buyRequest($portfolio, $asset, $setup, $gross, $this->entryLimit($portfolio, $asset, $setup)), ownerSized: true);
 
         if (! $decision->allowed) {
             return 'guarda de risco: '.$decision->summary();
         }
 
-        $wanted = $this->entryQty($portfolio, $asset, $setup->price, $stopPct) * $setup->price;
+        $wanted = $this->entryQty($portfolio, $asset, $price, $stopPct) * $price;
         $minimum = max(self::minOrderValue($portfolio), $portfolio->isLive() ? (float) $asset->min_notional : 0.0);
 
         if ($wanted > $portfolio->micro_order_value * 1.1) {
             return sprintf('o passo de quantidade do par (%s) obriga uma ordem de %.2f USDT, acima do aporte de %.2f.', (float) $asset->lot_size, $wanted, $portfolio->micro_order_value);
         }
 
-        $value = ($decision->order->qty ?? 0) * $setup->price;
+        $value = ($decision->order->qty ?? 0) * $price;
 
         if ($value < $minimum * 0.99) {
             return sprintf('a ordem de %.2f USDT seria reduzida para %.2f USDT, abaixo do mínimo de %.2f USDT, e não é enviada. %s Falta saldo disponível ou o teto real por ordem está baixo.', $portfolio->micro_order_value, $value, $minimum, $decision->summary());
@@ -692,16 +711,21 @@ class MicroTrader
     /**
      * How much of the wallet's USDT the mode may keep in open cycles: the chosen
      * share of (free cash + what the open cycles hold). A sale gives the value
-     * back, so the next purchase can go out.
+     * back, so the next purchase can go out. A limit buy still waiting counts
+     * as used; on a real portfolio Binance also holds its USDT out of the free
+     * balance, so it is added back to the base there.
      *
      * @return array{pct: int, limit: float, used: float, available: float}
      */
     public function walletBudget(Portfolio $portfolio): array
     {
-        $used = (float) $portfolio->microCycles()->where('status', 'open')->get()->sum(fn ($cycle) => $cycle->qty * $cycle->entry_price);
+        $cycles = $portfolio->microCycles()->whereIn('status', ['open', 'pending'])->get(['status', 'qty', 'entry_price']);
+        $held = (float) $cycles->where('status', 'open')->sum(fn ($cycle) => $cycle->qty * $cycle->entry_price);
+        $waiting = (float) $cycles->where('status', 'pending')->sum(fn ($cycle) => $cycle->qty * $cycle->entry_price);
+        $used = $held + $waiting;
         $pct = $portfolio->micro_wallet_pct ?? 100;
         $cash = (float) Portfolio::query()->whereKey($portfolio->id)->value('cash');
-        $limit = ($cash + $used) * $pct / 100;
+        $limit = ($cash + $held + ($portfolio->isLive() ? $waiting : 0.0)) * $pct / 100;
 
         return ['pct' => $pct, 'limit' => $limit, 'used' => $used, 'available' => max($limit - $used, 0.0)];
     }
@@ -790,61 +814,240 @@ class MicroTrader
         });
     }
 
-    private function buyRequest(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): OrderRequest
+    /**
+     * The price the engine suggests paying for the pair now, and how the buy goes out.
+     *
+     * @return array{mode: 'limit'|'market', price: float, reference: float, discount_pct: float, seconds: int|null}
+     */
+    public function suggestion(Portfolio $portfolio, Asset $asset, MicroSetup $setup): array
+    {
+        $quote = $this->prices->quote($asset)?->price;
+        $price = $this->entryPrice->suggest($setup, $asset, $quote);
+        $limit = $portfolio->micro_entry_mode !== 'market';
+
+        return [
+            'mode' => $limit ? 'limit' : 'market',
+            'price' => $price,
+            'reference' => $quote !== null && $quote > 0 ? min($setup->price, $quote) : $setup->price,
+            'discount_pct' => round($this->entryPrice->discountPct($setup, $price, $quote), 4),
+            'seconds' => $limit ? $this->limitSeconds($portfolio) : null,
+        ];
+    }
+
+    /**
+     * The limit of the buy, or null when the owner chose to buy at market.
+     */
+    private function entryLimit(Portfolio $portfolio, Asset $asset, MicroSetup $setup): ?float
+    {
+        return $portfolio->micro_entry_mode === 'market' ? null : $this->suggestion($portfolio, $asset, $setup)['price'];
+    }
+
+    private function limitSeconds(Portfolio $portfolio): int
+    {
+        return max((int) config('trading.micro.limit.min_seconds'), min((int) config('trading.micro.limit.max_seconds'), $portfolio->micro_limit_seconds ?? 60));
+    }
+
+    private function buyRequest(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct, ?float $limit = null): OrderRequest
     {
         $stopPct = $this->rules->exits($setup, $grossPct)['stop_pct'];
+        $price = $limit ?? $setup->price;
 
         return new OrderRequest(
             asset: $asset,
             side: OrderSide::Buy,
-            qty: $this->entryQty($portfolio, $asset, $setup->price, $stopPct),
-            stopPrice: $setup->price * (1 - $stopPct / 100),
+            qty: $this->entryQty($portfolio, $asset, $price, $stopPct),
+            type: $limit === null ? OrderType::Market : OrderType::Limit,
+            limitPrice: $limit,
+            stopPrice: $price * (1 - $stopPct / 100),
             // Seconds too: the real-time engine may buy the same pair again within a minute.
             clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHis'),
+            // The limit rests on the book: it never executes on arrival, above the suggested price.
+            postOnly: $limit !== null,
         );
     }
 
+    /**
+     * Send the buy. A limit buy leaves the cycle "pending" until it executes;
+     * a market buy (or a limit that executed at once) starts it right away.
+     */
     private function open(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): bool
     {
-        $outcome = $this->executor->placeDirect($portfolio, $this->buyRequest($portfolio, $asset, $setup, $grossPct), self::ACTOR, 'micro');
+        $suggestion = $this->suggestion($portfolio, $asset, $setup);
+        $isLimit = $portfolio->micro_entry_mode !== 'market';
+        $outcome = $this->executor->placeDirect($portfolio, $this->buyRequest($portfolio, $asset, $setup, $grossPct, $isLimit ? $suggestion['price'] : null), self::ACTOR, 'micro');
+        // A market buy must fill at once; a limit buy may also rest, waiting for the price.
+        $accepted = ! is_string($outcome) && ($outcome->status === OrderStatus::Filled || ($isLimit && $outcome->status === OrderStatus::Pending));
 
-        if (is_string($outcome) || $outcome->status !== OrderStatus::Filled) {
+        if (is_string($outcome) || ! $accepted) {
             Cache::put($this->blockKey($portfolio), $asset->symbol.': '.(is_string($outcome) ? $outcome : 'corretora recusou: '.$outcome->reject_reason), now()->addHour());
 
             return false;
         }
 
+        $exits = $this->rules->exits($setup, $grossPct);
+        // Until the buy executes the cycle carries the limit (or the reference price) as its entry.
+        $reference = $isLimit ? $suggestion['price'] : $setup->price;
+
+        $cycle = $portfolio->microCycles()->create([
+            'asset_id' => $asset->id,
+            'status' => 'pending',
+            'qty' => $outcome->qty,
+            'entry_price' => $reference,
+            'target_price' => $reference * (1 + $exits['target_pct'] / 100),
+            'stop_price' => $reference * (1 - $exits['stop_pct'] / 100),
+            'fees' => 0,
+            'gross_margin_pct' => $exits['target_pct'],
+            'rule' => $portfolio->micro_rule,
+            'max_hold_minutes' => $exits['max_hold_minutes'],
+            'analysis' => $setup->toArray() + ['suggestion' => $suggestion],
+            'suggested_price' => $suggestion['price'],
+            'buy_order_id' => $outcome->id,
+            'expires_at' => $isLimit ? now()->addSeconds($suggestion['seconds'] ?? 60) : null,
+            'opened_at' => now(),
+        ]);
+
+        if ($outcome->status === OrderStatus::Pending) {
+            AuditLog::record(self::ACTOR, 'micro.limit_placed', $cycle, ['portfolio_id' => $portfolio->id, 'symbol' => $asset->symbol, 'order_id' => $outcome->id, 'price' => $suggestion['price'], 'reference' => $suggestion['reference'], 'expires_at' => $cycle->expires_at?->toIso8601String()]);
+
+            return true;
+        }
+
+        return $this->activate($portfolio, $cycle, $outcome);
+    }
+
+    /**
+     * Look at the limit buys still waiting: book the ones that executed and
+     * start their cycle, cancel the ones whose validity ran out (or that the
+     * mode may no longer keep: switched off, "Parar tudo", day closed). An
+     * expired buy with nothing executed leaves no cycle, only the cancelled
+     * order and its log. The real-time engine asks this every second.
+     *
+     * @return int cycles started
+     */
+    public function pendingBuys(Portfolio $portfolio): int
+    {
+        $cycles = $portfolio->microCycles()->where('status', 'pending')->with(['buyOrder.asset', 'asset'])->get();
+
+        if ($cycles->isEmpty()) {
+            return 0;
+        }
+
+        $state = $this->state($portfolio)['code'];
+        // The pending buy itself counts against the real daily cap: that one does not cancel it.
+        $drop = ! in_array($state, ['active', 'live_cap'], true);
+        $started = 0;
+
+        foreach ($cycles as $cycle) {
+            $order = $cycle->buyOrder;
+
+            if ($order === null) {
+                $cycle->delete();
+
+                continue;
+            }
+
+            $order->setRelation('portfolio', $portfolio);
+
+            if (! $this->executor->refreshRestingBuy($order, self::ACTOR)) {
+                if (! $drop && $cycle->expires_at !== null && now()->lt($cycle->expires_at)) {
+                    continue;
+                }
+
+                // The exchange did not confirm the cancel: the next pass tries again.
+                if (! $this->executor->cancelRestingBuy($order, self::ACTOR)) {
+                    continue;
+                }
+            }
+
+            $order->refresh();
+
+            if ((float) $order->fills()->sum('qty') <= 0) {
+                AuditLog::record(self::ACTOR, 'micro.limit_expired', $order, [
+                    'portfolio_id' => $portfolio->id,
+                    'symbol' => $cycle->asset->symbol,
+                    'price' => $order->price,
+                    'status' => $order->status->value,
+                    'reason' => $drop ? $state : 'validade',
+                ]);
+                $cycle->delete();
+
+                continue;
+            }
+
+            if ($this->activate($portfolio, $cycle, $order)) {
+                $started++;
+            }
+        }
+
+        return $started;
+    }
+
+    /**
+     * Start the cycle of a buy that executed: target and stop from the price
+     * really paid, then the sale at the target. A limit that executed only in
+     * part on a real portfolio is completed at market when what it bought
+     * could not be sold (under the pair's minimum, or the stop's cover).
+     */
+    private function activate(Portfolio $portfolio, MicroCycle $cycle, Order $buy): bool
+    {
+        $asset = $cycle->asset;
+
         /** @var Position|null $position */
         $position = $portfolio->openPositions()->where('asset_id', $asset->id)->latest('id')->first();
 
         if ($position === null) {
+            AuditLog::record(self::ACTOR, 'micro.start_failed', $cycle, ['portfolio_id' => $portfolio->id, 'order_id' => $buy->id, 'reason' => 'compra executada sem posição aberta']);
+            $cycle->delete();
+
             return false;
         }
 
-        $exits = $this->rules->exits($setup, $grossPct);
-        $entry = $outcome->price ?? $setup->price;
-        $target = $entry * (1 + $exits['target_pct'] / 100);
-        $stop = $entry * (1 - $exits['stop_pct'] / 100);
+        $stopPct = $cycle->entry_price > 0 ? (1 - $cycle->stop_price / $cycle->entry_price) * 100 : 0.0;
+        $fees = (float) $buy->fees;
+
+        if ($buy->status !== OrderStatus::Filled && $portfolio->isLive()) {
+            $minimum = max((float) $asset->min_notional, $this->stopCoverValue($portfolio, $asset, $stopPct));
+            $rest = $cycle->qty - $position->qty;
+
+            if ($position->qty * (float) $position->avg_price < $minimum && $rest > 0) {
+                $step = (float) $asset->lot_size;
+                $topUp = $this->executor->placeDirect($portfolio, new OrderRequest(
+                    asset: $asset,
+                    side: OrderSide::Buy,
+                    qty: $step > 0 ? ceil(round($rest / $step, 8)) * $step : $rest,
+                    stopPrice: $cycle->stop_price,
+                    clientId: 'micro-'.$portfolio->id.'-'.$asset->id.'-'.now()->format('YmdHis').'r',
+                ), self::ACTOR, 'micro');
+
+                AuditLog::record(self::ACTOR, 'micro.limit_completed', $cycle, ['portfolio_id' => $portfolio->id, 'order_id' => is_string($topUp) ? null : $topUp->id, 'outcome' => is_string($topUp) ? $topUp : $topUp->status->value]);
+
+                if (! is_string($topUp) && $topUp->status === OrderStatus::Filled) {
+                    $fees += (float) $topUp->fees;
+                    $position->refresh();
+                }
+            }
+        }
+
+        $entry = (float) $position->avg_price;
+        $target = $entry * (1 + $cycle->gross_margin_pct / 100);
+        $stop = $entry * (1 - $stopPct / 100);
 
         $position->update(['target_price' => $target, 'stop_price' => $stop]);
 
-        $cycle = $portfolio->microCycles()->create([
-            'asset_id' => $asset->id,
-            'position_id' => $position->id,
+        $cycle->update([
             'status' => 'open',
+            'position_id' => $position->id,
             'qty' => $position->qty,
             'entry_price' => $entry,
             'target_price' => $target,
             'stop_price' => $stop,
-            'fees' => $outcome->fees,
-            'gross_margin_pct' => $exits['target_pct'],
-            'rule' => $portfolio->micro_rule,
-            'max_hold_minutes' => $exits['max_hold_minutes'],
-            'analysis' => $setup->toArray(),
+            'fees' => $fees,
+            'expires_at' => null,
+            // The time limit counts from the fill, not from when the limit was placed.
             'opened_at' => now(),
         ]);
 
-        AuditLog::record(self::ACTOR, 'micro.opened', $cycle, ['portfolio_id' => $portfolio->id, 'symbol' => $asset->symbol, 'order_id' => $outcome->id]);
+        AuditLog::record(self::ACTOR, 'micro.opened', $cycle, ['portfolio_id' => $portfolio->id, 'symbol' => $asset->symbol, 'order_id' => $buy->id, 'suggested_price' => $cycle->suggested_price, 'entry_price' => $entry]);
 
         // The sale at the target is registered at once and rests until it executes.
         // Without it the cycle keeps the old exit: the target checked every minute.

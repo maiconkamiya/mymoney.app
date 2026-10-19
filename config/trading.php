@@ -217,6 +217,15 @@ return [
         'stop_slippage_pct' => (float) env('TRADING_MICRO_STOP_SLIPPAGE_PCT', 0.5),
         'max_candle_age_seconds' => 150,
 
+        // Preço sugerido de compra (#187): `pullback_atr` vezes a faixa média por minuto abaixo do menor
+        // entre o último fechamento e a cotação de agora, sem descer do suporte, no tick do par. A compra
+        // limitada nesse preço espera de `min_seconds` a `max_seconds` (o dono escolhe no card).
+        'limit' => [
+            'pullback_atr' => (float) env('TRADING_MICRO_LIMIT_PULLBACK_ATR', 0.5),
+            'min_seconds' => 10,
+            'max_seconds' => 600,
+        ],
+
         // Motor em tempo real (`micro:watch`, serviço mymoney-micro): confere stop, alvo e tempo dos
         // ciclos abertos a cada `exit_seconds` e roda o motor inteiro (entradas) a cada `entry_seconds`.
         // Um ciclo que disparou e não saiu (venda recusada, abaixo do mínimo) espera `retry_seconds`.

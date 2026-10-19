@@ -40,14 +40,22 @@ class BinanceBroker implements Broker
         $params = [
             'symbol' => $symbol,
             'side' => strtoupper($order->side->value),
-            'type' => $order->type === OrderType::Limit ? 'LIMIT' : 'MARKET',
+            'type' => match (true) {
+                $order->type === OrderType::Limit && $order->postOnly => 'LIMIT_MAKER',
+                $order->type === OrderType::Limit => 'LIMIT',
+                default => 'MARKET',
+            },
             'quantity' => $this->decimal($order->qty),
             'newOrderRespType' => 'FULL',
         ];
 
         if ($order->type === OrderType::Limit) {
             $params['price'] = $this->decimal((float) $order->limitPrice);
-            $params['timeInForce'] = 'GTC';
+
+            // LIMIT_MAKER takes no time in force: it rests until it executes or is cancelled.
+            if (! $order->postOnly) {
+                $params['timeInForce'] = 'GTC';
+            }
         }
 
         if ($order->clientId !== null) {
@@ -104,7 +112,8 @@ class BinanceBroker implements Broker
     }
 
     /**
-     * Cancels every open order this app sent (client ids "signal-*" and "position-*")
+     * Cancels every open order this app sent (client ids "signal-*", "position-*" and the
+     * micro operations' limit buys "micro-*")
      * and returns how many were cancelled. Orders placed by hand on the exchange stay.
      * It works even while the portfolio is blocked, halted or live execution is off:
      * cancelling never moves money.
@@ -123,7 +132,7 @@ class BinanceBroker implements Broker
         foreach ($open as $remote) {
             $clientId = (string) ($remote['clientOrderId'] ?? '');
 
-            if (! str_starts_with($clientId, 'signal-') && ! str_starts_with($clientId, 'position-')) {
+            if (! str_starts_with($clientId, 'signal-') && ! str_starts_with($clientId, 'position-') && ! str_starts_with($clientId, 'micro-')) {
                 continue;
             }
 

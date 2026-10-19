@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $portfolio_id
  * @property int $asset_id
  * @property int|null $position_id
- * @property string $status "open" or "closed"
+ * @property string $status "pending" (limit buy waiting), "open" or "closed"
  * @property float $qty
  * @property float $entry_price
  * @property float $target_price
@@ -29,13 +29,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $max_hold_minutes
  * @property string|null $exit_reason
  * @property array<string, mixed>|null $analysis
+ * @property float|null $suggested_price the engine's suggested buy price (the limit, or the reference of a market buy)
+ * @property int|null $buy_order_id
+ * @property CarbonImmutable|null $expires_at when a pending limit buy is cancelled
  * @property CarbonImmutable $opened_at
  * @property CarbonImmutable|null $closed_at
  * @property-read Portfolio $portfolio
  * @property-read Asset $asset
  * @property-read Position|null $position
+ * @property-read Order|null $buyOrder
  */
-#[Fillable(['portfolio_id', 'asset_id', 'position_id', 'status', 'qty', 'entry_price', 'target_price', 'stop_price', 'exit_price', 'fees', 'net_pnl', 'gross_margin_pct', 'rule', 'max_hold_minutes', 'exit_reason', 'analysis', 'opened_at', 'closed_at'])]
+#[Fillable(['portfolio_id', 'asset_id', 'position_id', 'status', 'qty', 'entry_price', 'target_price', 'stop_price', 'exit_price', 'fees', 'net_pnl', 'gross_margin_pct', 'rule', 'max_hold_minutes', 'exit_reason', 'analysis', 'suggested_price', 'buy_order_id', 'expires_at', 'opened_at', 'closed_at'])]
 class MicroCycle extends Model
 {
     /**
@@ -64,6 +68,8 @@ class MicroCycle extends Model
             'rule' => MicroRule::class,
             'max_hold_minutes' => 'integer',
             'analysis' => 'array',
+            'suggested_price' => 'float',
+            'expires_at' => 'datetime',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
         ];
@@ -85,5 +91,11 @@ class MicroCycle extends Model
     public function position(): BelongsTo
     {
         return $this->belongsTo(Position::class);
+    }
+
+    /** @return BelongsTo<Order, $this> */
+    public function buyOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'buy_order_id');
     }
 }
