@@ -41,6 +41,14 @@ class PortfolioFollower
     }
 
     /**
+     * O explorador ordena pelo escore de rompimento (`explorer.breakout.order_by`).
+     */
+    private static function byBreakout(): bool
+    {
+        return config('explorer.breakout.order_by') === 'breakout';
+    }
+
+    /**
      * A última varredura sem erro, se ainda for recente o bastante para valer.
      */
     public static function latestScan(): ?OpportunityScan
@@ -154,8 +162,9 @@ class PortfolioFollower
     {
         $minScore = (float) config('explorer.follow.min_score');
 
+        // Com a lista pelo escore de rompimento, a nota mínima vale para ele.
         return $scan->opportunities()
-            ->where('score', '>=', $minScore)
+            ->where(self::byBreakout() ? 'breakout_score' : 'score', '>=', $minScore)
             ->get()
             ->reject(fn (Opportunity $o) => $this->endsTrading($o->symbol))
             ->take($size)
@@ -217,7 +226,9 @@ class PortfolioFollower
 
             $portfolio->assets()->syncWithoutDetaching([$asset->id]);
             $asset->touch();
-            $added[] = ['symbol' => $asset->symbol, 'reason' => sprintf('%dº do explorador, nota %s.', $opportunity->rank, number_format($opportunity->score, 0, ',', ''))];
+            $added[] = ['symbol' => $asset->symbol, 'reason' => self::byBreakout() && $opportunity->breakout_score !== null
+                ? sprintf('%dº do explorador, rompimento %s.', $opportunity->rank, number_format($opportunity->breakout_score, 0, ',', ''))
+                : sprintf('%dº do explorador, nota %s.', $opportunity->rank, number_format($opportunity->score, 0, ',', ''))];
             $room--;
         }
 

@@ -8,6 +8,7 @@ use App\Agents\SignalScanner;
 use App\Console\Commands\ExploreOpportunities;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
+use App\Explorer\BreakoutScore;
 use App\Explorer\OpportunityExplorer;
 use App\Explorer\OpportunityRanker;
 use App\Jobs\ExplorerSwarmJob;
@@ -186,6 +187,7 @@ class ExplorerTest extends TestCase
             ['symbol' => 'ROSEUSDT', 'note' => 'Volume quatro vezes a média e rompeu a máxima.'],
         ]]);
         $this->app->instance(LlmClient::class, $fake);
+        config(['explorer.breakout.order_by' => 'score']); // a IA só reordena na ordem pela nota antiga
         Portfolio::factory()->create(); // carteira sem envio automático
 
         ['scan' => $scan, 'swarmed' => $swarmed] = app(OpportunityExplorer::class)->run();
@@ -230,6 +232,94 @@ class ExplorerTest extends TestCase
         $this->assertSame(['ROSEUSDT', 'KAVAUSDT'], $scan->opportunities->pluck('symbol')->all());
         $this->assertNull($scan->opportunities[0]->ai_note);
         $this->assertNotEmpty($scan->opportunities[0]->reasons);
+    }
+
+    /**
+     * Velas de 1 h fechadas: 24 de contexto largas, 12 de caixa estreita tocando 1,01
+     * com mínimas subindo e, se `$fire`, a última rompendo a caixa com volume 4x.
+     *
+     * @return list<array{high: float, low: float, close: float, volume: float}>
+     */
+    private function squeeze(bool $fire): array
+    {
+        $bars = [];
+
+        for ($i = 0; $i < 24; $i++) {
+            $bars[] = ['high' => 1.02, 'low' => 0.98, 'close' => $i % 2 ? 1.01 : 0.99, 'volume' => 100.0];
+        }
+
+        for ($i = 0; $i < 12; $i++) {
+            $low = 1.0 + $i * 0.0005;
+            $bars[] = ['high' => 1.01, 'low' => $low, 'close' => $low + 0.004, 'volume' => 100.0];
+        }
+
+        $bars[] = $fire
+            ? ['high' => 1.03, 'low' => 1.006, 'close' => 1.028, 'volume' => 400.0]
+            : ['high' => 1.012, 'low' => 0.99, 'close' => 0.995, 'volume' => 80.0];
+
+        return $bars;
+    }
+
+    public function test_escore_de_rompimento_premia_a_pressao_antes_do_rompimento(): void
+    {
+        $scorer = app(BreakoutScore::class);
+
+        $fire = $scorer->score($this->squeeze(true));
+        $pressure = $scorer->score($this->squeeze(false));
+        // Queda constante com velas do mesmo tamanho: nem compressão, nem resistência, nem volume.
+        $falling = $scorer->score(array_map(fn (int $i) => ['high' => 1.1 - 0.002 * $i, 'low' => 1.06 - 0.002 * $i, 'close' => 1.07 - 0.002 * $i, 'volume' => 100.0], range(0, 47)));
+
+        $this->assertNotNull($fire);
+        $this->assertNotNull($pressure);
+        $this->assertNotNull($falling);
+        $this->assertGreaterThanOrEqual(80, $fire['breakout_score']);
+        $this->assertGreaterThan($pressure['breakout_score'], $fire['breakout_score']);
+        // A pressão antes do rompimento pesa mais que a confirmação: a caixa comprimida já vale bem.
+        $this->assertGreaterThanOrEqual(50, $pressure['breakout_score']);
+        $this->assertLessThan(25, $falling['breakout_score']);
+        $this->assertSame(['compression', 'volume', 'structure', 'donchian', 'expansion'], array_keys($fire['breakout_components']));
+        $this->assertEqualsWithDelta(2.0, $fire['breakout_components']['volume']['value'], 0.01, 'Média de 400, 100 e 100 contra 100 na caixa.');
+        $this->assertSame(1.0, $fire['breakout_components']['donchian']['score']);
+        $this->assertGreaterThan(0, $fire['breakout_components']['donchian']['value'], 'Fechou acima da máxima da caixa.');
+        $this->assertSame(12.0, $fire['breakout_components']['structure']['value'], 'Toda vela da caixa tocou a máxima.');
+        $this->assertLessThan(0.5, $fire['breakout_components']['compression']['value']);
+        $this->assertSame(0.3, $fire['breakout_components']['compression']['weight']);
+
+        $this->assertNull($scorer->score(array_slice($this->squeeze(true), -20)), 'Sem caixa e contexto não há escore.');
+    }
+
+    public function test_pesos_do_config_mudam_o_escore(): void
+    {
+        config(['explorer.breakout.weights' => ['compression' => 0, 'volume' => 1, 'structure' => 0, 'donchian' => 0, 'expansion' => 0]]);
+
+        $fire = app(BreakoutScore::class)->score($this->squeeze(true));
+
+        $this->assertNotNull($fire);
+        $this->assertEqualsWithDelta(100 * $fire['breakout_components']['volume']['score'], $fire['breakout_score'], 0.01);
+    }
+
+    public function test_lista_segue_o_escore_de_rompimento_e_marca_os_recomendados(): void
+    {
+        Queue::fake();
+        $this->fakeBinance();
+        // A IA prefere KAVA, mas a ordem padrão é a do escore de rompimento; a frase dela fica.
+        $this->app->instance(LlmClient::class, new FakeLlmClient(fn () => ['items' => [
+            ['symbol' => 'KAVAUSDT', 'note' => 'Alta firme.'],
+            ['symbol' => 'ROSEUSDT', 'note' => 'Volume forte.'],
+        ]]));
+
+        ['scan' => $scan] = app(OpportunityExplorer::class)->run();
+        $rows = $scan->opportunities;
+
+        $this->assertSame(['ROSEUSDT', 'KAVAUSDT'], $rows->pluck('symbol')->all());
+        $this->assertGreaterThan($rows[1]->breakout_score, $rows[0]->breakout_score);
+        $this->assertSame('Volume forte.', $rows[0]->ai_note);
+        $this->assertEqualsWithDelta(2.0, $rows[0]->breakout_components['volume']['value'] ?? 0, 0.01);
+
+        config(['explorer.breakout.min_score' => (int) floor($rows[0]->breakout_score)]);
+        $this->assertTrue($rows[0]->isRecommended());
+        $this->assertFalse($rows[1]->isRecommended());
+        $this->assertSame(['ROSEUSDT'], Opportunity::query()->recommended()->pluck('symbol')->all());
     }
 
     public function test_binance_fora_do_ar_registra_o_erro(): void
@@ -462,6 +552,9 @@ class ExplorerTest extends TestCase
                 ->component('Assets')
                 ->where('explorer.opportunities.0.symbol', 'ROSEUSDT')
                 ->where('explorer.opportunities.0.status', 'discovered')
+                ->where('explorer.opportunities.0.breakout_score', 72)
+                ->where('explorer.opportunities.0.recommended', true)
+                ->where('explorer.breakout_min_score', 60)
                 ->where('explorer.portfolios', [['id' => $mine->id, 'name' => 'Minha', 'mode' => 'paper', 'running' => true, 'auto_swarm' => false]])
                 ->where('assets.0.discovered', true));
     }
@@ -494,7 +587,8 @@ class ExplorerTest extends TestCase
         return $scan->opportunities()->create([
             'symbol' => $symbol, 'base' => str_replace('USDT', '', $symbol), 'rank' => 1, 'score' => 70, 'price' => 0.1,
             'change_24h_pct' => 6, 'quote_volume' => 30_000_000, 'spread_pct' => 0.05, 'volume_accel' => 4, 'breakout' => true,
-            'extension_atr' => 1.2, 'reasons' => ['Alta de 6,0% em 24 h.'],
+            'extension_atr' => 1.2, 'reasons' => ['Alta de 6,0% em 24 h.'], 'breakout_score' => 72,
+            'breakout_components' => ['volume' => ['score' => 1.0, 'value' => 4.0, 'weight' => 0.25]],
         ]);
     }
 }

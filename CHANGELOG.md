@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.84] - 2026-10-19
+
+### Adicionado
+
+- **Escore de rompimento de alta no explorador.** Na tela Ativos, cada par da lista de Oportunidades ganha um escore de 0 a 100 com a chance de rompimento de alta, calculado sem IA e sem custo com os mesmos sinais das regras de rompimento das micro operações: compressão da faixa, volume das últimas 3 horas contra a média, toques na resistência com mínimas subindo, posição no canal e abertura da faixa. Os sinais de pressão antes do rompimento pesam mais, porque no backtest de 30 dias comprar o rompimento já feito empatou com comprar ao acaso. O escore ordena os pares, não é promessa de lucro. Cada sinal aparece embaixo do par com uma barra e o número que o gerou (passe o mouse para a explicação). A lista passa a ser ordenada por esse escore, e o par a partir do limiar ganha a marca **Recomendado**. A opção "Seguir o explorador" da carteira passa a seguir essa mesma ordem, e o motivo de cada entrada mostra o escore de rompimento no lugar da nota. O limiar começa em 60 e muda em Configurações > Custos e serviços, "Limiar de rompimento recomendado". O limiar ainda não foi calibrado com dados reais.
+
 ## [0.3.83] - 2026-10-19
 
 ### Adicionado

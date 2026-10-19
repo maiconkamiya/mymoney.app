@@ -17,7 +17,7 @@ use Throwable;
 /**
  * Uma varredura completa: ticker de 24 h de todos os pares (1 chamada), filtro
  * barato, velas de 1 h só das melhores (até `deep_candidates` chamadas), nota,
- * explicação opcional por IA (1 chamada), envio automático aos agentes e limpeza.
+ * escore de rompimento sobre as mesmas velas, explicação opcional por IA (1 chamada), envio automático aos agentes e limpeza.
  */
 class OpportunityExplorer
 {
@@ -26,6 +26,7 @@ class OpportunityExplorer
         private readonly BinanceSymbols $symbols,
         private readonly BinanceKlines $klines,
         private readonly OpportunityRanker $ranker,
+        private readonly BreakoutScore $breakout,
         private readonly OpportunityNarrator $narrator,
         private readonly OpportunitySwarm $swarm,
         private readonly AssetRegistry $registry,
@@ -49,7 +50,8 @@ class OpportunityExplorer
 
         foreach (array_slice($passed, 0, max(0, (int) config('explorer.deep_candidates'))) as $pair) {
             try {
-                $result = $this->ranker->score($pair, $this->klines->hourly($pair['symbol'], 48));
+                $hourly = $this->klines->hourly($pair['symbol'], 48);
+                $result = $this->ranker->score($pair, $hourly);
             } catch (Throwable $e) {
                 Log::info("Explorador sem velas de 1 h de {$pair['symbol']}: {$e->getMessage()}");
 
@@ -57,18 +59,24 @@ class OpportunityExplorer
             }
 
             if ($result !== null) {
-                $scored[] = $pair + $result;
+                // A hora em curso fica de fora, como na nota: o volume dela ainda está incompleto.
+                $scored[] = $pair + $result + ($this->breakout->score(array_slice($hourly, 0, -1)) ?? ['breakout_score' => null, 'breakout_components' => null]);
             }
         }
 
-        usort($scored, fn (array $a, array $b) => $b['score'] <=> $a['score']);
+        $byBreakout = config('explorer.breakout.order_by') === 'breakout';
+
+        usort($scored, $byBreakout
+            ? fn (array $a, array $b) => [$b['breakout_score'] ?? -1, $b['score']] <=> [$a['breakout_score'] ?? -1, $a['score']]
+            : fn (array $a, array $b) => $b['score'] <=> $a['score']);
         $shown = max(1, (int) config('explorer.top'));
         $head = array_slice($scored, 0, $shown);
 
         // A IA explica só os que aparecem na tela; o resto do ranking serve às carteiras que seguem o explorador.
         $narration = $this->narrator->narrate($head);
         $top = [
-            ...$this->reorder($head, $narration['order'] ?? []),
+            // A IA só reordena quando a lista segue a nota antiga; o escore de rompimento é a ordem.
+            ...($byBreakout ? $head : $this->reorder($head, $narration['order'] ?? [])),
             ...array_slice($scored, $shown, max(0, PortfolioFollower::rowsNeeded() - $shown)),
         ];
 
@@ -86,6 +94,8 @@ class OpportunityExplorer
                     'base' => $row['base'],
                     'rank' => $index + 1,
                     'score' => $row['score'],
+                    'breakout_score' => $row['breakout_score'],
+                    'breakout_components' => $row['breakout_components'],
                     'price' => $row['price'],
                     'change_24h_pct' => $row['change_pct'],
                     'quote_volume' => $row['quote_volume'],

@@ -39,6 +39,34 @@ return [
     // Quantos ficam salvos e aparecem na tela.
     'top' => (int) env('EXPLORER_TOP', 10),
 
+    /*
+    | Escore de rompimento de alta (0 a 100), sem IA, sobre as velas de 1 h já
+    | baixadas. Os sinais vêm de App\Trading\Breakout\BreakoutSignals, o mesmo
+    | cálculo das regras de rompimento das micro operações. Pesos iniciais
+    | simples, somando 1: calibrar com dados reais de produção.
+    |
+    | - compression: faixa das últimas velas menor que a média (squeeze).
+    | - volume: volume da última vela fechada contra a média recente.
+    | - structure: mínimas subindo e resistência testada várias vezes.
+    | - donchian: fechamento perto ou acima da máxima do canal.
+    | - expansion: a última vela abriu a faixa (ATR em expansão).
+    |
+    | `min_score` é o limiar de "Recomendado" (Configurações > Custos e serviços).
+    | `order_by` = breakout ordena a lista pelo escore; score volta à nota antiga.
+    */
+
+    'breakout' => [
+        'min_score' => (int) env('EXPLORER_BREAKOUT_MIN_SCORE', 60),
+        'order_by' => env('EXPLORER_ORDER_BY', 'breakout'),
+        'weights' => [
+            'compression' => 0.30,
+            'volume' => 0.25,
+            'structure' => 0.30,
+            'donchian' => 0.10,
+            'expansion' => 0.05,
+        ],
+    ],
+
     'ai' => [
         'enabled' => (bool) env('EXPLORER_AI_ENABLED', true),
         'model' => env('EXPLORER_AI_MODEL', env('AGENTS_FAST_MODEL', 'claude-haiku-5-5')),

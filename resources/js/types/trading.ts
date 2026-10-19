@@ -429,12 +429,29 @@ export type AssetRow = {
     blockers: string[];
 };
 
+export type BreakoutComponentKey =
+    | 'compression'
+    | 'volume'
+    | 'structure'
+    | 'donchian'
+    | 'expansion';
+
+/** Um sinal do escore de rompimento: a nota de 0 a 1 e o número que a gerou. */
+export type BreakoutComponent = {
+    score: number;
+    value: number;
+    weight: number;
+};
+
 export type Opportunity = {
     id: number;
     rank: number;
     symbol: string;
     base: string;
     score: number;
+    breakout_score: number | null;
+    breakout_components: Record<BreakoutComponentKey, BreakoutComponent> | null;
+    recommended: boolean;
     price: number;
     change_24h_pct: number;
     quote_volume: number;
@@ -459,6 +476,7 @@ export type ExplorerPortfolio = {
 export type ExplorerData = {
     enabled: boolean;
     interval_minutes: number;
+    breakout_min_score: number;
     swarm_top: number;
     swarm_min_score: number;
     swarm_max_per_day: number;

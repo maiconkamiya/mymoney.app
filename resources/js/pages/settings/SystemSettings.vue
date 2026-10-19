@@ -98,6 +98,17 @@ const groups: { title: string; description: string; items: Item[] }[] = [
                 help: 'Procura os melhores pares USDT a cada 15 min na tela Ativos.',
             },
             {
+                key: 'explorer__breakout__min_score',
+                title: 'Limiar de rompimento recomendado',
+                help: 'Escore de rompimento de alta, de 0 a 100, a partir do qual o explorador marca o par como "Recomendado". Mais alto, menos pares e mais seletivos. Sem IA e sem custo. O valor inicial ainda não foi calibrado com dados reais.',
+                options: [
+                    { value: 50, label: '50' },
+                    { value: 60, label: '60' },
+                    { value: 70, label: '70' },
+                    { value: 80, label: '80' },
+                ],
+            },
+            {
                 key: 'forecast__enabled',
                 title: 'Serviço de previsão',
                 help: 'Treino de domingo e consulta do modelo próprio. Enquanto ele não valida, o Quantitativo vota "aguardar" sem custo de qualquer jeito.',

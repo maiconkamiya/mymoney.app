@@ -49,6 +49,7 @@ class PortfolioFollowerTest extends TestCase
                 'base' => substr($symbol, 0, -4),
                 'rank' => $index + 1,
                 'score' => $firstScore - $index,
+                'breakout_score' => $firstScore - $index,
                 'price' => 1,
                 'change_24h_pct' => 3,
                 'quote_volume' => 5_000_000,
@@ -89,7 +90,7 @@ class PortfolioFollowerTest extends TestCase
 
         $log = AuditLog::query()->where('action', PortfolioFollower::AUDIT_ACTION)->sole();
         $this->assertSame('Saiu do top 3 do explorador.', $log->payload['removed'][0]['reason']);
-        $this->assertSame('2º do explorador, nota 89.', $log->payload['added'][0]['reason']);
+        $this->assertSame('2º do explorador, rompimento 89.', $log->payload['added'][0]['reason']);
         $this->assertSame('OLDUSDT', PortfolioFollower::history($portfolio)[2]['symbol']);
     }
 
@@ -152,8 +153,27 @@ class PortfolioFollowerTest extends TestCase
 
         app(PortfolioFollower::class)->syncPortfolio($portfolio, $scan);
 
-        // CCC tem nota 88, abaixo da mínima; END encerra a negociação.
+        // CCC tem escore 88, abaixo da mínima; END encerra a negociação.
         $this->assertSame(['AAAUSDT'], $this->tracked($portfolio));
+    }
+
+    public function test_nota_minima_vale_para_o_escore_de_rompimento(): void
+    {
+        config(['explorer.follow.min_score' => 60]);
+        $portfolio = $this->following();
+        $scan = $this->scan(['AAAUSDT', 'BBBUSDT']);
+        // A nota antiga é alta nos dois, mas BBB não tem chance de rompimento.
+        $scan->opportunities()->where('symbol', 'BBBUSDT')->update(['breakout_score' => 30]);
+
+        app(PortfolioFollower::class)->syncPortfolio($portfolio, $scan);
+
+        $this->assertSame(['AAAUSDT'], $this->tracked($portfolio));
+        $this->assertSame('1º do explorador, rompimento 90.', PortfolioFollower::history($portfolio)[0]['reason']);
+
+        config(['explorer.breakout.order_by' => 'score']);
+        app(PortfolioFollower::class)->syncPortfolio($portfolio->refresh(), $scan);
+
+        $this->assertSame(['AAAUSDT', 'BBBUSDT'], $this->tracked($portfolio->refresh()));
     }
 
     public function test_dono_liga_e_a_ultima_varredura_vale_na_hora(): void

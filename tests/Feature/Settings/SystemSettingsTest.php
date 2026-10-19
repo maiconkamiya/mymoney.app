@@ -73,6 +73,10 @@ class SystemSettingsTest extends TestCase
         $this->actingAs($admin)->put(route('system-settings.update'), ['trading__scan_interval_minutes' => '30'])->assertSessionHasNoErrors();
 
         $this->assertSame(30, config('trading.scan_interval_minutes'));
+
+        $this->actingAs($admin)->put(route('system-settings.update'), ['explorer__breakout__min_score' => 65])->assertSessionHasErrors('explorer__breakout__min_score');
+        $this->actingAs($admin)->put(route('system-settings.update'), ['explorer__breakout__min_score' => '70'])->assertSessionHasNoErrors();
+        $this->assertSame(70, config('explorer.breakout.min_score'));
         $this->assertSame(0, SystemSetting::query()->where('key', 'agents.models.skeptic')->count());
     }
 
