@@ -59,6 +59,7 @@ class PortfolioController extends Controller
         return Inertia::render('portfolios/Index', [
             'portfolios' => $portfolios,
             'halted' => $halt->isHalted(),
+            'halted_live_only' => $halt->isLiveOnly(),
         ]);
     }
 

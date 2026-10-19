@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * The global kill switch. While halted, no order is sent for any portfolio.
+ * The reconciler's halt is live only: a divergence with the broker says
+ * nothing about simulated portfolios, so they keep trading.
  */
 class TradingHalt
 {
@@ -20,10 +22,33 @@ class TradingHalt
         return Cache::get(self::KEY) !== null;
     }
 
-    public function halt(string $actor, string $reason = ''): void
+    /**
+     * Whether the halt blocks this portfolio's orders.
+     */
+    public function blocks(Portfolio $portfolio): bool
     {
-        Cache::forever(self::KEY, ['by' => $actor, 'reason' => $reason, 'at' => now()->toIso8601String()]);
-        AuditLog::record($actor, 'trading.halted', payload: ['reason' => $reason]);
+        return $this->isHalted() && ($portfolio->isLive() || ! $this->isLiveOnly());
+    }
+
+    /**
+     * True while the only halt in place is one that spares the simulated portfolios.
+     */
+    public function isLiveOnly(): bool
+    {
+        $halt = Cache::get(self::KEY);
+
+        return is_array($halt) && ($halt['live_only'] ?? false) === true;
+    }
+
+    /**
+     * @param  bool  $liveOnly  blocks only the live portfolios; never narrows a halt for every portfolio already in place
+     */
+    public function halt(string $actor, string $reason = '', bool $liveOnly = false): void
+    {
+        $liveOnly = $liveOnly && (! $this->isHalted() || $this->isLiveOnly());
+
+        Cache::forever(self::KEY, ['by' => $actor, 'reason' => $reason, 'at' => now()->toIso8601String(), 'live_only' => $liveOnly]);
+        AuditLog::record($actor, 'trading.halted', payload: ['reason' => $reason, 'live_only' => $liveOnly]);
         $this->notifyLivePortfolios();
     }
 

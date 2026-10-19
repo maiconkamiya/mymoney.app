@@ -3,6 +3,7 @@
 namespace Tests\Feature\Trading;
 
 use App\Enums\OrderSide;
+use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
 use App\Models\Asset;
 use App\Models\Portfolio;
@@ -58,6 +59,33 @@ class RiskGuardTest extends TestCase
 
         $this->assertFalse($decision->allowed);
         $this->assertSame(['Parada geral acionada.'], $decision->reasons);
+    }
+
+    public function test_reconciler_halt_spares_simulated_portfolios()
+    {
+        $halt = app(TradingHalt::class);
+        $live = Portfolio::factory()->create(['mode' => PortfolioMode::Live, 'initial_cash' => 10_000, 'cash' => 10_000]);
+        $halt->halt('reconciler', 'Divergência.', liveOnly: true);
+
+        $this->assertTrue($halt->isHalted());
+        $this->assertTrue($halt->isLiveOnly());
+        $this->assertTrue(app(RiskGuard::class)->check($this->portfolio, $this->buy(1))->allowed);
+        $this->assertContains('Parada geral acionada.', app(RiskGuard::class)->check($live, $this->buy(1))->reasons);
+
+        // The manual halt blocks every portfolio again.
+        $halt->halt('user:1');
+        $this->assertFalse($halt->isLiveOnly());
+        $this->assertSame(['Parada geral acionada.'], app(RiskGuard::class)->check($this->portfolio, $this->buy(1))->reasons);
+    }
+
+    public function test_reconciler_halt_never_narrows_a_manual_halt()
+    {
+        $halt = app(TradingHalt::class);
+        $halt->halt('user:1');
+        $halt->halt('reconciler', 'Divergência.', liveOnly: true);
+
+        $this->assertFalse($halt->isLiveOnly());
+        $this->assertFalse(app(RiskGuard::class)->check($this->portfolio, $this->buy(1))->allowed);
     }
 
     public function test_paused_portfolio_cannot_trade()

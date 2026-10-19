@@ -31,6 +31,7 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard', [
             'halted' => $halt->isHalted(),
+            'halted_live_only' => $halt->isLiveOnly(),
             'portfolios' => $portfolios->map(fn (Portfolio $portfolio) => [
                 'id' => $portfolio->id,
                 'name' => $portfolio->name,

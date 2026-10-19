@@ -37,7 +37,7 @@ class RiskGuard
         $profile = $portfolio->riskProfile;
         $asset = $order->asset;
 
-        if ($this->halt->isHalted()) {
+        if ($this->halt->blocks($portfolio)) {
             return RiskDecision::block('Parada geral acionada.');
         }
 
