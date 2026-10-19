@@ -109,6 +109,10 @@ class LiveAutoExecutionTest extends TestCase
                 return Http::response($open);
             }
 
+            if ($path === '/api/v3/account') {
+                return Http::response(['balances' => [['asset' => 'BTC', 'free' => '0.05', 'locked' => '0'], ['asset' => 'USDT', 'free' => '100', 'locked' => '0']]]);
+            }
+
             if ($request->method() === 'DELETE') {
                 return Http::response(['status' => 'CANCELED']);
             }

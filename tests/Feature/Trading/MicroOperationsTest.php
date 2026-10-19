@@ -44,6 +44,9 @@ class MicroOperationsTest extends TestCase
 
     private Asset $asset;
 
+    /** What the fake Binance of liveFiveUsdt holds of the coin. */
+    private string $held = '0';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -1277,17 +1280,17 @@ class MicroOperationsTest extends TestCase
      * a fake Binance that fills each market order with the quantity it was sent
      * at the last candle's price and holds what was bought.
      */
-    private function liveFiveUsdt(float $stopPct): Portfolio
+    private function liveFiveUsdt(float $stopPct, string $lot = '0.0001', bool $feeInCoin = false): Portfolio
     {
         config(['trading.live.enabled' => true]);
         config(['trading.micro.stop_ratio' => $stopPct / app(MicroCosts::class)->grossMarginPct(0.2)]);
-        $this->asset->update(['lot_size' => '0.0001', 'tick_size' => '0.01', 'min_qty' => '0.0001', 'min_notional' => '5']);
+        $this->asset->update(['lot_size' => $lot, 'tick_size' => '0.01', 'min_qty' => $lot, 'min_notional' => '5']);
         $user = User::factory()->create();
         $credential = BrokerCredential::create(['user_id' => $user->id, 'broker' => 'binance', 'label' => 'x', 'api_key' => 'k', 'api_secret' => 's', 'can_withdraw' => false, 'verified_at' => now()]);
-        $held = '0';
+        $this->held = '0';
         $limit = 'NEW';
 
-        Http::fake(function (Request $request) use (&$held, &$limit) {
+        Http::fake(function (Request $request) use (&$limit, $feeInCoin) {
             $path = parse_url($request->url(), PHP_URL_PATH);
             $url = $request->url();
             parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
@@ -1296,12 +1299,15 @@ class MicroOperationsTest extends TestCase
             return match (true) {
                 $path === '/api/v3/time' => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
                 $path === '/api/v3/ticker/price' => Http::response([]),
-                $path === '/api/v3/account' => Http::response(['balances' => [['asset' => 'DOGE', 'free' => $held, 'locked' => '0'], ['asset' => 'USDT', 'free' => '30', 'locked' => '0']]]),
+                $path === '/api/v3/account' => Http::response(['balances' => [['asset' => 'DOGE', 'free' => $this->held, 'locked' => '0'], ['asset' => 'USDT', 'free' => '30', 'locked' => '0']]]),
                 $request->method() === 'POST' && str_contains($url, 'type=LIMIT') => Http::response(['orderId' => 2, 'status' => 'NEW', 'executedQty' => '0', 'cummulativeQuoteQty' => '0', 'fills' => []]),
-                $request->method() === 'POST' => (function () use ($query, $price, &$held) {
-                    $held = str_contains($query['side'] ?? '', 'BUY') ? $query['quantity'] : '0';
+                $request->method() === 'POST' => (function () use ($query, $price, $feeInCoin) {
+                    $buy = str_contains($query['side'] ?? '', 'BUY');
+                    // With the fee in the coin, Binance keeps 0.1% of what was bought (1.04 PROM became 1.03896).
+                    $fee = $buy && $feeInCoin ? (float) $query['quantity'] * 0.001 : 0.0;
+                    $this->held = $buy ? (string) ((float) $query['quantity'] - $fee) : '0';
 
-                    return Http::response(['orderId' => 3, 'status' => 'FILLED', 'executedQty' => $query['quantity'], 'cummulativeQuoteQty' => (string) ((float) $query['quantity'] * (float) $price), 'transactTime' => now()->getTimestampMs(), 'fills' => [['price' => $price, 'qty' => $query['quantity'], 'commission' => '0', 'commissionAsset' => 'USDT']]]);
+                    return Http::response(['orderId' => 3, 'status' => 'FILLED', 'executedQty' => $query['quantity'], 'cummulativeQuoteQty' => (string) ((float) $query['quantity'] * (float) $price), 'transactTime' => now()->getTimestampMs(), 'fills' => [['price' => $price, 'qty' => $query['quantity'], 'commission' => $fee > 0 ? (string) $fee : '0', 'commissionAsset' => $fee > 0 ? 'DOGE' : 'USDT']]]);
                 })(),
                 $request->method() === 'DELETE' => Http::response(['orderId' => 2, 'status' => $limit = 'CANCELED']),
                 default => Http::response(['orderId' => 2, 'status' => $limit, 'executedQty' => '0', 'cummulativeQuoteQty' => '0']),
@@ -1377,5 +1383,88 @@ class MicroOperationsTest extends TestCase
         $this->actingAs(User::factory()->create())->get(route('portfolios.show', $portfolio))->assertForbidden();
         $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page
             ->where('positions.0.below_minimum', fn ($notice) => str_contains((string) $notice, 'saída só pelo alvo')));
+    }
+
+    public function test_the_stop_cover_counts_the_fee_taken_in_the_coin_and_the_pair_step_in_the_prom_and_ava_cases()
+    {
+        $portfolio = $this->liveFiveUsdt(1.0);
+        $trader = app(MicroTrader::class);
+        $kept = 1 - (1.0 + 0.5) / 100;
+
+        // PROM (19/10): bought 1.04 at 4.884, 1.03896 on the account, sale floored to 1.03: 4.98 USDT at the stop.
+        // AVA (19/10): 13.2867 bought, sale floored to 13.2 at the stop: 5.00 USDT, under the minimum.
+        foreach ([['PROMUSDT', '0.01', 4.884], ['AVAUSDT', '0.1', 0.3823]] as [$symbol, $step, $price]) {
+            $asset = Asset::factory()->create(['symbol' => $symbol, 'lot_size' => $step, 'min_qty' => $step, 'min_notional' => '5']);
+            $cover = $trader->stopCoverValue($portfolio, $asset, 1.0, $price);
+
+            $qty = ceil(round($cover / $price / (float) $step, 8)) * (float) $step;
+            $sellable = floor(round($qty * 0.999 / (float) $step, 8)) * (float) $step;
+            $this->assertGreaterThanOrEqual(5.0, $sellable * $price * $kept, $symbol);
+
+            // The old cover (5 / 0.985) left the sale at the stop under the minimum.
+            $old = ceil(round(5 / $kept / $price / (float) $step, 8)) * (float) $step;
+            $this->assertLessThan(5.0, floor(round($old * 0.999 / (float) $step, 8)) * (float) $step * $price * $kept, $symbol);
+        }
+    }
+
+    public function test_with_the_fee_in_the_coin_and_a_coarse_step_the_sale_at_the_stop_still_reaches_the_minimum()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->liveFiveUsdt(1.0, lot: '0.001', feeInCoin: true);
+
+        $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
+        $cycle = MicroCycle::sole();
+
+        $this->advanceTo($cycle->stop_price);
+        app(PositionExits::class)->checkStopsAndTargets();
+
+        $sale = Order::where('side', OrderSide::Sell)->where('type', OrderType::Market)->sole();
+        $this->assertSame('stop', $sale->reason);
+        $this->assertSame(OrderStatus::Filled, $sale->status);
+        $this->assertGreaterThanOrEqual(5.0, $sale->qty * $sale->price);
+        $this->assertSame(0, AuditLog::where('action', 'position.close_blocked')->count());
+    }
+
+    public function test_an_order_the_risk_guard_cuts_below_the_stop_cover_does_not_enter_and_says_why()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->liveFiveUsdt(1.0, lot: '0.001', feeInCoin: true);
+        // About 5.11 USDT reaches the old cover (5 / 0.985 = 5.08) but not the net one (5.18).
+        config(['trading.live.max_order_value' => 5.20]);
+
+        $this->assertSame(0, app(MicroTrader::class)->run($portfolio));
+        $this->assertSame(0, Order::count());
+        $this->assertStringContainsString('aporte não cobre o stop: a ordem seria reduzida', (string) app(MicroTrader::class)->lastBlock($portfolio));
+    }
+
+    public function test_a_market_sale_whose_net_quantity_is_under_the_minimum_is_not_sent()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->liveFiveUsdt(1.0, lot: '0.001');
+        $position = Position::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'qty' => 0.05, 'avg_price' => 100.15, 'opened_at' => now()]);
+        // The position is worth 5.0075 USDT, but the account holds 0.04995 after the fee: 0.049 sells for 4.91.
+        $this->held = '0.04995';
+
+        $this->assertNull(app(OrderExecutor::class)->closePosition($position, 'micro_expired', 'test', $blocked));
+
+        $this->assertStringContainsString('abaixo do mínimo de 5.00 USDT', (string) $blocked);
+        $this->assertSame(0, Order::where('side', OrderSide::Sell)->count());
+        Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
+        $this->assertSame('below_minimum', AuditLog::where('action', 'position.close_blocked')->sole()->payload['code']);
+    }
+
+    public function test_the_minimum_check_counts_the_resting_sale_and_the_sale_without_balance_leaves_the_fee_out()
+    {
+        $portfolio = $this->liveFiveUsdt(1.0, lot: '0.001');
+        $position = Position::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'qty' => 0.05, 'avg_price' => 100.15, 'opened_at' => now()]);
+        $executor = app(OrderExecutor::class);
+
+        // ALT (19/10): right after the buy the account had not shown the coin yet; the sale of the gross
+        // quantity was refused for missing balance. Without the balance the fee is left out.
+        $this->assertEqualsWithDelta(0.049, $executor->sellableQty($position), 1e-9);
+
+        $this->assertNull($executor->belowMinimum($position, 100.15));
+        Order::create(['portfolio_id' => $portfolio->id, 'asset_id' => $this->asset->id, 'position_id' => $position->id, 'broker' => 'binance', 'side' => OrderSide::Sell, 'type' => OrderType::Limit, 'qty' => 0.049, 'price' => 101, 'status' => OrderStatus::Pending, 'external_id' => 'DOGEUSDT:2', 'reason' => 'target']);
+        $this->assertStringContainsString('A venda de 0.049', (string) $executor->belowMinimum($position, 100.15));
     }
 }

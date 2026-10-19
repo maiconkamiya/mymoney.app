@@ -697,14 +697,14 @@ class MicroTrader
 
         $gross = $this->costs->grossMarginPct($portfolio->micro_net_margin_pct);
         $stopPct = $this->rules->exits($setup, $gross)['stop_pct'];
-        $cover = $this->stopCoverValue($portfolio, $asset, $stopPct);
+        $price = $this->entryLimit($portfolio, $asset, $setup) ?? $setup->price;
+        $cover = $this->stopCoverValue($portfolio, $asset, $stopPct, $price);
 
-        // The sale at the stop must still reach the pair's minimum, or the stop could not sell (#175).
+        // The sale at the stop must still reach the pair's minimum, or the stop could not sell (#175, #200).
         if ($cover > $portfolio->micro_order_value * 1.1) {
             return sprintf('aporte não cobre o stop: para a venda no stop de %.2f%% ainda valer o mínimo de %.2f USDT do par, a compra precisa de %.2f USDT, mais de 10%% acima do aporte de %.2f.', $stopPct, (float) $asset->min_notional, $cover, $portfolio->micro_order_value);
         }
 
-        $price = $this->entryLimit($portfolio, $asset, $setup) ?? $setup->price;
         $decision = $this->risk->check($portfolio, $this->buyRequest($portfolio, $asset, $setup, $gross, $this->entryLimit($portfolio, $asset, $setup)), ownerSized: true);
 
         if (! $decision->allowed) {
@@ -766,7 +766,7 @@ class MicroTrader
         $value = $portfolio->micro_order_value;
 
         if ($portfolio->isLive()) {
-            $value = max($value, (float) $asset->min_notional * 1.01, $this->stopCoverValue($portfolio, $asset, $stopPct));
+            $value = max($value, (float) $asset->min_notional * 1.01, $this->stopCoverValue($portfolio, $asset, $stopPct, $price));
         }
 
         $qty = max($value / $price, (float) $asset->min_qty);
@@ -777,11 +777,14 @@ class MicroTrader
 
     /**
      * Smallest purchase whose sale at the stop, after the price slips past it,
-     * still reaches the pair's minimum order: value × (1 − stop − slippage) ≥
-     * min_notional. Below it Binance refuses the market sale and the stop
-     * cannot sell. Zero on a simulated portfolio, which has no such minimum.
+     * still reaches the pair's minimum order. What can be sold is less than
+     * what was bought: Binance takes the fee in the bought coin (1.04 PROM
+     * became 1.03896) and the sale is rounded down to the pair's step (1.03),
+     * so value × (1 − fee) × (1 − stop − slippage) − one step ≥ min_notional.
+     * Below it Binance refuses the market sale and the stop cannot sell (#200).
+     * Zero on a simulated portfolio, which has no such minimum.
      */
-    public function stopCoverValue(Portfolio $portfolio, Asset $asset, float $stopPct): float
+    public function stopCoverValue(Portfolio $portfolio, Asset $asset, float $stopPct, float $price): float
     {
         $minimum = (float) $asset->min_notional;
 
@@ -789,9 +792,14 @@ class MicroTrader
             return 0.0;
         }
 
-        $kept = 1 - ($stopPct + (float) config('trading.micro.stop_slippage_pct')) / 100;
+        $kept = (1 - ($stopPct + (float) config('trading.micro.stop_slippage_pct')) / 100)
+            * (1 - (float) config('trading.costs.crypto.fee_rate'));
 
-        return $kept > 0 ? $minimum / $kept : INF;
+        if ($kept <= 0) {
+            return INF;
+        }
+
+        return ($minimum + (float) $asset->lot_size * $price) / $kept;
     }
 
     /**
@@ -1061,7 +1069,7 @@ class MicroTrader
         $fees = (float) $buy->fees;
 
         if ($buy->status !== OrderStatus::Filled && $portfolio->isLive()) {
-            $minimum = max((float) $asset->min_notional, $this->stopCoverValue($portfolio, $asset, $stopPct));
+            $minimum = max((float) $asset->min_notional, $this->stopCoverValue($portfolio, $asset, $stopPct, (float) $position->avg_price));
             $rest = $cycle->qty - $position->qty;
 
             if ($position->qty * (float) $position->avg_price < $minimum && $rest > 0) {
