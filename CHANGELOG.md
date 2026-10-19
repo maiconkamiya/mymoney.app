@@ -4,6 +4,17 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.89] - 2026-10-19
+
+### Corrigido
+
+- **A compra das micro operações sai mais perto do preço de agora.** O motor lia o gráfico de todos os pares acompanhados antes de testar e enviar a compra do par escolhido, então o preço usado podia ter a idade dessa leitura inteira. Agora ele relê o par escolhido logo antes de conferir e enviar; se o gráfico novo não pede mais entrada, a compra não sai e o card mostra "o gráfico mudou na releitura antes do envio".
+- **Conexão com a Binance reaproveitada.** Cada ordem abria uma conexão segura nova com a Binance, o que custava várias idas e voltas pela rede antes de a ordem chegar. Agora a conexão fica aberta entre as chamadas do mesmo serviço.
+
+### Adicionado
+
+- **Medição do tempo de cada compra micro.** Toda compra registra quanto tempo levou da leitura do gráfico ao envio, do envio à resposta da Binance, e o preço em cada momento. O comando `php artisan micro:latency` resume as últimas 24 horas (`--hours`, `--portfolio`): tempos em mediana e 90%, quanto o preço andou nesse meio e quantas compras limitadas executaram.
+
 ## [0.3.88] - 2026-10-19
 
 ### Corrigido

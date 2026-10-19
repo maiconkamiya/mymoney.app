@@ -3,6 +3,7 @@
 namespace App\Trading\Live;
 
 use App\Models\BrokerCredential;
+use GuzzleHttp\Handler\CurlHandler;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
@@ -20,6 +21,8 @@ class BinanceClient
     // A Binance só recusa timestamp mais de 1000 ms à frente da hora dela; atrasado vale até recvWindow.
     // Por isso o carimbo anda um pouco para trás, absorvendo o erro de medir o offset pela rede.
     private const SAFETY_MARGIN_MS = 500;
+
+    private static ?CurlHandler $handler = null;
 
     public function __construct(private readonly BrokerCredential $credential) {}
 
@@ -164,7 +167,12 @@ class BinanceClient
 
     private function http(): PendingRequest
     {
+        // One cURL handler per process keeps the HTTPS connection to Binance open between calls:
+        // a new one per order paid DNS, TCP and TLS again, several round trips before the order left (#196).
+        self::$handler ??= new CurlHandler;
+
         return Http::baseUrl(config('trading.binance.base_url'))
+            ->setHandler(self::$handler)
             ->withHeaders(['X-MBX-APIKEY' => $this->credential->api_key])
             ->timeout(10);
     }

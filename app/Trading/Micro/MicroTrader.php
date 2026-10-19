@@ -98,7 +98,17 @@ class MicroTrader
                 continue;
             }
 
-            $reason = $this->gate($portfolio, $row['asset'], $row['setup'], $open);
+            // The ranking read every pair before this one: read this pair again so the buy goes out on the chart of now (#196).
+            $readAt = microtime(true);
+            $setup = $this->ranker->reread($portfolio, $row['asset'], $gross);
+
+            if ($setup === null || ! $setup->entry) {
+                $blocks[] = $row['asset']->symbol.': o gráfico mudou na releitura antes do envio e não pede mais entrada.';
+
+                continue;
+            }
+
+            $reason = $this->gate($portfolio, $row['asset'], $setup, $open);
 
             if ($reason !== null) {
                 $blocks[] = $row['asset']->symbol.': '.$reason;
@@ -108,7 +118,7 @@ class MicroTrader
 
             Cache::forget($this->blockKey($portfolio));
 
-            if ($this->open($portfolio, $row['asset'], $row['setup'], $gross)) {
+            if ($this->open($portfolio, $row['asset'], $setup, $gross, $readAt)) {
                 $open++;
                 $opened++;
                 $waiting = $portfolio->microCycles()->where('status', 'pending')->count();
@@ -883,11 +893,18 @@ class MicroTrader
      * Send the buy. A limit buy leaves the cycle "pending" until it executes;
      * a market buy (or a limit that executed at once) starts it right away.
      */
-    private function open(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): bool
+    private function open(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct, ?float $readAt = null): bool
     {
+        $readAt ??= microtime(true);
         $suggestion = $this->suggestion($portfolio, $asset, $setup);
         $isLimit = $portfolio->micro_entry_mode !== 'market';
+        $sentAt = microtime(true);
         $outcome = $this->executor->placeDirect($portfolio, $this->buyRequest($portfolio, $asset, $setup, $grossPct, $isLimit ? $suggestion['price'] : null), self::ACTOR, 'micro');
+        $answeredAt = microtime(true);
+
+        if (! is_string($outcome)) {
+            $this->recordLatency($portfolio, $asset, $setup, $suggestion, $outcome, $readAt, $sentAt, $answeredAt);
+        }
         // A market buy must fill at once; a limit buy may also rest, waiting for the price.
         $accepted = ! is_string($outcome) && ($outcome->status === OrderStatus::Filled || ($isLimit && $outcome->status === OrderStatus::Pending));
 
@@ -926,6 +943,31 @@ class MicroTrader
         }
 
         return $this->activate($portfolio, $cycle, $outcome);
+    }
+
+    /**
+     * How long the buy took from the chart reading to the exchange's answer,
+     * and where the price was at each step, so `micro:latency` can measure in
+     * production whether the price runs away before the order arrives (#196).
+     *
+     * @param  array{mode: 'limit'|'market', price: float, reference: float, discount_pct: float, seconds: int|null}  $suggestion
+     */
+    private function recordLatency(Portfolio $portfolio, Asset $asset, MicroSetup $setup, array $suggestion, Order $order, float $readAt, float $sentAt, float $answeredAt): void
+    {
+        AuditLog::record(self::ACTOR, 'micro.buy_latency', $order, [
+            'portfolio_id' => $portfolio->id,
+            'symbol' => $asset->symbol,
+            'mode' => $suggestion['mode'],
+            'status' => $order->status->value,
+            // Reading, risk checks and the suggested price, before the order leaves.
+            'decision_ms' => (int) round(($sentAt - $readAt) * 1000),
+            // Risk guard of the executor, the request to the exchange and its answer.
+            'send_ms' => (int) round(($answeredAt - $sentAt) * 1000),
+            'price_read' => $setup->price,
+            'limit_price' => $suggestion['mode'] === 'limit' ? $suggestion['price'] : null,
+            'price_answered' => $this->prices->quote($asset)?->price,
+            'paid' => $order->status === OrderStatus::Filled ? (float) $order->price : null,
+        ]);
     }
 
     /**
