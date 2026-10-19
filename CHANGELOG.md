@@ -9,6 +9,7 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 ### Corrigido
 
 - **Queda de rede na conciliação não liga mais a Parada geral.** A cada 5 minutos o app confere as ordens reais com a Binance. Quando a consulta de uma ordem dava tempo esgotado, isso era tratado como divergência e a Parada geral ligava, travando todas as carteiras, inclusive as simuladas. Agora a falha fica registrada e a ordem é consultada de novo na conciliação seguinte; a Parada geral só liga se a mesma ordem ficar sem resposta 6 vezes seguidas (meia hora; ajustável em `TRADING_LIVE_RECONCILE_MAX_FAILURES`). Quando a Binance responde com um estado ou quantidade diferente do registrado, ou recusa a consulta, a Parada geral liga na hora, como antes.
+- **A Parada geral da conciliação trava só as carteiras reais.** Como a conciliação só confere ordens reais, a parada que ela liga não bloqueia mais as carteiras simuladas, que seguem operando. As telas mostram "Parada geral nas carteiras reais" nesse caso. O botão "Parada geral" e o comando `trading:halt` continuam travando todas as carteiras, e uma parada dessas nunca é afrouxada pela conciliação.
 
 ## [0.3.86] - 2026-10-19
 

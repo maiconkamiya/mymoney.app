@@ -242,6 +242,7 @@ class LiveTradingTest extends TestCase
         $exchange = ['orderId' => 77, 'status' => 'CANCELED', 'executedQty' => '0', 'cummulativeQuoteQty' => '0'];
         $this->assertCount(1, app(OrderReconciler::class)->reconcile());
         $this->assertTrue(app(TradingHalt::class)->isHalted());
+        $this->assertTrue(app(TradingHalt::class)->isLiveOnly());
         $this->assertNotNull($order);
     }
 

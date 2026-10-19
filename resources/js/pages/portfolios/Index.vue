@@ -22,6 +22,7 @@ defineOptions({
 defineProps<{
     portfolios: PortfolioSummary[];
     halted: boolean;
+    halted_live_only: boolean;
 }>();
 
 const today = new Date().toISOString().slice(0, 10);
@@ -47,13 +48,19 @@ const inThirtyDays = new Date(Date.now() + 30 * 86_400_000)
             <div>
                 <p class="font-medium">
                     {{
-                        halted ? 'Parada geral acionada' : 'Negociação liberada'
+                        halted
+                            ? halted_live_only
+                                ? 'Parada geral nas carteiras reais'
+                                : 'Parada geral acionada'
+                            : 'Negociação liberada'
                     }}
                 </p>
                 <p class="text-sm text-muted-foreground">
                     {{
                         halted
-                            ? 'Nenhuma ordem é enviada até você retomar.'
+                            ? halted_live_only
+                                ? 'A conciliação achou divergência com a corretora: nenhuma ordem real é enviada até você conferir e retomar. As simuladas seguem.'
+                                : 'Nenhuma ordem é enviada até você retomar.'
                             : 'A parada geral bloqueia todas as ordens, simuladas e reais.'
                     }}
                 </p>

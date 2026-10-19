@@ -30,6 +30,7 @@ defineOptions({
 
 const props = defineProps<{
     halted: boolean;
+    halted_live_only: boolean;
     portfolios: PortfolioSummary[];
     pending_signals: PendingSignal[];
 }>();
@@ -97,7 +98,13 @@ onBeforeUnmount(stopMarket);
             >
                 <ShieldOff v-if="halted" class="size-4" />
                 <ShieldCheck v-else class="size-4 text-up" />
-                {{ halted ? 'Parada geral acionada' : 'Negociação liberada' }}
+                {{
+                    halted
+                        ? halted_live_only
+                            ? 'Parada geral nas carteiras reais'
+                            : 'Parada geral acionada'
+                        : 'Negociação liberada'
+                }}
             </Link>
         </div>
 

@@ -13,7 +13,8 @@ use Throwable;
 
 /**
  * Compares recent real orders with what the broker reports. Any difference
- * (status or filled quantity) triggers the general halt for a person to look.
+ * (status or filled quantity) triggers the general halt of the live portfolios
+ * for a person to look.
  * A network failure is not a difference: it is retried on the next runs and
  * only halts after `trading.live.reconcile_max_failures` in a row on one order.
  */
@@ -75,7 +76,8 @@ class OrderReconciler
 
         if ($divergences !== []) {
             AuditLog::record('reconciler', 'orders.divergence', payload: ['divergences' => $divergences]);
-            $this->halt->halt('reconciler', 'Divergência na conciliação com a corretora.');
+            // Only real orders are reconciled: the simulated portfolios keep running.
+            $this->halt->halt('reconciler', 'Divergência na conciliação com a corretora.', liveOnly: true);
         }
 
         return $divergences;
