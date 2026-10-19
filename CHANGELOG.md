@@ -4,13 +4,19 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.91] - 2026-10-19
+## [0.3.92] - 2026-10-19
 
 ### Corrigido
 
 - **O stop das micro operações volta a conseguir vender na carteira real.** A compra era calculada para a venda no stop ainda valer o mínimo de 5 USDT da Binance, mas a conta não descontava a taxa que a Binance cobra na própria moeda comprada nem o arredondamento da venda ao passo do par (1,04 PROM comprado vira 1,03 na venda). Por isso o stop caía abaixo do mínimo e a venda nem saía. Agora a compra já sai com essa folga; se a guarda de risco reduzir a ordem para um valor que não cobre o stop, a compra não sai e o card mostra "aporte não cobre o stop".
 - **Venda abaixo do mínimo não é mais enviada repetidas vezes.** Quando a quantidade que de fato dá para vender (o saldo depois da taxa, arredondado ao passo) vale menos que o mínimo, o app não envia a venda a mercado e mostra o aviso de posição abaixo do mínimo, em vez de mandar uma ordem a cada poucos segundos que a Binance recusa.
 - **Venda no alvo logo depois da compra.** Se o saldo da Binance ainda não mostrava a moeda comprada, a venda no alvo saía com a quantidade antes da taxa e a Binance recusava por saldo insuficiente. Agora, sem o saldo, a venda já desconta a taxa.
+
+## [0.3.91] - 2026-10-19
+
+### Corrigido
+
+- **Mudar o valor investido da carteira real não bloqueia mais as compras.** Numa carteira real ainda sem histórico de patrimônio, a guarda de risco media a perda do dia e a queda desde o maior saldo a partir do valor investido; subir esse valor antes de o dinheiro chegar à Binance fazia a carteira parecer no prejuízo e recusava toda compra com "Perda máxima do dia atingida". Agora a referência é o patrimônio que a carteira tem de fato na primeira conferência do dia, e o valor investido só serve para mostrar o resultado.
 
 ## [0.3.90] - 2026-10-19
 
