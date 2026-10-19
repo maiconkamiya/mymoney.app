@@ -13,6 +13,7 @@ import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import EditInitialCash from '@/components/portfolio/EditInitialCash.vue';
+import NewDeposit from '@/components/portfolio/NewDeposit.vue';
 import BinanceTotal from '@/components/portfolio/BinanceTotal.vue';
 import AccountLeftovers from '@/components/portfolio/AccountLeftovers.vue';
 import DeletePortfolio from '@/components/portfolio/DeletePortfolio.vue';
@@ -240,8 +241,12 @@ onBeforeUnmount(() => clearTimeout(reloadTimer));
                                 )
                             }}
                         </p>
-                        <div class="mt-2">
+                        <div class="mt-2 flex flex-wrap gap-2">
                             <EditInitialCash :portfolio="portfolio" />
+                            <NewDeposit
+                                v-if="portfolio.mode !== 'live'"
+                                :portfolio="portfolio"
+                            />
                         </div>
                         <p
                             class="text-2xl font-semibold tabular-nums"

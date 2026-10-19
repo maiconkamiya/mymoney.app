@@ -15,6 +15,13 @@ export type PortfolioSummary = {
     orders_blocked?: boolean;
     orders_blocked_reason?: string | null;
     notify_live_email?: boolean;
+    deposits?: PortfolioDeposit[];
+};
+
+export type PortfolioDeposit = {
+    id: number;
+    amount: number;
+    deposited_at: string;
 };
 
 export type LiveInfo = {

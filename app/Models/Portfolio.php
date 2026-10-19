@@ -62,6 +62,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read User $user
  * @property-read RiskProfile $riskProfile
  * @property-read BrokerCredential|null $brokerCredential
+ * @property-read Collection<int, PortfolioDeposit> $deposits
  * @property-read Collection<int, Position> $positions
  * @property-read Collection<int, Position> $openPositions
  * @property-read Collection<int, Order> $orders
@@ -168,6 +169,12 @@ class Portfolio extends Model
     public function snapshots(): HasMany
     {
         return $this->hasMany(PortfolioSnapshot::class);
+    }
+
+    /** @return HasMany<PortfolioDeposit, $this> */
+    public function deposits(): HasMany
+    {
+        return $this->hasMany(PortfolioDeposit::class);
     }
 
     /** @return HasMany<MicroCycle, $this> */
