@@ -10,6 +10,7 @@ use App\Models\PortfolioSnapshot;
 use App\Models\Position;
 use App\Models\User;
 use App\Trading\PortfolioValuation;
+use App\Trading\Risk\RiskGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -120,6 +121,59 @@ class SaldoInicialTest extends TestCase
 
         $this->assertEquals(21, $valuation->peakEquity($portfolio));
         $this->assertEquals(21, $valuation->startOfDayEquity($portfolio));
+    }
+
+    public function test_carteira_real_sem_snapshot_usa_o_patrimonio_observado_e_nao_o_valor_investido()
+    {
+        $user = User::factory()->create();
+        $portfolio = Portfolio::factory()->for($user)->create(['mode' => PortfolioMode::Live, 'broker' => 'binance', 'initial_cash' => 20, 'cash' => 19.72]);
+        $this->actingAs($user)->patch(route('portfolios.initial-cash', $portfolio), ['initial_cash' => 40])->assertSessionHasNoErrors();
+        $portfolio->refresh();
+        $valuation = app(PortfolioValuation::class);
+        $guard = app(RiskGuard::class);
+
+        $this->assertEquals(19.72, $valuation->peakEquity($portfolio));
+        $this->assertEquals(19.72, $valuation->startOfDayEquity($portfolio));
+        $this->assertFalse($guard->dailyLossReached($portfolio));
+        $this->assertSame(1, $portfolio->snapshots()->count());
+
+        $this->actingAs($user)->patch(route('portfolios.initial-cash', $portfolio), ['initial_cash' => 80])->assertSessionHasNoErrors();
+        $portfolio->refresh();
+
+        $this->assertEquals(19.72, $valuation->peakEquity($portfolio));
+        $this->assertEquals(19.72, $valuation->startOfDayEquity($portfolio));
+        $this->assertSame(1, $portfolio->snapshots()->count());
+    }
+
+    public function test_patrimonio_observado_da_carteira_real_vale_ate_o_fim_do_dia()
+    {
+        $portfolio = Portfolio::factory()->create(['mode' => PortfolioMode::Live, 'broker' => 'binance', 'initial_cash' => 40, 'cash' => 20]);
+        $valuation = app(PortfolioValuation::class);
+
+        $this->assertEquals(20, $valuation->startOfDayEquity($portfolio));
+
+        $portfolio->update(['cash' => 19]);
+
+        $this->assertEquals(20, $valuation->startOfDayEquity($portfolio));
+        $this->assertTrue(app(RiskGuard::class)->dailyLossReached($portfolio));
+    }
+
+    public function test_carteira_real_sem_saldo_nao_grava_referencia()
+    {
+        $portfolio = Portfolio::factory()->create(['mode' => PortfolioMode::Live, 'broker' => 'binance', 'initial_cash' => 40, 'cash' => 0]);
+
+        $this->assertEquals(0, app(PortfolioValuation::class)->startOfDayEquity($portfolio));
+        $this->assertSame(0, $portfolio->snapshots()->count());
+    }
+
+    public function test_carteira_simulada_sem_snapshot_continua_no_saldo_inicial()
+    {
+        $portfolio = Portfolio::factory()->create(['initial_cash' => 10000, 'cash' => 9000]);
+        $valuation = app(PortfolioValuation::class);
+
+        $this->assertEquals(10000, $valuation->peakEquity($portfolio));
+        $this->assertEquals(10000, $valuation->startOfDayEquity($portfolio));
+        $this->assertSame(0, $portfolio->snapshots()->count());
     }
 
     public function test_carteira_real_recusa_valor_investido_zero()

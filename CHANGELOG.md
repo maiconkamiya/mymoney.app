@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.91] - 2026-10-19
+
+### Corrigido
+
+- **Mudar o valor investido da carteira real não bloqueia mais as compras.** Numa carteira real ainda sem histórico de patrimônio, a guarda de risco media a perda do dia e a queda desde o maior saldo a partir do valor investido; subir esse valor antes de o dinheiro chegar à Binance fazia a carteira parecer no prejuízo e recusava toda compra com "Perda máxima do dia atingida". Agora a referência é o patrimônio que a carteira tem de fato na primeira conferência do dia, e o valor investido só serve para mostrar o resultado.
+
 ## [0.3.90] - 2026-10-19
 
 ### Corrigido
