@@ -9,6 +9,7 @@ use App\Http\Controllers\NovidadesController;
 use App\Http\Controllers\OpportunityController;
 use App\Http\Controllers\PortfolioAgentActivityController;
 use App\Http\Controllers\PortfolioAssetsController;
+use App\Http\Controllers\PortfolioExplorerFollowController;
 use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioCloneController;
 use App\Http\Controllers\PortfolioController;
@@ -45,6 +46,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('ativos/oportunidades/{opportunity}/acompanhar', [OpportunityController::class, 'track'])->middleware('throttle:20,1')->name('opportunities.track');
     Route::post('ativos/oportunidades/{opportunity}/agentes', [OpportunityController::class, 'swarm'])->middleware('throttle:10,1')->name('opportunities.swarm');
     Route::put('portfolios/{portfolio}/explorador', [OpportunityController::class, 'autoSwarm'])->name('portfolios.explorer');
+    Route::put('portfolios/{portfolio}/seguir-explorador', [PortfolioExplorerFollowController::class, 'update'])->name('portfolios.explorer-follow');
     Route::post('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'store'])->name('portfolios.panic');
     Route::delete('portfolios/{portfolio}/parar-tudo', [PortfolioPanicController::class, 'destroy'])->name('portfolios.release');
     Route::get('portfolios/{portfolio}/agentes', PortfolioAgentActivityController::class)->name('portfolios.agents');

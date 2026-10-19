@@ -202,6 +202,24 @@ class ExplorerTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_carteira_que_segue_recebe_o_ranking_alem_do_que_aparece_na_tela(): void
+    {
+        Queue::fake();
+        $this->fakeBinance();
+        config(['explorer.top' => 1]);
+        $fake = new FakeLlmClient(fn () => ['items' => []]);
+        $this->app->instance(LlmClient::class, $fake);
+        $portfolio = Portfolio::factory()->create(['explorer_follow' => true, 'explorer_follow_size' => 2, 'explorer_follow_min_hours' => 0]);
+
+        ['scan' => $scan] = app(OpportunityExplorer::class)->run();
+
+        $this->assertCount(2, $scan->opportunities, 'Grava o ranking do tamanho da maior carteira que segue.');
+        $this->assertSame([1, 2], $scan->opportunities->pluck('rank')->all());
+        $this->assertStringNotContainsString($scan->opportunities[1]->symbol, json_encode($fake->calls) ?: '', 'A IA explica só o que aparece na tela.');
+        $this->assertEqualsCanonicalizing(['KAVAUSDT', 'ROSEUSDT'], $portfolio->assets()->pluck('symbol')->all());
+        $this->assertSame(2, Asset::query()->where('discovered', true)->count());
+    }
+
     public function test_sem_resposta_valida_da_ia_fica_a_ordem_da_nota(): void
     {
         Queue::fake();

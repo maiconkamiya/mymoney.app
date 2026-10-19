@@ -77,7 +77,7 @@ class AssetController extends Controller
             'pairs_passed' => $scan?->pairs_passed,
             'ai_model' => $scan?->ai_model,
             'error' => $failed?->error,
-            'opportunities' => $scan === null ? [] : $scan->opportunities->map(fn (Opportunity $o) => [
+            'opportunities' => $scan === null ? [] : $scan->opportunities->take(max(1, (int) config('explorer.top')))->map(fn (Opportunity $o) => [
                 'id' => $o->id,
                 'rank' => $o->rank,
                 'symbol' => $o->symbol,

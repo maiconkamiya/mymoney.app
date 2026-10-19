@@ -29,6 +29,7 @@ class OpportunityExplorer
         private readonly OpportunityNarrator $narrator,
         private readonly OpportunitySwarm $swarm,
         private readonly AssetRegistry $registry,
+        private readonly PortfolioFollower $follower,
     ) {}
 
     /**
@@ -61,10 +62,15 @@ class OpportunityExplorer
         }
 
         usort($scored, fn (array $a, array $b) => $b['score'] <=> $a['score']);
-        $top = array_slice($scored, 0, max(1, (int) config('explorer.top')));
+        $shown = max(1, (int) config('explorer.top'));
+        $head = array_slice($scored, 0, $shown);
 
-        $narration = $this->narrator->narrate($top);
-        $top = $this->reorder($top, $narration['order'] ?? []);
+        // A IA explica só os que aparecem na tela; o resto do ranking serve às carteiras que seguem o explorador.
+        $narration = $this->narrator->narrate($head);
+        $top = [
+            ...$this->reorder($head, $narration['order'] ?? []),
+            ...array_slice($scored, $shown, max(0, PortfolioFollower::rowsNeeded() - $shown)),
+        ];
 
         $scan = DB::transaction(function () use ($tickers, $passed, $top, $narration): OpportunityScan {
             $scan = OpportunityScan::create([
@@ -95,6 +101,8 @@ class OpportunityExplorer
             return $scan;
         });
 
+        // Antes do envio automático, que pula os pares que a carteira já acompanha.
+        $this->follower->sync($scan);
         $swarmed = $this->swarm->auto($scan);
         $this->prune(array_column($top, 'symbol'));
 
