@@ -4,14 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Agents\AgentActivity;
 use App\Agents\TokenUsage;
+use App\Enums\Market;
 use App\Enums\PortfolioMode;
 use App\Enums\PortfolioStatus;
+use App\Explorer\PortfolioFollower;
 use App\Http\Requests\DestroyPortfolioRequest;
 use App\Http\Requests\StorePortfolioRequest;
 use App\Http\Requests\UpdatePortfolioRequest;
 use App\Models\AgentScore;
 use App\Models\Asset;
 use App\Models\AuditLog;
+use App\Models\OpportunityScan;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Models\RiskProfile;
@@ -246,6 +249,17 @@ class PortfolioController extends Controller
                     'trading_ended' => $asset->tradingEnded(),
                 ]),
             'tracked_asset_ids' => fn () => $portfolio->assets()->where('assets.active', true)->pluck('assets.id')->values(),
+            'explorer_follow' => fn () => $portfolio->market !== Market::Crypto ? null : [
+                'enabled' => $portfolio->explorer_follow,
+                'size' => $portfolio->explorer_follow_size,
+                'min_hours' => $portfolio->explorer_follow_min_hours,
+                'max_size' => max(1, (int) config('explorer.follow.max_size')),
+                'min_score' => (float) config('explorer.follow.min_score'),
+                'explorer_enabled' => (bool) config('explorer.enabled'),
+                'interval_minutes' => (int) config('explorer.interval_minutes'),
+                'last_scan_at' => OpportunityScan::query()->whereNull('error')->latest('id')->value('created_at')?->toIso8601String(),
+                'history' => PortfolioFollower::history($portfolio),
+            ],
         ]);
     }
 }

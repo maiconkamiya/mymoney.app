@@ -22,7 +22,7 @@ export const scopeProps: Record<PortfolioScope, string[]> = {
     orders: ['tax_months', 'performance', 'live'],
     signals: ['signals', 'signals_total'],
     micro: ['micro'],
-    assets: ['tracked_asset_ids', 'available_assets'],
+    assets: ['tracked_asset_ids', 'available_assets', 'explorer_follow'],
     // Velas novas: o card de gráficos busca sozinho, a página não recarrega nada.
     charts: [],
     agents: ['agent_scores'],

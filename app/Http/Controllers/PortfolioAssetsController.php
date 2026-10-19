@@ -8,6 +8,7 @@ use App\Trading\PortfolioChangeBroadcaster;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class PortfolioAssetsController extends Controller
@@ -26,6 +27,10 @@ class PortfolioAssetsController extends Controller
                 ->where('active', true)
                 ->where('is_benchmark', false)],
         ]);
+
+        if ($portfolio->explorer_follow) {
+            throw ValidationException::withMessages(['asset_ids' => 'A carteira segue o explorador: desligue "Seguir o explorador" para escolher os ativos à mão.']);
+        }
 
         $portfolio->assets()->sync($data['asset_ids']);
         // O pivô não dispara evento de modelo; outras abas da mesma carteira também atualizam.

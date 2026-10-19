@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.83] - 2026-10-19
+
+### Adicionado
+
+- **Seguir o explorador.** Na lateral da carteira de cripto, em "Ativos acompanhados", a opção "Seguir o explorador" mantém os ativos acompanhados no top 20 do explorador: a cada varredura entram os mais bem colocados e sai quem caiu do ranking. O número de ativos (20 por padrão) e a permanência mínima antes de sair (2 horas por padrão) podem ser trocados. Um ativo com posição aberta, ciclo micro aberto, ordem pendente ou sinal dos agentes em andamento não sai até isso terminar, e sair da lista nunca vende nada. Pares com fim de negociação marcado não entram. As últimas entradas e saídas aparecem no card com o motivo (posição e nota no explorador). Enquanto a opção estiver ligada, a lista manual fica só para leitura; ao desligar, a lista atual fica como está. Começa desligada em todas as carteiras. O explorador não usa IA por carteira, mas com os agentes em ação ligados cada ativo acompanhado entra na varredura do enxame, e o card avisa disso.
+
 ## [0.3.82] - 2026-10-18
 
 ### Adicionado
