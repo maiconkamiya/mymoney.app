@@ -59,7 +59,12 @@ const lastScan = computed(() =>
             v-slot="{ errors, processing }"
             :options="{
                 preserveScroll: true,
-                only: ['explorer_follow', 'tracked_asset_ids', 'available_assets', 'micro'],
+                only: [
+                    'explorer_follow',
+                    'tracked_asset_ids',
+                    'available_assets',
+                    'micro',
+                ],
             }"
             class="space-y-3"
         >
