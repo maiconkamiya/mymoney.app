@@ -249,6 +249,27 @@ return [
             'recent_minutes' => 240,
         ],
 
+        // Regras de rompimento (#181): caixa das últimas `box_minutes` velas antes da atual, comprimida
+        // quando a faixa média por minuto dela é no máximo `max_squeeze` vezes a das `context_minutes`
+        // antes. "Rompimento confirmado": fecha acima da caixa com `volume_ratio` vezes o volume médio.
+        // "Pressão antes do rompimento": mínimas subindo, `min_touches` velas na faixa `touch_zone` da
+        // altura sob a máxima, preço até `near_box` da altura abaixo dela e volume dos últimos
+        // `volume_recent_minutes` `volume_rise` vezes o da caixa. Alvo pela altura da caixa, no mínimo
+        // `min_target_costs` vezes o custo da ida e volta; até `max_hold_minutes`.
+        'breakout' => [
+            'box_minutes' => 30,
+            'context_minutes' => 120,
+            'max_squeeze' => 0.7,
+            'volume_ratio' => 2.0,
+            'touch_zone' => 0.15,
+            'min_touches' => 3,
+            'near_box' => 0.25,
+            'volume_recent_minutes' => 5,
+            'volume_rise' => 1.3,
+            'min_target_costs' => 2.0,
+            'max_hold_minutes' => 60,
+        ],
+
         // micro:backtest: parte final do período usada só para validar, e o que a validação exige.
         'backtest' => [
             'validation_share' => 0.3,

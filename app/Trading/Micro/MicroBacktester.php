@@ -21,7 +21,7 @@ class MicroBacktester
      * With `random` on, entries happen at random minutes (about 1 in 30) with
      * the rule's own exits: the baseline the rule has to beat.
      *
-     * @param  list<array{t: int, open: float, high: float, low: float, close: float}>  $candles  oldest first, t in Unix seconds
+     * @param  list<array{t: int, open: float, high: float, low: float, close: float, volume?: float}>  $candles  oldest first, t in Unix seconds
      * @param  array{net_margin_pct: float, fee_rate: float, slippage_bps: float, cooldown_minutes: int, random?: bool, seed?: int}  $options
      * @return list<array{opened_at: int, exit: string, net_pct: float, minutes: int}>
      */

@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.82] - 2026-10-18
+
+### Adicionado
+
+- **Duas regras de rompimento de alta nas micro operações.** No card Micro operações, o campo "Regra de entrada" ganha "Rompimento confirmado" (espera 30 minutos de velas pequenas e compra quando uma vela fecha acima da máxima com volume pelo menos 2 vezes a média) e "Pressão antes do rompimento" (compra antes de romper, quando a faixa está comprimida, as mínimas sobem, a máxima foi testada várias vezes e o volume cresce). As duas definem alvo e stop pela altura da faixa, com alvo de pelo menos 2 vezes o custo da ida e volta, e ficam até 1 hora por ciclo. Os cards de Pares em foco mostram cada condição com ✓ ou ✗. Na carteira simulada podem ser escolhidas já; na carteira real só depois de passar no backtest. As carteiras existentes continuam na regra atual, e o backtest semanal passa a testar as duas.
+
 ## [0.3.81] - 2026-10-18
 
 ### Alterado
