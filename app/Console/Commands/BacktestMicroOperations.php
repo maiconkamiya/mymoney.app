@@ -19,6 +19,8 @@ use Illuminate\Console\Command;
     {--net-margin=0.2 : margem líquida da regra atual, em %}
     {--fee= : taxa por lado, ex. 0.00075 com desconto do BNB (padrão: trading.costs.crypto)}
     {--slippage= : deslize por lado em pontos-base (padrão: trading.costs.crypto)}
+    {--entry=limit : limit (compra limitada no preço sugerido, padrão do motor) ou market (compra a mercado)}
+    {--limit-seconds=60 : validade da compra limitada; o backtest usa velas de 1 minuto inteiras (arredonda para cima)}
     {--save : grava o resultado para o card das micro operações}')]
 #[Description('Replay the micro operations rules over the stored 1-minute candles, with costs, and check them on a validation period')]
 class BacktestMicroOperations extends Command
@@ -34,6 +36,12 @@ class BacktestMicroOperations extends Command
             return self::INVALID;
         }
 
+        if (! in_array($this->option('entry'), ['limit', 'market'], true)) {
+            $this->error('Entrada desconhecida. Use limit ou market.');
+
+            return self::INVALID;
+        }
+
         $costs = config('trading.costs.crypto');
         $params = [
             'days' => max(1, (int) $this->option('days')),
@@ -41,6 +49,8 @@ class BacktestMicroOperations extends Command
             'fee_rate' => $this->option('fee') !== null ? (float) $this->option('fee') : (float) $costs['fee_rate'],
             'slippage_bps' => $this->option('slippage') !== null ? (float) $this->option('slippage') : (float) $costs['slippage_bps'],
             'cooldown_minutes' => (int) config('trading.micro.cooldown_minutes'),
+            'entry' => (string) $this->option('entry'),
+            'limit_minutes' => max(1, (int) ceil((int) $this->option('limit-seconds') / 60)),
             'validation_share' => (float) config('trading.micro.backtest.validation_share'),
             'min_trades' => (int) config('trading.micro.backtest.min_trades'),
         ];
@@ -52,6 +62,10 @@ class BacktestMicroOperations extends Command
 
             return self::FAILURE;
         }
+
+        $this->line($params['entry'] === 'limit'
+            ? sprintf('Entrada: compra limitada no preço sugerido, válida por %d vela(s) de 1 minuto; executa se a mínima tocar o limite. Na vela da execução só o stop conta.', $params['limit_minutes'])
+            : 'Entrada: compra a mercado na abertura da vela seguinte, com deslize.');
 
         $this->line(sprintf(
             'Período: %d dias, %d par(es). Custo da ida e volta: %.2f%% (taxa %.3f%% por lado, deslize %.1f pb).',
@@ -77,7 +91,7 @@ class BacktestMicroOperations extends Command
      */
     private function backtest(MicroBacktester $backtester, MicroRule $rule, array $series, array $params): array
     {
-        $options = ['net_margin_pct' => $params['net_margin_pct'], 'fee_rate' => $params['fee_rate'], 'slippage_bps' => $params['slippage_bps'], 'cooldown_minutes' => $params['cooldown_minutes']];
+        $options = ['net_margin_pct' => $params['net_margin_pct'], 'fee_rate' => $params['fee_rate'], 'slippage_bps' => $params['slippage_bps'], 'cooldown_minutes' => $params['cooldown_minutes'], 'entry' => $params['entry'], 'limit_minutes' => $params['limit_minutes']];
         $start = min(array_map(fn (array $candles) => $candles[0]['t'], $series));
         $end = max(array_map(fn (array $candles) => $candles[count($candles) - 1]['t'], $series));
         $boundary = (int) ($start + ($end - $start) * (1 - $params['validation_share']));
@@ -85,9 +99,11 @@ class BacktestMicroOperations extends Command
         $all = [];
         $random = [];
         $pairs = [];
+        $unfilled = 0;
 
         foreach ($series as $symbol => $candles) {
             $trades = $backtester->simulate($rule, $candles, $options);
+            $unfilled += $backtester->lastUnfilled();
             $pairs[$symbol] = $backtester->summarize($trades);
             $all = [...$all, ...$trades];
             $random = [...$random, ...$backtester->simulate($rule, $candles, $options + ['random' => true, 'seed' => crc32($symbol)])];
@@ -112,6 +128,8 @@ class BacktestMicroOperations extends Command
             'validation' => $backtester->summarize($validation),
             'random_validation' => $backtester->summarize($randomValidation),
             'windows_mean_pct' => $windows,
+            // Compras limitadas que venceram sem executar (entrada a mercado: sempre zero).
+            'unfilled' => $unfilled,
         ];
 
         $failures = $this->failures($summary, (int) $params['min_trades']);
@@ -160,6 +178,10 @@ class BacktestMicroOperations extends Command
         $rows[] = $row('Sorteio (validação)', $result['random_validation']);
 
         $this->table(['Par', 'Entradas', 'Acerto', 'Alvo', 'Stop', 'Tempo', 'Média/op', 'Soma'], $rows);
+        if (($result['unfilled'] ?? 0) > 0) {
+            $this->line("Compras limitadas que venceram sem executar: {$result['unfilled']}.");
+        }
+
         $this->line('Média por janela: '.implode(' / ', array_map(fn (float $mean) => $this->pct($mean).'%', $result['windows_mean_pct'])));
 
         $result['passed']

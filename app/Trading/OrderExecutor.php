@@ -315,6 +315,60 @@ class OrderExecutor
     }
 
     /**
+     * Book a resting limit buy (the micro operations entry) once the broker
+     * executed it or it reached another final state. Reading the order moves
+     * no money. False while it still rests.
+     */
+    public function refreshRestingBuy(Order $order, string $actor): bool
+    {
+        $order->loadMissing(['asset', 'portfolio']);
+
+        if ($order->status !== OrderStatus::Pending) {
+            return true;
+        }
+
+        return $this->settleResting($order->portfolio, $order, $this->restingState($order->portfolio, $order), $actor);
+    }
+
+    /**
+     * Cancel a resting limit buy, booking what it already bought (a partial
+     * fill becomes a position like any buy). False when the broker could not
+     * confirm it, so the caller tries again.
+     */
+    public function cancelRestingBuy(Order $order, string $actor): bool
+    {
+        $order->loadMissing(['asset', 'portfolio']);
+        $portfolio = $order->portfolio;
+
+        if ($order->status !== OrderStatus::Pending) {
+            return true;
+        }
+
+        if (! $portfolio->isLive()) {
+            return $this->settleResting($portfolio, $order, $this->restingState($portfolio, $order) ?? new OrderResult(OrderStatus::Cancelled, $order->external_id), $actor);
+        }
+
+        try {
+            $broker = $this->brokers->for($portfolio);
+
+            try {
+                $broker->cancelOrder((string) $order->external_id);
+            } catch (LiveTradingException $e) {
+                // -2011: already executed or cancelled; the order's state below says which.
+                if ($e->binanceCode !== -2011) {
+                    throw $e;
+                }
+            }
+
+            $remote = $broker->getOrder((string) $order->external_id);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $this->settleResting($portfolio, $order, $remote, $actor);
+    }
+
+    /**
      * Cancel the resting sells of the position, booking what they already sold.
      * False when the broker could not confirm it, so nothing else is sent.
      */
@@ -356,7 +410,8 @@ class OrderExecutor
 
     /**
      * Where a resting order stands: the exchange's answer on a real portfolio,
-     * a fill at the limit price on a simulated one once the quote reaches it.
+     * a fill at the limit price on a simulated one once the quote reaches it
+     * (at or above the limit for a sale, at or below it for a buy).
      * Null when it is unknown or still resting.
      */
     private function restingState(Portfolio $portfolio, Order $order): ?OrderResult
@@ -372,7 +427,7 @@ class OrderExecutor
         $quote = $this->prices->quote($order->asset);
         $limit = (float) $order->price;
 
-        if ($quote === null || $quote->price < $limit) {
+        if ($quote === null || ($order->side === OrderSide::Buy ? $quote->price > $limit : $quote->price < $limit)) {
             return null;
         }
 
@@ -426,7 +481,7 @@ class OrderExecutor
                 'executed_at' => $result->filledAt ?? now(),
             ]);
 
-            $request = new OrderRequest(asset: $order->asset, side: OrderSide::Sell, qty: $result->filledQty, type: OrderType::Limit, limitPrice: $order->price);
+            $request = new OrderRequest(asset: $order->asset, side: $order->side, qty: $result->filledQty, type: OrderType::Limit, limitPrice: $order->price, stopPrice: $order->stop_price);
             $this->book($portfolio, $request, $result, null, $order->reason, $fresh->position_id);
 
             return true;
@@ -436,7 +491,8 @@ class OrderExecutor
             $order->refresh();
             AuditLog::record($actor, 'order.'.$order->status->value, $order, ['reason' => $order->reason, 'resting' => true, 'filled_qty' => $result->filledQty]);
 
-            if ($portfolio->isLive()) {
+            // A limit buy that expired with nothing bought changed nothing: no alert for it.
+            if ($portfolio->isLive() && ($order->side === OrderSide::Sell || $result->filledQty > 0)) {
                 $this->alerts->order($order);
             }
         }
@@ -585,7 +641,8 @@ class OrderExecutor
 
         $order->refresh();
 
-        if ($portfolio->isLive()) {
+        // A resting limit buy (micro operations) is told when it executes, not each time it is placed.
+        if ($portfolio->isLive() && ! ($order->side === OrderSide::Buy && $order->status === OrderStatus::Pending)) {
             $this->alerts->order($order);
         }
 

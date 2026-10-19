@@ -31,6 +31,8 @@ class MicroOperationsController extends Controller
             'micro_daily_operations' => $data['micro_daily_operations'] ?? null,
             'micro_wallet_pct' => $data['micro_wallet_pct'] ?? 100,
             'micro_rule' => $data['micro_rule'] ?? $portfolio->micro_rule,
+            'micro_entry_mode' => $data['micro_entry_mode'] ?? $portfolio->micro_entry_mode,
+            'micro_limit_seconds' => $data['micro_limit_seconds'] ?? $portfolio->micro_limit_seconds,
         ]);
 
         AuditLog::record('user:'.$request->user()->id, 'portfolio.micro_settings', $portfolio, [

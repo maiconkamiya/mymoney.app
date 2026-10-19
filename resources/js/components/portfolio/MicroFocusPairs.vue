@@ -52,6 +52,11 @@ function state(row: MicroFocusRow, failing: number): State {
     };
 }
 
+// Preços de cripto vão de 0,0001 a 100 mil: até 8 casas, sem zeros sobrando.
+function price(value: number) {
+    return value.toLocaleString('pt-BR', { maximumFractionDigits: 8 });
+}
+
 const stateClass: Record<State['key'], string> = {
     ready: 'border-up/40 bg-up/5',
     blocked: 'border-destructive/40 bg-destructive/5',
@@ -176,6 +181,37 @@ const dotClass: Record<State['key'], string> = {
                 <p v-else class="text-sm text-muted-foreground">
                     {{ card.reason }}
                 </p>
+
+                <div
+                    v-if="card.suggestion"
+                    class="flex items-baseline justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2"
+                    :data-test="`micro-focus-${card.symbol}-suggestion`"
+                >
+                    <span class="flex flex-col">
+                        <span class="text-xs text-muted-foreground">
+                            {{
+                                card.suggestion.mode === 'limit'
+                                    ? 'Compra limitada a'
+                                    : 'Preço sugerido'
+                            }}
+                        </span>
+                        <span
+                            class="text-base font-semibold tracking-tight tabular-nums"
+                        >
+                            {{ price(card.suggestion.price) }}
+                        </span>
+                    </span>
+                    <span
+                        class="text-right text-xs text-muted-foreground tabular-nums"
+                    >
+                        {{ card.suggestion.discount_pct.toFixed(2) }}% abaixo de
+                        {{ price(card.suggestion.reference) }}
+                        <template v-if="card.suggestion.mode === 'limit'">
+                            <br />vale {{ card.suggestion.seconds }} s
+                        </template>
+                        <template v-else><br />compra a mercado</template>
+                    </span>
+                </div>
 
                 <p v-if="card.state.detail" class="text-xs text-destructive">
                     {{ card.state.detail }}

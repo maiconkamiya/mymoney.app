@@ -68,6 +68,13 @@ function backtestText(rule: MicroRuleOption) {
         : `Não passou no backtest de ${date} (${backtest.days} dias): ${backtest.failures.join('; ')}.`;
 }
 
+// Entrada: limitada no preço sugerido (padrão) ou a mercado; a validade só vale para a limitada.
+const entryMode = ref(props.micro.entry_mode);
+watch(
+    () => props.micro.entry_mode,
+    (mode) => (entryMode.value = mode),
+);
+
 // O motor avisa a cada minuto; se os avisos param, o relógio da tela mostra o alerta sem F5.
 const clock = ref(Date.now());
 let ticker: ReturnType<typeof setInterval> | undefined;
@@ -425,6 +432,54 @@ const time = (iso: string, seconds = false) =>
                 </p>
                 <InputError :message="errors.micro_rule" />
             </div>
+            <div class="grid gap-2">
+                <Label for="micro_entry_mode">Entrada</Label>
+                <select
+                    id="micro_entry_mode"
+                    v-model="entryMode"
+                    name="micro_entry_mode"
+                    class="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
+                    data-test="micro-entry-mode"
+                >
+                    <option value="limit">Limitada no preço sugerido</option>
+                    <option value="market">A mercado</option>
+                </select>
+                <p class="text-xs text-muted-foreground">
+                    <template v-if="entryMode === 'limit'">
+                        O motor calcula o preço de compra e espera o recuo até
+                        ele. Se não executar no prazo, cancela e reavalia.
+                    </template>
+                    <template v-else>
+                        Compra na hora pelo preço do momento, que pode ter
+                        subido desde a leitura do gráfico.
+                    </template>
+                </p>
+                <InputError :message="errors.micro_entry_mode" />
+            </div>
+            <div v-if="entryMode === 'limit'" class="grid gap-2">
+                <Label for="micro_limit_seconds">
+                    Validade da compra limitada (segundos)
+                </Label>
+                <Input
+                    id="micro_limit_seconds"
+                    name="micro_limit_seconds"
+                    type="number"
+                    step="1"
+                    :min="micro.limit_seconds_range[0]"
+                    :max="micro.limit_seconds_range[1]"
+                    :default-value="micro.limit_seconds"
+                    data-test="micro-limit-seconds"
+                />
+                <p class="text-xs text-muted-foreground tabular-nums">
+                    De {{ micro.limit_seconds_range[0] }} a
+                    {{ micro.limit_seconds_range[1] }} s.
+                    <template v-if="micro.today.limits_expired">
+                        Hoje {{ micro.today.limits_expired }} venceram sem
+                        executar.
+                    </template>
+                </p>
+                <InputError :message="errors.micro_limit_seconds" />
+            </div>
 
             <div
                 class="flex flex-wrap items-center gap-4 @sm:col-span-2 @3xl:col-span-5"
@@ -766,11 +821,36 @@ const time = (iso: string, seconds = false) =>
                             {{ cycle.symbol }}
                         </td>
                         <td class="py-1 pr-3">
-                            {{ cycle.entry_price }} ·
-                            {{ time(cycle.opened_at) }}
+                            <template v-if="cycle.status === 'pending'">
+                                <span class="text-muted-foreground"
+                                    >limitada a {{ cycle.entry_price }}</span
+                                >
+                            </template>
+                            <template v-else>
+                                {{ cycle.entry_price }} ·
+                                {{ time(cycle.opened_at) }}
+                                <span
+                                    v-if="cycle.suggested_price"
+                                    class="block text-xs text-muted-foreground"
+                                    :data-test="`micro-cycle-${cycle.id}-suggested`"
+                                >
+                                    sugerido {{ cycle.suggested_price }}
+                                    {{
+                                        cycle.entry_mode === 'market'
+                                            ? '(a mercado)'
+                                            : ''
+                                    }}
+                                </span>
+                            </template>
                         </td>
                         <td class="py-1 pr-3">
-                            <template v-if="cycle.exit_price">
+                            <template v-if="cycle.status === 'pending'">
+                                <span class="text-muted-foreground">
+                                    esperando o preço até
+                                    {{ time(cycle.expires_at!, true) }}
+                                </span>
+                            </template>
+                            <template v-else-if="cycle.exit_price">
                                 {{ cycle.exit_price }} ·
                                 {{ time(cycle.closed_at!) }}
                             </template>
@@ -805,7 +885,11 @@ const time = (iso: string, seconds = false) =>
                         >
                             {{
                                 cycle.net_pnl ??
-                                (cycle.status === 'open' ? 'aberto' : '—')
+                                (cycle.status === 'open'
+                                    ? 'aberto'
+                                    : cycle.status === 'pending'
+                                      ? 'esperando'
+                                      : '—')
                             }}
                         </td>
                         <td class="py-1">

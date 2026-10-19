@@ -72,6 +72,8 @@ class FimNegociacaoTest extends TestCase
     {
         return Portfolio::factory()->create($attributes + [
             'micro_enabled' => true,
+            // A compra a mercado: estes testes cobrem o ciclo depois da compra; a limitada tem os seus em MicroPrecoSugeridoTest.
+            'micro_entry_mode' => 'market',
             'micro_order_value' => 20,
             'micro_net_margin_pct' => 0.2,
         ]);

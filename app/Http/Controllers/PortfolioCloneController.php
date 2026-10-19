@@ -56,6 +56,8 @@ class PortfolioCloneController extends Controller
                 'micro_daily_operations' => $portfolio->micro_daily_operations,
                 'micro_wallet_pct' => $portfolio->micro_wallet_pct,
                 'micro_rule' => $portfolio->micro_rule,
+                'micro_entry_mode' => $portfolio->micro_entry_mode,
+                'micro_limit_seconds' => $portfolio->micro_limit_seconds,
             ]);
 
             $clone->assets()->sync($portfolio->assets()->pluck('assets.id'));

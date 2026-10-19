@@ -33,13 +33,16 @@ class LiveLimits
     }
 
     /**
-     * Value of real orders sent today that still count against the daily cap.
+     * Value of real orders sent today that still count against the daily cap: a cancelled
+     * order that executed in part counts at its whole value, the safe side.
      */
     public function spentToday(Portfolio $portfolio): float
     {
         return (float) Order::query()
             ->where('portfolio_id', $portfolio->id)
-            ->whereIn('status', [OrderStatus::Pending, OrderStatus::Filled, OrderStatus::PartiallyFilled])
+            // A limit cancelled after executing in part (micro buy at the end of its validity) spent money too.
+            ->where(fn ($query) => $query->whereIn('status', [OrderStatus::Pending, OrderStatus::Filled, OrderStatus::PartiallyFilled])
+                ->orWhere(fn ($cancelled) => $cancelled->where('status', OrderStatus::Cancelled)->whereNotNull('filled_at')))
             ->where('created_at', '>=', now()->startOfDay())
             ->selectRaw('COALESCE(SUM(qty * COALESCE(price, 0)), 0) as spent')
             ->value('spent');

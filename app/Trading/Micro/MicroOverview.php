@@ -4,6 +4,9 @@ namespace App\Trading\Micro;
 
 use App\Enums\Market;
 use App\Enums\MicroRule;
+use App\Enums\OrderSide;
+use App\Enums\OrderStatus;
+use App\Enums\OrderType;
 use App\Models\Asset;
 use App\Models\MicroBacktest;
 use App\Models\MicroCycle;
@@ -43,7 +46,7 @@ class MicroOverview
         $reachable = $evaluation['ready']->take((int) config('trading.micro.ranking_size'))->max(fn (array $row) => $row['setup']->reachPct) ?? 0;
         $maxMove = $reachable * (float) config('trading.micro.reach_factor');
         $roundTrip = $this->costs->roundTripPct();
-        $openCycles = $portfolio->microCycles()->where('status', 'open')->count();
+        $openCycles = $portfolio->microCycles()->whereIn('status', ['open', 'pending'])->count();
         $canTrade = $portfolio->micro_enabled && $this->trader->state($portfolio)['code'] === 'active';
 
         return [
@@ -66,6 +69,9 @@ class MicroOverview
                 'label' => $rule->label(),
                 'backtest' => $this->backtest($rule),
             ], MicroRule::cases()),
+            'entry_mode' => $portfolio->micro_entry_mode === 'market' ? 'market' : 'limit',
+            'limit_seconds' => $portfolio->micro_limit_seconds,
+            'limit_seconds_range' => [(int) config('trading.micro.limit.min_seconds'), (int) config('trading.micro.limit.max_seconds')],
             'order_value' => $portfolio->micro_order_value,
             'net_margin_pct' => $portfolio->micro_net_margin_pct,
             'gross_margin_pct' => $gross,
@@ -89,6 +95,15 @@ class MicroOverview
                 'wins' => $today->where('net_pnl', '>', 0)->count(),
                 'net_pnl' => round($today->sum('net_pnl'), 4),
                 'fees' => round($today->sum('fees'), 4),
+                // Compras limitadas que venceram sem executar hoje (o ciclo delas não fica no histórico).
+                'limits_expired' => $portfolio->orders()
+                    ->where('reason', 'micro')
+                    ->where('side', OrderSide::Buy)
+                    ->where('type', OrderType::Limit)
+                    ->where('status', OrderStatus::Cancelled)
+                    ->whereNull('filled_at')
+                    ->where('created_at', '>=', now()->startOfDay())
+                    ->count(),
             ],
             'skipped' => $evaluation['skipped'],
             'liquidation' => $this->liquidation($portfolio),
@@ -104,14 +119,19 @@ class MicroOverview
                 'entry' => $row['setup']->entry,
                 'reason' => $row['setup']->reasons[0] ?? '',
                 'checks' => $row['setup']->checks,
+                'suggestion' => $row['setup']->entry ? $this->trader->suggestion($portfolio, $row['asset'], $row['setup']) : null,
                 'blocked' => $canTrade && $row['setup']->entry ? $this->trader->gate($portfolio, $row['asset'], $row['setup'], $openCycles) : null,
             ])->all(),
-            'cycles' => $portfolio->microCycles()->with(['asset', 'position'])->latest('id')->limit(30)->get()->map(fn (MicroCycle $cycle) => [
+            'cycles' => $portfolio->microCycles()->with(['asset', 'position', 'buyOrder'])->latest('id')->limit(30)->get()->map(fn (MicroCycle $cycle) => [
                 'id' => $cycle->id,
                 'symbol' => $cycle->asset->symbol,
                 'status' => $cycle->status,
                 'qty' => $cycle->qty,
                 'entry_price' => $cycle->entry_price,
+                'suggested_price' => $cycle->suggested_price,
+                // Como a compra saiu: "limit" (no preço sugerido), "market" ou null nos ciclos de antes da 0.3.85.
+                'entry_mode' => $cycle->buyOrder === null ? null : ($cycle->buyOrder->type === OrderType::Limit ? 'limit' : 'market'),
+                'expires_at' => $cycle->expires_at?->toIso8601String(),
                 'target_price' => $cycle->target_price,
                 'stop_price' => $cycle->stop_price,
                 'exit_price' => $cycle->exit_price,

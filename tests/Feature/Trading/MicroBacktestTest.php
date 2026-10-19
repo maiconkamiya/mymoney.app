@@ -206,7 +206,7 @@ class MicroBacktestTest extends TestCase
 
         Candle::insert($rows);
 
-        $portfolio = Portfolio::factory()->create(['micro_enabled' => true, 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2, 'micro_rule' => MicroRule::TrendPullback]);
+        $portfolio = Portfolio::factory()->create(['micro_enabled' => true, 'micro_entry_mode' => 'market', 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2, 'micro_rule' => MicroRule::TrendPullback]);
         $this->assertSame(1, app(MicroTrader::class)->run($portfolio));
 
         $cycle = MicroCycle::sole();

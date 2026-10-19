@@ -67,7 +67,7 @@ class MicroUptrendRuleTest extends TestCase
 
     private function micro(array $attributes = []): Portfolio
     {
-        return Portfolio::factory()->create($attributes + ['micro_enabled' => true, 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2, 'micro_rule' => MicroRule::ScalpUptrend]);
+        return Portfolio::factory()->create($attributes + ['micro_enabled' => true, 'micro_entry_mode' => 'market', 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2, 'micro_rule' => MicroRule::ScalpUptrend]);
     }
 
     public function test_enters_only_when_the_pair_is_up_in_24_and_4_hours()

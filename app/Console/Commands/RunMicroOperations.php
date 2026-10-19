@@ -23,7 +23,7 @@ class RunMicroOperations extends Command
     {
         $portfolios = Portfolio::query()
             ->where('market', Market::Crypto)
-            ->where(fn ($query) => $query->where('micro_enabled', true)->orWhereNotNull('micro_liquidate_asset_ids'))
+            ->where(fn ($query) => $query->where('micro_enabled', true)->orWhereNotNull('micro_liquidate_asset_ids')->orWhereHas('microCycles', fn ($cycles) => $cycles->where('status', 'pending')))
             ->get();
 
         if ($this->option('explain')) {
@@ -73,6 +73,11 @@ class RunMicroOperations extends Command
             }
 
             $this->line("  regra {$portfolio->micro_rule->label()}, aporte {$portfolio->micro_order_value}, margem líquida {$portfolio->micro_net_margin_pct}%, alvo bruto {$gross}%, última execução: ".($trader->lastRun($portfolio) ?? 'nunca'));
+            $this->line('  entrada: '.($portfolio->micro_entry_mode === 'market' ? 'a mercado' : "compra limitada no preço sugerido, válida por {$portfolio->micro_limit_seconds} s"));
+
+            foreach ($portfolio->microCycles()->where('status', 'pending')->with(['asset', 'buyOrder'])->get() as $cycle) {
+                $this->line(sprintf('  %s  compra limitada esperando: %s a %s, vale até %s', $cycle->asset->symbol, $cycle->qty, round((float) $cycle->buyOrder?->price, 8), $cycle->expires_at?->format('H:i:s') ?? '?'));
+            }
 
             $evaluation = $ranker->evaluate($portfolio, $gross);
 
@@ -80,7 +85,7 @@ class RunMicroOperations extends Command
                 $this->warn('  Nenhum ativo de cripto ativo na carteira.');
             }
 
-            $open = $portfolio->microCycles()->where('status', 'open')->count();
+            $open = $portfolio->microCycles()->whereIn('status', ['open', 'pending'])->count();
 
             foreach ($evaluation['ready'] as $row) {
                 $setup = $row['setup'];
@@ -89,7 +94,11 @@ class RunMicroOperations extends Command
 
                 if ($setup->entry) {
                     $block = $trader->gate($portfolio, $row['asset'], $setup, $open);
-                    $this->line($block === null ? '      -> a ordem sairia na próxima rodada.' : "      -> BLOQUEADO: {$block}");
+                    $suggestion = $trader->suggestion($portfolio, $row['asset'], $setup);
+                    $how = $suggestion['mode'] === 'limit'
+                        ? sprintf('compra limitada a %s (%.2f%% abaixo de %s), válida por %d s', round($suggestion['price'], 8), $suggestion['discount_pct'], round($suggestion['reference'], 8), $suggestion['seconds'])
+                        : sprintf('compra a mercado (preço sugerido %s, último %s)', round($suggestion['price'], 8), round($suggestion['reference'], 8));
+                    $this->line($block === null ? "      -> a ordem sairia na próxima rodada: {$how}." : "      -> BLOQUEADO: {$block} Preço sugerido: {$how}.");
                 }
             }
 

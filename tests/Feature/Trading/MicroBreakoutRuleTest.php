@@ -164,7 +164,7 @@ class MicroBreakoutRuleTest extends TestCase
     public function test_the_focus_cards_read_the_volume_from_the_stored_candles_and_other_users_get_403()
     {
         $this->store(Asset::factory()->create(['symbol' => 'DOGEUSDT']), $this->chart(['high' => 100.25, 'low' => 100.0, 'close' => 100.2, 'volume' => 5.0]));
-        $portfolio = Portfolio::factory()->create(['micro_enabled' => true, 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2, 'micro_rule' => MicroRule::Breakout]);
+        $portfolio = Portfolio::factory()->create(['micro_enabled' => true, 'micro_entry_mode' => 'market', 'micro_order_value' => 20, 'micro_net_margin_pct' => 0.2, 'micro_rule' => MicroRule::Breakout]);
 
         $this->actingAs(User::factory()->create())->get(route('portfolios.show', $portfolio))->assertForbidden();
 
