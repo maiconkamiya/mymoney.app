@@ -308,7 +308,7 @@ function toggleAuto(id: number, enabled: boolean) {
             <li
                 v-for="o in explorer.opportunities"
                 :key="o.id"
-                class="grid gap-3 p-4 md:grid-cols-[3rem_minmax(0,1fr)_auto] md:items-center"
+                class="grid gap-3 p-4 md:grid-cols-[4.5rem_minmax(0,1fr)_auto] md:items-center"
             >
                 <div
                     class="flex items-baseline gap-3 md:flex-col md:items-center md:gap-0"
@@ -366,7 +366,7 @@ function toggleAuto(id: number, enabled: boolean) {
                     </p>
                     <ul
                         v-if="o.breakout_components"
-                        class="grid grid-cols-5 gap-2 pt-1"
+                        class="grid grid-cols-3 gap-x-3 gap-y-2 pt-1 sm:grid-cols-5 sm:gap-x-2"
                         aria-label="Sinais do escore de rompimento"
                     >
                         <li
