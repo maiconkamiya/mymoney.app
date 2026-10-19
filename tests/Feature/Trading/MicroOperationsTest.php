@@ -168,14 +168,15 @@ class MicroOperationsTest extends TestCase
     public function test_stops_for_the_day_after_the_target_or_the_loss_limit()
     {
         $this->candles($this->asset);
-        $target = $this->micro(['micro_daily_target' => 1]);
+        // 1% de meta sobre o saldo de 100 do início do dia = 1 USDT.
+        $target = $this->micro(['micro_daily_target_pct' => 1, 'initial_cash' => 100, 'cash' => 100]);
         MicroCycle::create(['portfolio_id' => $target->id, 'asset_id' => $this->asset->id, 'status' => 'closed', 'qty' => 1, 'entry_price' => 1, 'target_price' => 1, 'stop_price' => 1, 'net_pnl' => 1.5, 'gross_margin_pct' => 0.5, 'opened_at' => now(), 'closed_at' => now()]);
 
         $this->assertSame('target_hit', app(MicroTrader::class)->state($target)['code']);
         $this->assertSame(0, app(MicroTrader::class)->run($target));
 
-        $loss = $this->micro(['micro_daily_loss_limit' => 2]);
-        MicroCycle::create(['portfolio_id' => $loss->id, 'asset_id' => $this->asset->id, 'status' => 'closed', 'qty' => 1, 'entry_price' => 1, 'target_price' => 1, 'stop_price' => 1, 'net_pnl' => -2.5, 'gross_margin_pct' => 0.5, 'opened_at' => now(), 'closed_at' => now()]);
+        // A perda do dia é a da guarda de risco: 2% do saldo do início do dia.
+        $loss = $this->micro(['initial_cash' => 100, 'cash' => 97.5]);
 
         $this->assertSame('loss_limit', app(MicroTrader::class)->state($loss)['code']);
         $this->assertSame(0, app(MicroTrader::class)->run($loss));
@@ -701,14 +702,15 @@ class MicroOperationsTest extends TestCase
             'micro_enabled' => '1',
             'micro_order_value' => '25',
             'micro_net_margin_pct' => '0.3',
-            'micro_daily_target' => '2',
-            'micro_daily_loss_limit' => '1',
+            'micro_daily_target_pct' => '2',
+            'daily_loss_pct' => '5',
         ])->assertRedirect();
 
         $portfolio->refresh();
         $this->assertTrue($portfolio->micro_enabled);
         $this->assertEquals(25, $portfolio->micro_order_value);
-        $this->assertEquals(2, $portfolio->micro_daily_target);
+        $this->assertEquals(2, $portfolio->micro_daily_target_pct);
+        $this->assertEquals(5, $portfolio->daily_loss_pct);
         $this->assertDatabaseHas('audit_log', ['action' => 'portfolio.micro_settings', 'subject_id' => $portfolio->id]);
 
         $this->actingAs($owner)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page

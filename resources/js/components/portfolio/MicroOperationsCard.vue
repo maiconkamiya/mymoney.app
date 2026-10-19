@@ -176,6 +176,18 @@ const price = (value: number | null) =>
         ? 'sem cotação'
         : value.toLocaleString('pt-BR', { maximumSignificantDigits: 6 });
 
+const usdt = (value: number) => money(value, 'crypto');
+
+const pct = (value: number) =>
+    value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+// Perda do dia em USDT que a guarda aceita hoje nesta carteira.
+const lossValue = computed(
+    () =>
+        (props.micro.daily_loss.limit_pct / 100) *
+        props.micro.daily_loss.start_equity,
+);
+
 const exitLabels: Record<string, string> = {
     target: 'Alvo',
     stop: 'Stop',
@@ -338,34 +350,52 @@ const time = (iso: string, seconds = false) =>
                 <InputError :message="errors.micro_net_margin_pct" />
             </div>
             <div class="grid gap-2">
-                <Label for="micro_daily_target"
-                    >Meta de lucro do dia (USDT)</Label
+                <Label for="micro_daily_target_pct"
+                    >Meta de lucro do dia (% do saldo)</Label
                 >
                 <Input
-                    id="micro_daily_target"
-                    name="micro_daily_target"
+                    id="micro_daily_target_pct"
+                    name="micro_daily_target_pct"
                     type="number"
-                    step="0.01"
-                    min="0"
+                    step="0.1"
+                    min="0.01"
+                    max="100"
                     placeholder="Sem meta"
-                    :default-value="micro.daily_target ?? ''"
+                    :default-value="micro.daily_target_pct ?? ''"
                 />
-                <InputError :message="errors.micro_daily_target" />
+                <p
+                    v-if="micro.daily_target_value !== null"
+                    class="text-xs text-muted-foreground"
+                >
+                    Hoje: {{ usdt(micro.daily_target_value) }} USDT sobre o
+                    saldo de {{ usdt(micro.daily_loss.start_equity) }} no início
+                    do dia.
+                </p>
+                <InputError :message="errors.micro_daily_target_pct" />
             </div>
-            <div class="grid gap-2">
-                <Label for="micro_daily_loss_limit"
-                    >Perda máxima do dia (USDT)</Label
+            <div class="grid gap-2" data-test="micro-daily-loss">
+                <Label for="daily_loss_pct"
+                    >Perda máxima do dia (% do saldo)</Label
                 >
                 <Input
-                    id="micro_daily_loss_limit"
-                    name="micro_daily_loss_limit"
+                    id="daily_loss_pct"
+                    name="daily_loss_pct"
                     type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Sem limite"
-                    :default-value="micro.daily_loss_limit ?? ''"
+                    step="0.1"
+                    min="0.1"
+                    :max="micro.daily_loss.max_pct"
+                    :placeholder="`${pct(micro.daily_loss.default_pct)} (padrão)`"
+                    :default-value="micro.daily_loss_pct ?? ''"
                 />
-                <InputError :message="errors.micro_daily_loss_limit" />
+                <p class="text-xs text-muted-foreground">
+                    É o limite da guarda de risco desta carteira: perdendo
+                    {{ pct(micro.daily_loss.limit_pct) }}% (≈
+                    {{ usdt(lossValue) }} USDT) desde o início do dia, nenhuma
+                    compra sai até a virada, às 00:00 UTC. Hoje:
+                    {{ pct(Math.max(micro.daily_loss.today_pct, 0)) }}% de
+                    perda. Máximo {{ micro.daily_loss.max_pct }}%.
+                </p>
+                <InputError :message="errors.daily_loss_pct" />
             </div>
 
             <div

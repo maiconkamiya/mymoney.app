@@ -45,11 +45,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $micro_enabled
  * @property float $micro_order_value
  * @property float $micro_net_margin_pct
- * @property float|null $micro_daily_target
+ * @property float|null $micro_daily_target_pct meta de lucro das micro, % do saldo do início do dia
  * @property int|null $micro_daily_operations
  * @property int $micro_wallet_pct
  * @property MicroRule $micro_rule
- * @property float|null $micro_daily_loss_limit
+ * @property float|null $daily_loss_pct perda máxima do dia da guarda de risco nesta carteira, %; null segue o perfil
  * @property list<int>|null $micro_liquidate_asset_ids
  * @property string $micro_entry_mode "limit" (compra limitada no preço sugerido) or "market"
  * @property int $micro_limit_seconds how long the limit buy waits before it is cancelled
@@ -69,7 +69,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  * @property-read Collection<int, MicroCycle> $microCycles
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target', 'micro_daily_loss_limit', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'micro_entry_mode', 'micro_limit_seconds', 'explorer_auto_swarm', 'explorer_follow', 'explorer_follow_size', 'explorer_follow_min_hours'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target_pct', 'daily_loss_pct', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'micro_entry_mode', 'micro_limit_seconds', 'explorer_auto_swarm', 'explorer_follow', 'explorer_follow_size', 'explorer_follow_min_hours'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -108,11 +108,11 @@ class Portfolio extends Model
             'micro_enabled' => 'boolean',
             'micro_order_value' => 'float',
             'micro_net_margin_pct' => 'float',
-            'micro_daily_target' => 'float',
+            'micro_daily_target_pct' => 'float',
             'micro_daily_operations' => 'integer',
             'micro_wallet_pct' => 'integer',
             'micro_rule' => MicroRule::class,
-            'micro_daily_loss_limit' => 'float',
+            'daily_loss_pct' => 'float',
             'micro_liquidate_asset_ids' => 'array',
             'micro_limit_seconds' => 'integer',
             'explorer_auto_swarm' => 'boolean',

@@ -44,8 +44,8 @@ class ClonarCarteiraTest extends TestCase
             'micro_enabled' => false,
             'micro_order_value' => 5,
             'micro_net_margin_pct' => 0.7,
-            'micro_daily_target' => 0.5,
-            'micro_daily_loss_limit' => 1,
+            'micro_daily_target_pct' => 0.5,
+            'daily_loss_pct' => 1,
             'micro_daily_operations' => 20,
             'micro_wallet_pct' => 80,
             'micro_rule' => MicroRule::TrendPullback,
@@ -75,8 +75,8 @@ class ClonarCarteiraTest extends TestCase
         $this->assertTrue($clone->micro_enabled);
         $this->assertEqualsWithDelta(5, $clone->micro_order_value, 0.001);
         $this->assertEqualsWithDelta(0.7, $clone->micro_net_margin_pct, 0.001);
-        $this->assertEqualsWithDelta(0.5, $clone->micro_daily_target, 0.001);
-        $this->assertEqualsWithDelta(1, $clone->micro_daily_loss_limit, 0.001);
+        $this->assertEqualsWithDelta(0.5, $clone->micro_daily_target_pct, 0.001);
+        $this->assertEqualsWithDelta(1, $clone->daily_loss_pct, 0.001);
         $this->assertSame(20, $clone->micro_daily_operations);
         $this->assertSame(80, $clone->micro_wallet_pct);
         $this->assertSame(MicroRule::TrendPullback, $clone->micro_rule);
