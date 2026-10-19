@@ -15,6 +15,8 @@ class LiveTradingException extends RuntimeException
         public readonly ?int $binanceCode = null,
         /** True when the order may or may not have reached the exchange (timeout, 5xx). */
         public readonly bool $uncertain = false,
+        /** True when the request never left (no connection): the exchange surely did not get it. */
+        public readonly bool $unsent = false,
     ) {
         parent::__construct($message, $code, $previous);
     }

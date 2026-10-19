@@ -304,6 +304,13 @@ return [
         'stream_reload_seconds' => (int) env('BINANCE_STREAM_RELOAD_SECONDS', 30),
         'stream_url' => env('BINANCE_STREAM_URL', 'wss://data-stream.binance.vision'),
         'recv_window' => (int) env('BINANCE_RECV_WINDOW', 5000),
+        // Chamadas assinadas: conexão que não abre em poucos segundos é refeita na hora com conexão nova,
+        // e consulta ou cancelamento sem resposta repetem uma vez; envio de ordem não repete sozinho (#198).
+        'connect_timeout' => (int) env('BINANCE_CONNECT_TIMEOUT', 3),
+        'timeout' => (int) env('BINANCE_TIMEOUT', 5),
+        'connect_retries' => (int) env('BINANCE_CONNECT_RETRIES', 2),
+        'read_retries' => (int) env('BINANCE_READ_RETRIES', 1),
+        'retry_pause_ms' => (int) env('BINANCE_RETRY_PAUSE_MS', 250),
     ],
 
     // Bridge in front of the MT5 terminal (MT5 has no official REST API).

@@ -3,6 +3,7 @@
 namespace App\Trading\Brokers;
 
 use App\Enums\Market;
+use App\Enums\OrderSide;
 use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Models\BrokerCredential;
@@ -14,6 +15,7 @@ use App\Trading\Live\BinanceAccountReader;
 use App\Trading\Live\BinanceClient;
 use App\Trading\Live\LiveLimits;
 use App\Trading\Live\LiveTradingException;
+use App\Trading\Live\UnknownSales;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -63,9 +65,11 @@ class BinanceBroker implements Broker
         }
 
         try {
-            $response = $this->send($client, $params);
+            $response = $this->send($client, $params, $this->unknownSale($order));
         } catch (LiveTradingException $e) {
-            if ($e->uncertain) {
+            // A request that never left cannot be on the exchange; a market sale with its own id is
+            // looked up by that id before it goes out again. Neither needs the portfolio stopped (#198).
+            if ($e->uncertain && ! $e->unsent && $this->unknownSale($order) === null) {
                 // The order may be on the exchange without us knowing: stop this portfolio until a person looks.
                 $this->portfolio->forceFill([
                     'auto_execute' => false,
@@ -82,33 +86,94 @@ class BinanceBroker implements Broker
     }
 
     /**
-     * Sends the order. Only a failure that leaves the order's fate unknown (timeout,
-     * 5xx) is retried, once, and only after asking the exchange for the order by its
-     * client id: the same id makes a second POST safe, but looking first avoids relying on it.
+     * Sends the order. Only a failure that leaves the order's fate unknown (an
+     * answer lost after the request left, 5xx) is retried, once, and only after
+     * asking the exchange for the order by its client id: the same id makes a
+     * second POST safe, but looking first avoids relying on it.
+     *
+     * A market sale of a position whose lookup failed too keeps its id
+     * (`$saleOf`): the next attempt looks that id up before sending (#198).
      *
      * @param  array<string, scalar>  $params
      * @return array<string, mixed>
      */
-    private function send(BinanceClient $client, array $params): array
+    private function send(BinanceClient $client, array $params, ?int $saleOf = null): array
     {
+        $clientId = isset($params['newClientOrderId']) ? (string) $params['newClientOrderId'] : null;
+
+        try {
+            return $this->sendOnce($client, $params, $clientId, $saleOf);
+        } catch (LiveTradingException $e) {
+            if ($saleOf !== null && $clientId !== null && $e->uncertain && ! $e->unsent) {
+                UnknownSales::remember($saleOf, $clientId);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * @param  array<string, scalar>  $params
+     * @return array<string, mixed>
+     */
+    private function sendOnce(BinanceClient $client, array $params, ?string $clientId, ?int $saleOf): array
+    {
+        if ($saleOf !== null && $clientId !== null && UnknownSales::for($saleOf) === $clientId) {
+            $found = $this->lookup($client, $params);
+            UnknownSales::forget($saleOf);
+
+            if ($found !== null) {
+                return $found;
+            }
+        }
+
         try {
             return $client->signed('POST', '/api/v3/order', $params);
         } catch (LiveTradingException $e) {
-            if (! $e->uncertain || ! isset($params['newClientOrderId'])) {
+            if (! $e->uncertain || $e->unsent || $clientId === null) {
                 throw $e;
             }
         }
 
         try {
-            return $client->signed('GET', '/api/v3/order', ['symbol' => $params['symbol'], 'origClientOrderId' => $params['newClientOrderId']]);
+            $found = $this->lookup($client, $params);
         } catch (LiveTradingException $lookup) {
-            // -2013: the exchange never saw it, so sending again cannot duplicate it.
-            if ($lookup->binanceCode !== -2013) {
-                throw $lookup;
-            }
+            // The order already left: whatever stopped the lookup, its fate stays unknown.
+            throw $lookup->uncertain && ! $lookup->unsent ? $lookup : new LiveTradingException($lookup->getMessage(), 0, $lookup, $lookup->binanceCode, uncertain: true);
         }
 
-        return $client->signed('POST', '/api/v3/order', $params);
+        return $found ?? $client->signed('POST', '/api/v3/order', $params);
+    }
+
+    /**
+     * The order the exchange holds under the client id, or null when it never
+     * saw it (-2013), so sending it cannot duplicate it.
+     *
+     * @param  array<string, scalar>  $params
+     * @return array<string, mixed>|null
+     */
+    private function lookup(BinanceClient $client, array $params): ?array
+    {
+        try {
+            return $client->signed('GET', '/api/v3/order', ['symbol' => $params['symbol'], 'origClientOrderId' => $params['newClientOrderId']]);
+        } catch (LiveTradingException $e) {
+            if ($e->binanceCode === -2013) {
+                return null;
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * The position whose market sale this is, when the sale carries its own
+     * id: only those are safe to settle by looking the id up later.
+     */
+    private function unknownSale(OrderRequest $order): ?int
+    {
+        return $order->side === OrderSide::Sell && $order->type === OrderType::Market && $order->clientId !== null
+            ? $order->positionId
+            : null;
     }
 
     /**

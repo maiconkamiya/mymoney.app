@@ -4,6 +4,13 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.90] - 2026-10-19
+
+### Corrigido
+
+- **Tempo esgotado na Binance não deixa mais a carteira real sem saída.** Se a venda a mercado do stop ou dos 60 minutos ficava sem resposta da Binance e a consulta seguinte também, a carteira parava com "Envio incerto à Binance" e nenhuma venda saía até alguém liberar. Agora a venda que ficou sem resposta é consultada pela Binance antes de sair de novo, no segundo seguinte, sem vender duas vezes e sem parar a carteira.
+- **Conexão que não abre é refeita na hora.** Quando a conexão com a Binance não abre em 3 segundos, o app tenta de novo na mesma hora com uma conexão nova (até 3 vezes), em ordens, consultas e cancelamentos; consulta e cancelamento que ficam sem resposta repetem uma vez. Como a ordem nem saiu, essa falha também não para mais a carteira. Compra que sai e fica sem resposta continua parando a carteira, como antes.
+
 ## [0.3.89] - 2026-10-19
 
 ### Corrigido

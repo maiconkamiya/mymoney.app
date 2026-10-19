@@ -34,6 +34,50 @@ class BinanceClient
      */
     public function signed(string $method, string $path, array $params = []): array
     {
+        $attempt = 0;
+
+        while (true) {
+            try {
+                return $this->attempt($method, $path, $params);
+            } catch (ConnectionException $e) {
+                // A dead connection may stay in the shared handler: the next call opens a fresh one (#198).
+                self::$handler = null;
+                $unsent = self::unsent($e);
+
+                // Never connected: nothing left, so any call may go again. An answer lost after the
+                // request left is repeated only where a second one changes nothing (reading, cancelling).
+                $retries = $unsent
+                    ? (int) config('trading.binance.connect_retries', 2)
+                    : ($method === 'POST' ? 0 : (int) config('trading.binance.read_retries', 1));
+
+                if ($attempt < $retries) {
+                    $attempt++;
+                    usleep(max(0, (int) config('trading.binance.retry_pause_ms', 250)) * 1000);
+
+                    continue;
+                }
+
+                throw new LiveTradingException('Sem conexão com a Binance: '.$e->getMessage(), 0, $e, uncertain: true, unsent: $unsent);
+            }
+        }
+    }
+
+    /**
+     * True when the request never left this machine: the name did not resolve
+     * or the connection (TCP or TLS) was not established. cURL 28 "Operation
+     * timed out" is not one of them: the order may have reached the exchange.
+     */
+    public static function unsent(ConnectionException $e): bool
+    {
+        return preg_match('/cURL error (6|7|35):|cURL error 28: (Connection|Resolving) timed out/i', $e->getMessage()) === 1;
+    }
+
+    /**
+     * @param  array<string, scalar>  $params
+     * @return array<string, mixed>
+     */
+    private function attempt(string $method, string $path, array $params): array
+    {
         try {
             return $this->send($method, $path, $params);
         } catch (RequestException $e) {
@@ -49,8 +93,6 @@ class BinanceClient
             }
 
             throw $this->translate($e);
-        } catch (ConnectionException $e) {
-            throw new LiveTradingException('Sem conexão com a Binance: '.$e->getMessage(), 0, $e, uncertain: true);
         }
     }
 
@@ -174,6 +216,8 @@ class BinanceClient
         return Http::baseUrl(config('trading.binance.base_url'))
             ->setHandler(self::$handler)
             ->withHeaders(['X-MBX-APIKEY' => $this->credential->api_key])
-            ->timeout(10);
+            // A connection that does not open in a few seconds fails fast and is tried again (#198).
+            ->connectTimeout((int) config('trading.binance.connect_timeout', 3))
+            ->timeout((int) config('trading.binance.timeout', 5));
     }
 }
