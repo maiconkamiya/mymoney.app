@@ -176,6 +176,24 @@ class PortfolioFollowerTest extends TestCase
         $this->assertSame(['AAAUSDT', 'BBBUSDT'], $this->tracked($portfolio->refresh()));
     }
 
+    public function test_sem_nota_minima_par_sem_escore_de_rompimento_conta_pela_posicao(): void
+    {
+        $portfolio = $this->following();
+        $scan = $this->scan(['AAAUSDT', 'NEWUSDT', 'CCCUSDT']);
+        // Histórico curto: o explorador não calculou o escore de rompimento de NEW.
+        $scan->opportunities()->where('symbol', 'NEWUSDT')->update(['breakout_score' => null]);
+
+        app(PortfolioFollower::class)->syncPortfolio($portfolio, $scan);
+
+        $this->assertSame(['AAAUSDT', 'CCCUSDT', 'NEWUSDT'], $this->tracked($portfolio));
+
+        config(['explorer.follow.min_score' => 1]);
+        $other = $this->following();
+        app(PortfolioFollower::class)->syncPortfolio($other, $scan);
+
+        $this->assertSame(['AAAUSDT', 'CCCUSDT'], $this->tracked($other));
+    }
+
     public function test_dono_liga_e_a_ultima_varredura_vale_na_hora(): void
     {
         $user = User::factory()->create();

@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.85] - 2026-10-19
+
+### Corrigido
+
+- **Seguir o explorador completa o top.** Com a lista ordenada pelo escore de rompimento, um par que ainda não tinha esse escore (pouco histórico) ficava de fora mesmo sem nota mínima, e a carteira acompanhava menos ativos que o top escolhido. Agora, sem nota mínima, todo par do ranking conta pela posição; com nota mínima, o par sem escore continua de fora.
+
 ## [0.3.84] - 2026-10-19
 
 ### Adicionado
