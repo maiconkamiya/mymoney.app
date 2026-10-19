@@ -817,7 +817,7 @@ class MicroTrader
     /**
      * The price the engine suggests paying for the pair now, and how the buy goes out.
      *
-     * @return array{mode: string, price: float, reference: float, discount_pct: float, seconds: int|null}
+     * @return array{mode: 'limit'|'market', price: float, reference: float, discount_pct: float, seconds: int|null}
      */
     public function suggestion(Portfolio $portfolio, Asset $asset, MicroSetup $setup): array
     {
@@ -873,11 +873,12 @@ class MicroTrader
     private function open(Portfolio $portfolio, Asset $asset, MicroSetup $setup, float $grossPct): bool
     {
         $suggestion = $this->suggestion($portfolio, $asset, $setup);
-        $limit = $suggestion['mode'] === 'limit' ? $suggestion['price'] : null;
-        $outcome = $this->executor->placeDirect($portfolio, $this->buyRequest($portfolio, $asset, $setup, $grossPct, $limit), self::ACTOR, 'micro');
-        $accepted = $limit === null ? [OrderStatus::Filled] : [OrderStatus::Filled, OrderStatus::Pending];
+        $isLimit = $portfolio->micro_entry_mode !== 'market';
+        $outcome = $this->executor->placeDirect($portfolio, $this->buyRequest($portfolio, $asset, $setup, $grossPct, $isLimit ? $suggestion['price'] : null), self::ACTOR, 'micro');
+        // A market buy must fill at once; a limit buy may also rest, waiting for the price.
+        $accepted = ! is_string($outcome) && ($outcome->status === OrderStatus::Filled || ($isLimit && $outcome->status === OrderStatus::Pending));
 
-        if (is_string($outcome) || ! in_array($outcome->status, $accepted, true)) {
+        if (is_string($outcome) || ! $accepted) {
             Cache::put($this->blockKey($portfolio), $asset->symbol.': '.(is_string($outcome) ? $outcome : 'corretora recusou: '.$outcome->reject_reason), now()->addHour());
 
             return false;
@@ -885,7 +886,7 @@ class MicroTrader
 
         $exits = $this->rules->exits($setup, $grossPct);
         // Until the buy executes the cycle carries the limit (or the reference price) as its entry.
-        $reference = $limit ?? $setup->price;
+        $reference = $isLimit ? $suggestion['price'] : $setup->price;
 
         $cycle = $portfolio->microCycles()->create([
             'asset_id' => $asset->id,
@@ -901,12 +902,12 @@ class MicroTrader
             'analysis' => $setup->toArray() + ['suggestion' => $suggestion],
             'suggested_price' => $suggestion['price'],
             'buy_order_id' => $outcome->id,
-            'expires_at' => $limit === null ? null : now()->addSeconds($suggestion['seconds'] ?? 60),
+            'expires_at' => $isLimit ? now()->addSeconds($suggestion['seconds'] ?? 60) : null,
             'opened_at' => now(),
         ]);
 
         if ($outcome->status === OrderStatus::Pending) {
-            AuditLog::record(self::ACTOR, 'micro.limit_placed', $cycle, ['portfolio_id' => $portfolio->id, 'symbol' => $asset->symbol, 'order_id' => $outcome->id, 'price' => $limit, 'reference' => $suggestion['reference'], 'expires_at' => $cycle->expires_at?->toIso8601String()]);
+            AuditLog::record(self::ACTOR, 'micro.limit_placed', $cycle, ['portfolio_id' => $portfolio->id, 'symbol' => $asset->symbol, 'order_id' => $outcome->id, 'price' => $suggestion['price'], 'reference' => $suggestion['reference'], 'expires_at' => $cycle->expires_at?->toIso8601String()]);
 
             return true;
         }
