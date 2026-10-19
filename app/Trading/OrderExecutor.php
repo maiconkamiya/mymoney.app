@@ -18,6 +18,7 @@ use App\Trading\Data\OrderResult;
 use App\Trading\Live\BinanceAccountSync;
 use App\Trading\Live\LiveAlerts;
 use App\Trading\Live\LiveTradingException;
+use App\Trading\Live\UnknownSales;
 use App\Trading\Risk\RiskGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -163,11 +164,16 @@ class OrderExecutor
                 ->first();
         }
 
+        // An earlier sale of the position whose fate the exchange did not tell goes out under its own id,
+        // so the broker looks it up first; the coins it may have sold no longer show in the balance (#198).
+        $unknown = $position->portfolio->isLive() ? UnknownSales::for($position->id) : null;
+        $step = (float) $position->asset->lot_size;
+
         $request = new OrderRequest(
             asset: $position->asset,
             side: OrderSide::Sell,
-            qty: $this->sellableQty($position),
-            clientId: 'position-'.$position->id.'-'.$reason,
+            qty: $unknown === null ? $this->sellableQty($position) : ($step > 0 ? floor(round($position->qty / $step, 8)) * $step : $position->qty),
+            clientId: $unknown ?? 'position-'.$position->id.'-'.$reason,
             positionId: $position->id,
         );
 

@@ -22,6 +22,7 @@
         <env name="APP_KEY" value="base64:OQGgmYrQbqJZgdpOklQY4LGRP3bsHhC+NoIwETAjsDk="/>
         <env name="APP_LOCALE" value="pt_BR"/>
         <env name="AGENTS_DRIVER" value="fake"/>
+        <env name="BINANCE_RETRY_PAUSE_MS" value="0"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
