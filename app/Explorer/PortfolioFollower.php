@@ -162,9 +162,10 @@ class PortfolioFollower
     {
         $minScore = (float) config('explorer.follow.min_score');
 
-        // Com a lista pelo escore de rompimento, a nota mínima vale para ele.
+        // Com a lista pelo escore de rompimento, a nota mínima vale para ele. Sem
+        // nota mínima, par ainda sem escore (histórico curto) conta pela posição.
         return $scan->opportunities()
-            ->where(self::byBreakout() ? 'breakout_score' : 'score', '>=', $minScore)
+            ->when($minScore > 0, fn ($query) => $query->where(self::byBreakout() ? 'breakout_score' : 'score', '>=', $minScore))
             ->get()
             ->reject(fn (Opportunity $o) => $this->endsTrading($o->symbol))
             ->take($size)
