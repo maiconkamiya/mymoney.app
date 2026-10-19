@@ -53,8 +53,13 @@ function state(row: MicroFocusRow, failing: number): State {
 }
 
 // Preços de cripto vão de 0,0001 a 100 mil: até 8 casas, sem zeros sobrando.
-function price(value: number) {
-    return value.toLocaleString('pt-BR', { maximumFractionDigits: 8 });
+function price(value: number, digits?: number) {
+    return value.toLocaleString(
+        'pt-BR',
+        digits
+            ? { maximumSignificantDigits: digits }
+            : { maximumFractionDigits: 8 },
+    );
 }
 
 const stateClass: Record<State['key'], string> = {
@@ -188,10 +193,12 @@ const dotClass: Record<State['key'], string> = {
                     :data-test="`micro-focus-${card.symbol}-suggestion`"
                 >
                     <span class="flex flex-col">
-                        <span class="text-xs text-muted-foreground">
+                        <span
+                            class="text-xs whitespace-nowrap text-muted-foreground"
+                        >
                             {{
                                 card.suggestion.mode === 'limit'
-                                    ? 'Compra limitada a'
+                                    ? 'Compra limitada'
                                     : 'Preço sugerido'
                             }}
                         </span>
@@ -205,7 +212,7 @@ const dotClass: Record<State['key'], string> = {
                         class="text-right text-xs text-muted-foreground tabular-nums"
                     >
                         {{ card.suggestion.discount_pct.toFixed(2) }}% abaixo de
-                        {{ price(card.suggestion.reference) }}
+                        {{ price(card.suggestion.reference, 6) }}
                         <template v-if="card.suggestion.mode === 'limit'">
                             <br />vale {{ card.suggestion.seconds }} s
                         </template>
