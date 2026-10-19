@@ -16,6 +16,7 @@ use App\Models\Asset;
 use App\Models\AuditLog;
 use App\Models\OpportunityScan;
 use App\Models\Portfolio;
+use App\Models\PortfolioDeposit;
 use App\Models\Position;
 use App\Models\RiskProfile;
 use App\Models\Signal;
@@ -180,6 +181,11 @@ class PortfolioController extends Controller
                 'orders_blocked' => $portfolio->isOrdersBlocked(),
                 'orders_blocked_reason' => $portfolio->orders_blocked_reason,
                 'notify_live_email' => $portfolio->notify_live_email,
+                'deposits' => $portfolio->isLive() ? [] : $portfolio->deposits()->latest('deposited_at')->get()->map(fn (PortfolioDeposit $deposit) => [
+                    'id' => $deposit->id,
+                    'amount' => $deposit->amount,
+                    'deposited_at' => $deposit->deposited_at->toIso8601String(),
+                ])->all(),
             ],
             'live' => fn () => $portfolio->isLive() ? [
                 'enabled' => $limits->enabled(),

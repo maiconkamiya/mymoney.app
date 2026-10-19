@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.94] - 2026-10-19
+
+### Adicionado
+
+- **Novo aporte na carteira simulada.** O card "Resultado" ganhou o botão "Novo aporte": o valor entra no caixa na hora e soma ao total investido, e a janela lista os aportes anteriores com data e valor. O histórico de antes do aporte fica como estava. Para a guarda de risco, a meta do dia e o gráfico de desempenho, o aporte não conta como lucro nem como perda: a perda do dia e a queda desde o maior saldo continuam medidas só pelo que as operações fizeram. Só o dono da carteira faz aporte; na carteira real o aporte continua sendo feito na Binance.
+
 ## [0.3.93] - 2026-10-19
 
 ### Adicionado

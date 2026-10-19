@@ -33,8 +33,13 @@ class PerformanceReport
 
         $points = [['date' => $portfolio->created_at?->toDateString() ?? $portfolio->starts_at->toDateString(), 'equity' => $portfolio->initial_cash, 'at' => $portfolio->created_at ?? $portfolio->starts_at]];
 
+        // Cada ponto soma os aportes feitos depois dele (o saldo inicial já os inclui), para o aporte
+        // não aparecer na curva, na queda máxima nem no Sharpe como ganho.
+        $deposits = $portfolio->deposits()->get(['amount', 'deposited_at']);
+
         foreach ($daily as $date => $snapshot) {
-            $points[] = ['date' => (string) $date, 'equity' => $snapshot->equity, 'at' => $snapshot->taken_at];
+            $later = $deposits->filter(fn ($deposit) => $deposit->deposited_at->greaterThan($snapshot->taken_at))->sum('amount');
+            $points[] = ['date' => (string) $date, 'equity' => $snapshot->equity + (float) $later, 'at' => $snapshot->taken_at];
         }
 
         $symbol = $this->benchmarkSymbol($portfolio);

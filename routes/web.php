@@ -12,6 +12,7 @@ use App\Http\Controllers\PortfolioAssetsController;
 use App\Http\Controllers\PortfolioChartsController;
 use App\Http\Controllers\PortfolioCloneController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioDepositController;
 use App\Http\Controllers\PortfolioExplorerFollowController;
 use App\Http\Controllers\PortfolioInitialCashController;
 use App\Http\Controllers\PortfolioPanicController;
@@ -32,6 +33,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('portfolios', PortfolioController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::post('portfolios/{portfolio}/clonar', PortfolioCloneController::class)->name('portfolios.clone');
     Route::patch('portfolios/{portfolio}/saldo-inicial', PortfolioInitialCashController::class)->name('portfolios.initial-cash');
+    Route::post('portfolios/{portfolio}/aportes', [PortfolioDepositController::class, 'store'])->name('portfolios.deposits.store');
     Route::put('portfolios/{portfolio}/micro-operacoes', [MicroOperationsController::class, 'update'])->name('portfolios.micro');
     Route::put('portfolios/{portfolio}/micro-operacoes/liquidar', [MicroOperationsController::class, 'liquidate'])->name('portfolios.liquidate');
     Route::post('portfolios/{portfolio}/micro-operacoes/liquidar-agora', [MicroOperationsController::class, 'liquidateNow'])->name('portfolios.liquidate-now');
