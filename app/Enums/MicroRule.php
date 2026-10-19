@@ -16,12 +16,20 @@ enum MicroRule: string
     /** The 1-minute reading plus a fifth condition: price above where it was 24 h and 4 h ago. */
     case ScalpUptrend = 'scalp_uptrend';
 
+    /** A compressed 30-minute box, then a close above it with high volume (#181). */
+    case Breakout = 'breakout';
+
+    /** A compressed box with rising lows pressing a tested high: buys before the break (#181). */
+    case BreakoutPressure = 'breakout_pressure';
+
     public function label(): string
     {
         return match ($this) {
             self::Scalp => 'Atual (1 minuto)',
             self::TrendPullback => 'Tendência com recuo (15 min e 1 h)',
             self::ScalpUptrend => 'Atual + alta em 24 h e 4 h',
+            self::Breakout => 'Rompimento confirmado',
+            self::BreakoutPressure => 'Pressão antes do rompimento',
         };
     }
 }

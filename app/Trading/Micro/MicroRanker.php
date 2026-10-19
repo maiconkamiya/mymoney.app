@@ -62,7 +62,7 @@ class MicroRanker
                 $rows = [];
 
                 foreach ($candles as $candle) {
-                    $rows[] = ['high' => (float) $candle->high, 'low' => (float) $candle->low, 'close' => (float) $candle->close];
+                    $rows[] = ['high' => (float) $candle->high, 'low' => (float) $candle->low, 'close' => (float) $candle->close, 'volume' => (float) $candle->volume];
                 }
 
                 $setup = $this->rules->read($rule, $rows, $grossMarginPct);
@@ -72,6 +72,7 @@ class MicroRanker
                         MicroRule::Scalp => 'Poucos candles para ler o gráfico (precisa de 40 minutos).',
                         MicroRule::TrendPullback => 'Poucos candles para ler o gráfico (a regra de tendência precisa de 22 horas de velas de 1 minuto).',
                         MicroRule::ScalpUptrend => 'Poucos candles para ler o gráfico (a alta em 24 h precisa de 24 horas de velas de 1 minuto).',
+                        MicroRule::Breakout, MicroRule::BreakoutPressure => 'Poucos candles para ler o gráfico (as regras de rompimento precisam de 2 h e meia de velas de 1 minuto).',
                     }];
 
                     return null;

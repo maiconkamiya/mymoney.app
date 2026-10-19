@@ -14,6 +14,7 @@ class MicroRules
         private readonly MicroAnalysis $scalp,
         private readonly MicroTrendAnalysis $trend,
         private readonly MicroCosts $costs,
+        private readonly MicroBreakoutAnalysis $breakout,
     ) {}
 
     /** Minutes of 1-minute candles the rule reads. */
@@ -24,11 +25,12 @@ class MicroRules
             MicroRule::TrendPullback => (int) config('trading.micro.trend.lookback_minutes'),
             // A few spare minutes so a missing candle does not leave the 24 h reference out of the window.
             MicroRule::ScalpUptrend => max((int) config('trading.micro.uptrend.day_minutes'), (int) config('trading.micro.lookback_minutes')) + 5,
+            MicroRule::Breakout, MicroRule::BreakoutPressure => $this->breakout->lookbackMinutes(),
         };
     }
 
     /**
-     * @param  list<array{high: float, low: float, close: float}>  $candles  oldest first
+     * @param  list<array{high: float, low: float, close: float, volume?: float}>  $candles  oldest first
      * @param  float|null  $roundTripPct  cost of a buy plus a sell; null uses `trading.costs.crypto`
      */
     public function read(MicroRule $rule, array $candles, float $grossMarginPct, ?float $roundTripPct = null): ?MicroSetup
@@ -37,6 +39,8 @@ class MicroRules
             MicroRule::Scalp => $this->scalp->read($candles, $grossMarginPct),
             MicroRule::TrendPullback => $this->trend->read($candles, $roundTripPct ?? $this->costs->roundTripPct()),
             MicroRule::ScalpUptrend => $this->scalpUptrend($candles, $grossMarginPct),
+            MicroRule::Breakout => $this->breakout->confirmed($candles, $roundTripPct ?? $this->costs->roundTripPct()),
+            MicroRule::BreakoutPressure => $this->breakout->pressure($candles, $roundTripPct ?? $this->costs->roundTripPct()),
         };
     }
 
