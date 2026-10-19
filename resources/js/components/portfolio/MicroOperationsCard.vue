@@ -434,6 +434,15 @@ const time = (iso: string, seconds = false) =>
                         horas atrás. Na carteira real só pode ser escolhida
                         depois de passar no backtest.
                     </template>
+                    <template
+                        v-else-if="chosenRuleOption.value === 'scalp_filtered'"
+                    >
+                        A regra atual com a alta em 24 e 4 horas, e só entra se
+                        o RSI de 1 minuto estiver abaixo de 70 (preço não
+                        esticado) e o volume dos últimos 5 minutos estiver acima
+                        da média. Na carteira real só pode ser escolhida depois
+                        de passar no backtest.
+                    </template>
                     <template v-else-if="chosenRuleOption.value === 'breakout'">
                         Espera 30 minutos de velas pequenas e compra quando uma
                         vela fecha acima da máxima com volume alto; alvo pela
