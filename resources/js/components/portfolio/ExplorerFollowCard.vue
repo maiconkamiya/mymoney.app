@@ -13,13 +13,12 @@ const props = defineProps<{
     agentsEnabled: boolean;
 }>();
 
-const hora = (iso: string) =>
-    new Date(iso).toLocaleString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
+const hora = (iso: string) => {
+    const d = new Date(iso);
+    const two = (n: number) => String(n).padStart(2, '0');
+
+    return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${two(d.getHours())}:${two(d.getMinutes())}`;
+};
 
 const lastScan = computed(() =>
     props.follow.last_scan_at ? hora(props.follow.last_scan_at) : null,
@@ -138,9 +137,16 @@ const lastScan = computed(() =>
             class="rounded-xl bg-amber-500/10 p-3 text-xs text-amber-400"
         >
             O explorador não usa IA por carteira. Com os agentes em ação
-            ligados, porém, cada ativo acompanhado entra na varredura do enxame:
-            hoje são {{ trackedCount }}, seguindo o explorador serão até
-            {{ follow.size }}, e o gasto de IA cresce na mesma proporção.
+            ligados, porém, cada ativo acompanhado entra na varredura do enxame
+            e o gasto de IA cresce com o tamanho da lista:
+            <template v-if="follow.enabled">
+                são {{ trackedCount }} agora, até {{ follow.size }} seguindo o
+                explorador.
+            </template>
+            <template v-else>
+                são {{ trackedCount || 'todos os cadastrados' }} hoje; ligado,
+                serão até {{ follow.size }}.
+            </template>
         </p>
 
         <div v-if="follow.history.length" class="space-y-2">
@@ -149,10 +155,10 @@ const lastScan = computed(() =>
                 <li
                     v-for="(change, i) in follow.history"
                     :key="`${change.at}-${change.symbol}-${i}`"
-                    class="flex items-baseline gap-2"
+                    class="grid grid-cols-[3rem_1fr_auto] items-baseline gap-x-2"
                 >
                     <span
-                        class="w-12 shrink-0 text-xs"
+                        class="text-xs"
                         :class="
                             change.kind === 'added'
                                 ? 'text-emerald-400'
@@ -162,13 +168,15 @@ const lastScan = computed(() =>
                         {{ change.kind === 'added' ? 'Entrou' : 'Saiu' }}
                     </span>
                     <span class="font-mono">{{ change.symbol }}</span>
-                    <span class="truncate text-xs text-muted-foreground">
-                        {{ change.reason }}
-                    </span>
                     <span
-                        class="ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums"
+                        class="font-mono text-xs text-muted-foreground tabular-nums"
                     >
                         {{ hora(change.at) }}
+                    </span>
+                    <span
+                        class="col-start-2 col-end-4 text-xs text-muted-foreground"
+                    >
+                        {{ change.reason }}
                     </span>
                 </li>
             </ul>
