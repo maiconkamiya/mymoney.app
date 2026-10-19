@@ -4,7 +4,7 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
-## [0.3.87] - 2026-10-19
+## [0.3.88] - 2026-10-19
 
 ### Corrigido
 
@@ -13,6 +13,13 @@ A fonte da versão é o campo `version` do `package.json`. A página "Novidades"
 ### Alterado
 
 - **Meta e perda do dia em % do saldo.** No card de Micro operações, "Meta de lucro do dia" e "Perda máxima do dia" passam a ser porcentagens do saldo da carteira no início do dia, com o valor em USDT de hoje ao lado. A perda vale para todas as compras da carteira (micro e enxame), é no máximo 20% e, vazia, segue o padrão de 2%. Carteiras existentes tiveram a meta convertida pelo capital inicial; a perda só foi aproveitada quando era mais rígida que os 2%, senão a carteira segue com o padrão até você mudar.
+
+## [0.3.87] - 2026-10-19
+
+### Corrigido
+
+- **Queda de rede na conciliação não liga mais a Parada geral.** A cada 5 minutos o app confere as ordens reais com a Binance. Quando a consulta de uma ordem dava tempo esgotado, isso era tratado como divergência e a Parada geral ligava, travando todas as carteiras, inclusive as simuladas. Agora a falha fica registrada e a ordem é consultada de novo na conciliação seguinte; a Parada geral só liga se a mesma ordem ficar sem resposta 6 vezes seguidas (meia hora; ajustável em `TRADING_LIVE_RECONCILE_MAX_FAILURES`). Quando a Binance responde com um estado ou quantidade diferente do registrado, ou recusa a consulta, a Parada geral liga na hora, como antes.
+- **A Parada geral da conciliação trava só as carteiras reais.** Como a conciliação só confere ordens reais, a parada que ela liga não bloqueia mais as carteiras simuladas, que seguem operando. As telas mostram "Parada geral nas carteiras reais" nesse caso. O botão "Parada geral" e o comando `trading:halt` continuam travando todas as carteiras, e uma parada dessas nunca é afrouxada pela conciliação.
 
 ## [0.3.86] - 2026-10-19
 

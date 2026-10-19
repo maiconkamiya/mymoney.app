@@ -182,6 +182,9 @@ return [
         'enabled' => (bool) env('TRADING_LIVE_ENABLED', false),
         'max_order_value' => (float) env('TRADING_LIVE_MAX_ORDER_VALUE', 20),
         'max_daily_value' => (float) env('TRADING_LIVE_MAX_DAILY_VALUE', 100),
+        // Consultas seguidas da mesma ordem sem resposta da corretora (tempo esgotado, sem conexão, 5xx)
+        // antes da conciliação ligar a Parada geral. Com a conciliação a cada 5 min, 6 = 30 min.
+        'reconcile_max_failures' => (int) env('TRADING_LIVE_RECONCILE_MAX_FAILURES', 6),
     ],
 
     /*

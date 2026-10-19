@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PortfolioMode;
 use App\Enums\SignalStage;
 use App\Models\Asset;
+use App\Models\AuditLog;
 use App\Models\BrokerCredential;
 use App\Models\Order;
 use App\Models\Portfolio;
@@ -22,6 +23,7 @@ use App\Trading\Live\OrderReconciler;
 use App\Trading\OrderExecutor;
 use App\Trading\TradingHalt;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Tests\Concerns\BuildsMarket;
@@ -240,7 +242,75 @@ class LiveTradingTest extends TestCase
         $exchange = ['orderId' => 77, 'status' => 'CANCELED', 'executedQty' => '0', 'cummulativeQuoteQty' => '0'];
         $this->assertCount(1, app(OrderReconciler::class)->reconcile());
         $this->assertTrue(app(TradingHalt::class)->isHalted());
+        $this->assertTrue(app(TradingHalt::class)->isLiveOnly());
         $this->assertNotNull($order);
+    }
+
+    public function test_reconciliation_timeout_is_retried_before_halting()
+    {
+        config(['trading.live.enabled' => true, 'trading.live.reconcile_max_failures' => 3]);
+
+        $filled = ['orderId' => 77, 'status' => 'FILLED', 'executedQty' => '0.2', 'cummulativeQuoteQty' => '20',
+            'transactTime' => now()->getTimestampMs(),
+            'fills' => [['price' => '100', 'qty' => '0.2', 'commission' => '0.02', 'commissionAsset' => 'USDT']]];
+        $timeout = false;
+        Http::fake([
+            '*/api/v3/time' => fn () => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+            'api.binance.com/api/v3/order*' => function () use (&$filled, &$timeout) {
+                if ($timeout) {
+                    throw new ConnectionException('cURL error 28: Connection timed out after 10002 ms');
+                }
+
+                return Http::response($filled);
+            }]);
+
+        $order = app(OrderExecutor::class)->execute($this->signal($this->livePortfolio()), 'user:1');
+        $this->assertNotNull($order);
+        $reconciler = app(OrderReconciler::class);
+        $halt = app(TradingHalt::class);
+
+        // Two timeouts in a row are logged, not a divergence.
+        $timeout = true;
+        $this->assertSame([], $reconciler->reconcile());
+        $this->assertSame([], $reconciler->reconcile());
+        $this->assertFalse($halt->isHalted());
+        $this->assertSame(2, AuditLog::where('action', 'orders.reconcile_failed')->count());
+        $this->assertSame(0, AuditLog::where('action', 'orders.divergence')->count());
+
+        // The exchange answering again resets the count.
+        $timeout = false;
+        $this->assertSame([], $reconciler->reconcile());
+
+        $timeout = true;
+        $this->assertSame([], $reconciler->reconcile());
+        $this->assertSame([], $reconciler->reconcile());
+        $this->assertFalse($halt->isHalted());
+
+        // The third failure in a row halts.
+        $this->assertCount(1, $reconciler->reconcile());
+        $this->assertTrue($halt->isHalted());
+    }
+
+    public function test_reconciliation_halts_at_once_when_the_exchange_rejects_the_query()
+    {
+        config(['trading.live.enabled' => true]);
+
+        $answer = ['orderId' => 77, 'status' => 'FILLED', 'executedQty' => '0.2', 'cummulativeQuoteQty' => '20',
+            'transactTime' => now()->getTimestampMs(),
+            'fills' => [['price' => '100', 'qty' => '0.2', 'commission' => '0.02', 'commissionAsset' => 'USDT']]];
+        $status = 200;
+        Http::fake([
+            '*/api/v3/time' => fn () => Http::response(['serverTime' => (int) (microtime(true) * 1000)]),
+            'api.binance.com/api/v3/order*' => function () use (&$answer, &$status) {
+                return Http::response($answer, $status);
+            }]);
+
+        app(OrderExecutor::class)->execute($this->signal($this->livePortfolio()), 'user:1');
+
+        $answer = ['code' => -2013, 'msg' => 'Order does not exist.'];
+        $status = 400;
+        $this->assertCount(1, app(OrderReconciler::class)->reconcile());
+        $this->assertTrue(app(TradingHalt::class)->isHalted());
     }
 
     public function test_mt5_live_orders_go_through_the_guarded_http_gateway()

@@ -142,7 +142,7 @@ class MicroTrader
             return ['code' => 'portfolio_stopped', 'label' => 'Carteira fora do período de execução'];
         }
 
-        if ($this->halt->isHalted() || $portfolio->isOrdersBlocked()) {
+        if ($this->halt->blocks($portfolio) || $portfolio->isOrdersBlocked()) {
             return ['code' => 'blocked', 'label' => 'Ordens bloqueadas ("Parar tudo")'];
         }
 
@@ -450,7 +450,7 @@ class MicroTrader
         return match (true) {
             ! $portfolio->micro_enabled => 'Micro operações desligadas: a venda só é registrada com o modo ligado.',
             ! $portfolio->isRunning() => 'Carteira fora do período de execução.',
-            $this->halt->isHalted() => 'Parada geral ligada: a venda é registrada no minuto seguinte ao desligamento.',
+            $this->halt->blocks($portfolio) => 'Parada geral ligada: a venda é registrada no minuto seguinte ao desligamento.',
             $portfolio->isOrdersBlocked() => '"Parar tudo" ligado nesta carteira.',
             $portfolio->isLive() && ! $this->live->enabled() => 'Execução real desligada no servidor.',
             $portfolio->isLive() && ! $portfolio->autoExecutesLive() => 'Carteira real sem a execução automática confirmada (CONFIRMO).',
