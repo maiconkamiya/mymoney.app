@@ -13,6 +13,8 @@ use App\Models\MicroCycle;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Trading\OrderExecutor;
+use App\Trading\PortfolioValuation;
+use App\Trading\Risk\RiskGuard;
 use Illuminate\Support\Carbon;
 
 /**
@@ -27,6 +29,8 @@ class MicroOverview
         private readonly MicroCosts $costs,
         private readonly OrderExecutor $executor,
         private readonly MicroTargetOdds $odds,
+        private readonly RiskGuard $risk,
+        private readonly PortfolioValuation $valuation,
     ) {}
 
     /**
@@ -77,11 +81,20 @@ class MicroOverview
             'gross_margin_pct' => $gross,
             'round_trip_cost_pct' => round($this->costs->roundTripPct(), 4),
             'min_order_value' => MicroTrader::minOrderValue($portfolio),
-            'daily_target' => $portfolio->micro_daily_target,
+            'daily_target_pct' => $portfolio->micro_daily_target_pct,
+            'daily_target_value' => ($target = $this->trader->dailyTargetValue($portfolio)) === null ? null : round($target, 2),
             'daily_operations' => $portfolio->micro_daily_operations,
             'wallet_pct' => $portfolio->micro_wallet_pct,
             'wallet_budget' => array_map(fn ($value) => is_float($value) ? round($value, 2) : $value, $this->trader->walletBudget($portfolio)),
-            'daily_loss_limit' => $portfolio->micro_daily_loss_limit,
+            // Perda do dia da guarda de risco nesta carteira: a escolhida no card ou a do perfil.
+            'daily_loss_pct' => $portfolio->daily_loss_pct,
+            'daily_loss' => [
+                'limit_pct' => round(100 * $this->risk->dailyLossLimit($portfolio), 4),
+                'default_pct' => round(100 * $portfolio->riskProfile->max_daily_loss_pct, 4),
+                'max_pct' => RiskGuard::MAX_DAILY_LOSS_PCT,
+                'start_equity' => round($this->valuation->startOfDayEquity($portfolio), 2),
+                'today_pct' => round(100 * $this->risk->dailyLoss($portfolio), 2),
+            ],
             'state' => $this->trader->state($portfolio),
             'last_block' => $this->trader->lastBlock($portfolio),
             'last_run' => $lastRun,

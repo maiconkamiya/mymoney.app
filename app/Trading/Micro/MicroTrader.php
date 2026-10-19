@@ -16,6 +16,7 @@ use App\Trading\Contracts\PriceFeed;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Live\LiveLimits;
 use App\Trading\OrderExecutor;
+use App\Trading\PortfolioValuation;
 use App\Trading\Risk\RiskGuard;
 use App\Trading\TradingHalt;
 use Illuminate\Support\Carbon;
@@ -53,6 +54,7 @@ class MicroTrader
         private readonly BinanceSymbols $symbols,
         private readonly PriceFeed $prices,
         private readonly MicroEntryPrice $entryPrice,
+        private readonly PortfolioValuation $valuation,
     ) {}
 
     /**
@@ -162,17 +164,28 @@ class MicroTrader
             return ['code' => 'operations_done', 'label' => 'Quantidade de operações do dia atingida'];
         }
 
-        $pnl = $this->pnlToday($portfolio);
+        $target = $this->dailyTargetValue($portfolio);
 
-        if ($portfolio->micro_daily_target !== null && $pnl >= $portfolio->micro_daily_target) {
+        if ($target !== null && $this->pnlToday($portfolio) >= $target) {
             return ['code' => 'target_hit', 'label' => 'Meta do dia batida'];
         }
 
-        if ($portfolio->micro_daily_loss_limit !== null && $pnl <= -$portfolio->micro_daily_loss_limit) {
-            return ['code' => 'loss_limit', 'label' => 'Perda máxima do dia atingida'];
+        // O mesmo limite da guarda de risco: com ele batido, nenhuma compra passaria.
+        if ($this->risk->dailyLossReached($portfolio)) {
+            return ['code' => 'loss_limit', 'label' => sprintf('Perda máxima do dia atingida (%s%% do saldo)', rtrim(rtrim(number_format(100 * $this->risk->dailyLossLimit($portfolio), 2, ',', ''), '0'), ','))];
         }
 
         return ['code' => 'active', 'label' => 'Operando'];
+    }
+
+    /**
+     * Meta do dia em USDT: a % escolhida sobre o saldo do início do dia.
+     */
+    public function dailyTargetValue(Portfolio $portfolio): ?float
+    {
+        return $portfolio->micro_daily_target_pct === null
+            ? null
+            : $portfolio->micro_daily_target_pct / 100 * $this->valuation->startOfDayEquity($portfolio);
     }
 
     /**

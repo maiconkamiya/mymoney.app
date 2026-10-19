@@ -353,7 +353,8 @@ export type MicroOverview = {
     gross_margin_pct: number;
     round_trip_cost_pct: number;
     min_order_value: number;
-    daily_target: number | null;
+    daily_target_pct: number | null;
+    daily_target_value: number | null;
     daily_operations: number | null;
     wallet_pct: number;
     wallet_budget: {
@@ -362,7 +363,14 @@ export type MicroOverview = {
         used: number;
         available: number;
     };
-    daily_loss_limit: number | null;
+    daily_loss_pct: number | null;
+    daily_loss: {
+        limit_pct: number;
+        default_pct: number;
+        max_pct: number;
+        start_equity: number;
+        today_pct: number;
+    };
     state: { code: string; label: string };
     last_block: string | null;
     last_run: string | null;

@@ -20,6 +20,9 @@ use App\Trading\TradingHalt;
  */
 class RiskGuard
 {
+    /** Teto, em %, da perda do dia que o dono pode escolher para uma carteira. */
+    public const MAX_DAILY_LOSS_PCT = 20;
+
     public function __construct(
         private readonly TradingHalt $halt,
         private readonly PriceFeed $prices,
@@ -103,10 +106,9 @@ class RiskGuard
         }
 
         $equity = $this->valuation->equity($portfolio);
-        $dailyLoss = 1 - $equity / max($this->valuation->startOfDayEquity($portfolio), 0.00000001);
         $drawdown = 1 - $equity / max($this->valuation->peakEquity($portfolio), 0.00000001);
 
-        if ($dailyLoss >= $profile->max_daily_loss_pct) {
+        if ($this->dailyLossReached($portfolio)) {
             return RiskDecision::block('Perda máxima do dia atingida.');
         }
 
@@ -144,5 +146,29 @@ class RiskGuard
         }
 
         return new RiskDecision(true, $order->withQty($qty), $reasons);
+    }
+
+    /**
+     * Perda máxima do dia desta carteira, em fração do saldo do início do dia: a que o dono escolheu
+     * no card (até MAX_DAILY_LOSS_PCT) ou, sem escolha, a do perfil de risco.
+     */
+    public function dailyLossLimit(Portfolio $portfolio): float
+    {
+        $pct = $portfolio->daily_loss_pct ?? 100 * $portfolio->riskProfile->max_daily_loss_pct;
+
+        return min($pct, self::MAX_DAILY_LOSS_PCT) / 100;
+    }
+
+    /**
+     * Perda desde o saldo do início do dia, em fração (negativa quando a carteira está no lucro).
+     */
+    public function dailyLoss(Portfolio $portfolio): float
+    {
+        return 1 - $this->valuation->equity($portfolio) / max($this->valuation->startOfDayEquity($portfolio), 0.00000001);
+    }
+
+    public function dailyLossReached(Portfolio $portfolio): bool
+    {
+        return $this->dailyLoss($portfolio) >= $this->dailyLossLimit($portfolio);
     }
 }

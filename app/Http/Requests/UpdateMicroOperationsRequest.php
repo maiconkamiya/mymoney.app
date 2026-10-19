@@ -8,6 +8,7 @@ use App\Models\MicroBacktest;
 use App\Models\Portfolio;
 use App\Trading\Live\LiveLimits;
 use App\Trading\Micro\MicroTrader;
+use App\Trading\Risk\RiskGuard;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -42,8 +43,9 @@ class UpdateMicroOperationsRequest extends FormRequest
             'micro_entry_mode' => ['sometimes', Rule::in(['limit', 'market'])],
             'micro_limit_seconds' => ['sometimes', 'integer', 'min:'.(int) config('trading.micro.limit.min_seconds'), 'max:'.(int) config('trading.micro.limit.max_seconds')],
             'micro_net_margin_pct' => ['required', 'numeric', 'min:0.05', 'max:5'],
-            'micro_daily_target' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
-            'micro_daily_loss_limit' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            'micro_daily_target_pct' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+            // Limite da guarda de risco nesta carteira; vazio segue o perfil de risco.
+            'daily_loss_pct' => ['nullable', 'numeric', 'min:0.1', 'max:'.RiskGuard::MAX_DAILY_LOSS_PCT],
         ];
     }
 

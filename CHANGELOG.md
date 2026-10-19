@@ -4,6 +4,16 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.88] - 2026-10-19
+
+### Corrigido
+
+- **A perda do dia do card agora destrava a guarda de risco.** A mensagem "guarda de risco: Perda máxima do dia atingida" vinha de um limite fixo de 2% do saldo do início do dia, que não aparecia na tela e não mudava com o campo "Perda do dia" do card de Micro operações. Por isso aumentar esse campo não liberava as compras. Agora o campo do card é o próprio limite da guarda nessa carteira: ao aumentar, as compras voltam na hora.
+
+### Alterado
+
+- **Meta e perda do dia em % do saldo.** No card de Micro operações, "Meta de lucro do dia" e "Perda máxima do dia" passam a ser porcentagens do saldo da carteira no início do dia, com o valor em USDT de hoje ao lado. A perda vale para todas as compras da carteira (micro e enxame), é no máximo 20% e, vazia, segue o padrão de 2%. Carteiras existentes tiveram a meta convertida pelo capital inicial; a perda só foi aproveitada quando era mais rígida que os 2%, senão a carteira segue com o padrão até você mudar.
+
 ## [0.3.87] - 2026-10-19
 
 ### Corrigido
