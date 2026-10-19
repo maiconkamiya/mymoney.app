@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.93] - 2026-10-19
+
+### Adicionado
+
+- **Nova regra de teste nas micro operações: "Atual + alta + RSI e volume".** É a regra "Atual + alta em 24 h e 4 h" com dois filtros a mais: só compra com o RSI de 1 minuto abaixo de 70 (preço não esticado) e com o volume dos últimos 5 minutos acima da média da meia hora anterior. O card mostra as duas condições junto com as outras. Serve para carteira simulada e para o backtest; na carteira real só pode ser escolhida depois de passar no backtest de 30 dias.
+
 ## [0.3.92] - 2026-10-19
 
 ### Corrigido

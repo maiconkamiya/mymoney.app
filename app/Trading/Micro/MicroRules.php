@@ -2,6 +2,7 @@
 
 namespace App\Trading\Micro;
 
+use App\Agents\Chart\Indicators;
 use App\Enums\MicroRule;
 
 /**
@@ -24,7 +25,7 @@ class MicroRules
             MicroRule::Scalp => (int) config('trading.micro.lookback_minutes'),
             MicroRule::TrendPullback => (int) config('trading.micro.trend.lookback_minutes'),
             // A few spare minutes so a missing candle does not leave the 24 h reference out of the window.
-            MicroRule::ScalpUptrend => max((int) config('trading.micro.uptrend.day_minutes'), (int) config('trading.micro.lookback_minutes')) + 5,
+            MicroRule::ScalpUptrend, MicroRule::ScalpFiltered => max((int) config('trading.micro.uptrend.day_minutes'), (int) config('trading.micro.lookback_minutes')) + 5,
             MicroRule::Breakout, MicroRule::BreakoutPressure => $this->breakout->lookbackMinutes(),
         };
     }
@@ -39,6 +40,7 @@ class MicroRules
             MicroRule::Scalp => $this->scalp->read($candles, $grossMarginPct),
             MicroRule::TrendPullback => $this->trend->read($candles, $roundTripPct ?? $this->costs->roundTripPct()),
             MicroRule::ScalpUptrend => $this->scalpUptrend($candles, $grossMarginPct),
+            MicroRule::ScalpFiltered => $this->scalpFiltered($candles, $grossMarginPct),
             MicroRule::Breakout => $this->breakout->confirmed($candles, $roundTripPct ?? $this->costs->roundTripPct()),
             MicroRule::BreakoutPressure => $this->breakout->pressure($candles, $roundTripPct ?? $this->costs->roundTripPct()),
         };
@@ -103,6 +105,74 @@ class MicroRules
         } else {
             $reasons = $setup->entry ? [] : $setup->reasons;
             $up || $reasons[] = sprintf('Sem alta em %s (%+.2f%% em %d h, %+.2f%% em %d h).', $hours, $dayChange, intdiv($day, 60), $recentChange, intdiv($recent, 60));
+        }
+
+        return new MicroSetup(
+            price: $setup->price,
+            atrPct: $setup->atrPct,
+            uptrend: $setup->uptrend,
+            support: $setup->support,
+            resistance: $setup->resistance,
+            distanceToSupportPct: $setup->distanceToSupportPct,
+            roomToResistancePct: $setup->roomToResistancePct,
+            entry: $entry,
+            reachPct: $setup->reachPct,
+            reasons: $reasons,
+            checks: $checks,
+        );
+    }
+
+    /**
+     * The 24 h and 4 h rule plus two filters (#204): the RSI of the last 1-minute
+     * closes under `rsi_max`, so the buy does not chase a stretched move, and the
+     * average volume of the last minutes above `volume_ratio` times the one of
+     * the minutes before them. Same exits as the current rule.
+     *
+     * @param  list<array{high: float, low: float, close: float, volume?: float}>  $candles  oldest first
+     */
+    private function scalpFiltered(array $candles, float $grossMarginPct): ?MicroSetup
+    {
+        $setup = $this->scalpUptrend($candles, $grossMarginPct);
+        $config = config('trading.micro.filtered');
+        $recentMinutes = (int) $config['volume_recent_minutes'];
+        $baseMinutes = (int) $config['volume_base_minutes'];
+
+        if ($setup === null || count($candles) < $recentMinutes + $baseMinutes) {
+            return null;
+        }
+
+        $rsiMax = (float) $config['rsi_max'];
+        $window = array_slice($candles, -(int) config('trading.micro.lookback_minutes'));
+        $rsi = Indicators::rsi(array_map(fn (array $c) => (float) $c['close'], $window), (int) $config['rsi_period']) ?? 50.0;
+        $calm = $rsi < $rsiMax;
+
+        $volume = fn (array $c) => (float) ($c['volume'] ?? 0);
+        $recent = array_map($volume, array_slice($candles, -$recentMinutes));
+        $base = array_map($volume, array_slice($candles, -($recentMinutes + $baseMinutes), $baseMinutes));
+        $baseAverage = array_sum($base) / count($base);
+        $ratio = $baseAverage > 0 ? array_sum($recent) / count($recent) / $baseAverage : 0.0;
+        $loud = $ratio > (float) $config['volume_ratio'];
+
+        $checks = [...$setup->checks, [
+            'key' => 'rsi',
+            'label' => 'RSI fora da sobrecompra',
+            'ok' => $calm,
+            'detail' => sprintf('RSI %d de 1 minuto em %.0f (máximo %.0f).', (int) $config['rsi_period'], $rsi, $rsiMax),
+        ], [
+            'key' => 'volume',
+            'label' => 'Volume acima da média',
+            'ok' => $loud,
+            'detail' => sprintf('Volume dos últimos %d minutos %.2f vezes a média dos %d antes (precisa passar de %.2f).', $recentMinutes, $ratio, $baseMinutes, (float) $config['volume_ratio']),
+        ]];
+
+        $entry = $setup->entry && $calm && $loud;
+
+        if ($entry) {
+            $reasons = [...$setup->reasons, sprintf('RSI em %.0f e volume %.2f vezes a média.', $rsi, $ratio)];
+        } else {
+            $reasons = $setup->entry ? [] : $setup->reasons;
+            $calm || $reasons[] = sprintf('RSI em %.0f: preço esticado (máximo %.0f).', $rsi, $rsiMax);
+            $loud || $reasons[] = sprintf('Volume fraco: %.2f vezes a média dos %d minutos antes (precisa passar de %.2f).', $ratio, $baseMinutes, (float) $config['volume_ratio']);
         }
 
         return new MicroSetup(

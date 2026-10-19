@@ -22,6 +22,9 @@ enum MicroRule: string
     /** A compressed box with rising lows pressing a tested high: buys before the break (#181). */
     case BreakoutPressure = 'breakout_pressure';
 
+    /** The 24 h and 4 h rule plus two filters: RSI not overbought and the last minutes' volume above the average (#204). */
+    case ScalpFiltered = 'scalp_filtered';
+
     public function label(): string
     {
         return match ($this) {
@@ -30,6 +33,7 @@ enum MicroRule: string
             self::ScalpUptrend => 'Atual + alta em 24 h e 4 h',
             self::Breakout => 'Rompimento confirmado',
             self::BreakoutPressure => 'Pressão antes do rompimento',
+            self::ScalpFiltered => 'Atual + alta + RSI e volume',
         };
     }
 }

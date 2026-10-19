@@ -261,6 +261,18 @@ return [
             'recent_minutes' => 240,
         ],
 
+        // Regra "Atual + alta + RSI e volume" (#204): a regra "Atual + alta em 24 h e 4 h" e, além dela,
+        // o RSI de `rsi_period` velas de 1 min abaixo de `rsi_max` (não compra esticado) e o volume médio
+        // das últimas `volume_recent_minutes` velas acima de `volume_ratio` vezes o das
+        // `volume_base_minutes` antes delas.
+        'filtered' => [
+            'rsi_period' => 14,
+            'rsi_max' => 70.0,
+            'volume_recent_minutes' => 5,
+            'volume_base_minutes' => 30,
+            'volume_ratio' => 1.0,
+        ],
+
         // Regras de rompimento (#181): caixa das últimas `box_minutes` velas antes da atual, comprimida
         // quando a faixa média por minuto dela é no máximo `max_squeeze` vezes a das `context_minutes`
         // antes. "Rompimento confirmado": fecha acima da caixa com `volume_ratio` vezes o volume médio.
