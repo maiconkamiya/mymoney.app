@@ -38,6 +38,10 @@ return [
         'crypto' => [
             'fee_rate' => (float) env('TRADING_CRYPTO_FEE_RATE', 0.001),
             'slippage_bps' => (float) env('TRADING_CRYPTO_SLIPPAGE_BPS', 5),
+            // Desconto da Binance quando a taxa é paga em BNB (25%: 0,1% vira 0,075%). Ligar é na Binance.
+            'bnb_discount' => (float) env('TRADING_BNB_DISCOUNT', 0.25),
+            // A carteira avisa quando o BNB da conta paga menos ciclos que isso: sem BNB a Binance volta a cobrar na moeda.
+            'bnb_min_cycles' => (int) env('TRADING_BNB_MIN_CYCLES', 20),
         ],
         'b3' => [
             // Emolumentos (0,005%) + liquidação (0,0275%); corretagem is configured separately.

@@ -12,6 +12,7 @@ use App\Models\MicroBacktest;
 use App\Models\MicroCycle;
 use App\Models\Portfolio;
 use App\Models\Position;
+use App\Trading\Live\BnbFees;
 use App\Trading\OrderExecutor;
 use App\Trading\PortfolioValuation;
 use App\Trading\Risk\RiskGuard;
@@ -31,6 +32,7 @@ class MicroOverview
         private readonly MicroTargetOdds $odds,
         private readonly RiskGuard $risk,
         private readonly PortfolioValuation $valuation,
+        private readonly BnbFees $bnb,
     ) {}
 
     /**
@@ -80,6 +82,8 @@ class MicroOverview
             'net_margin_pct' => $portfolio->micro_net_margin_pct,
             'gross_margin_pct' => $gross,
             'round_trip_cost_pct' => round($this->costs->roundTripPct(), 4),
+            // Carteira real: taxa paga em BNB com desconto e quanto o BNB da conta ainda paga.
+            'bnb_fees' => $this->bnb->for($portfolio),
             'min_order_value' => MicroTrader::minOrderValue($portfolio),
             'daily_target_pct' => $portfolio->micro_daily_target_pct,
             'daily_target_value' => ($target = $this->trader->dailyTargetValue($portfolio)) === null ? null : round($target, 2),

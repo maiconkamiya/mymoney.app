@@ -17,6 +17,7 @@ use App\Trading\Live\LiveLimits;
 use App\Trading\Live\LiveTradingException;
 use App\Trading\Live\UnknownSales;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -262,7 +263,7 @@ class BinanceBroker implements Broker
         [$symbol, $orderId] = $this->split($externalId);
         $trades = $this->trades($this->readClient(), $symbol, $orderId);
 
-        return $trades === [] ? null : $this->fees($symbol, $trades, null, 0.0);
+        return $trades === [] ? null : $this->fees($symbol, $trades, null, 0.0)[0];
     }
 
     public function getBalances(): array
@@ -325,13 +326,15 @@ class BinanceBroker implements Broker
 
         $executed = (float) ($response['executedQty'] ?? 0);
         $avg = $executed > 0 ? (float) $response['cummulativeQuoteQty'] / $executed : null;
+        [$fees, $feeAsset] = $this->fees($symbol, $response['fills'] ?? [], $avg, $executed);
 
         return new OrderResult(
             status: $status,
             externalId: $symbol.':'.$response['orderId'],
             filledQty: $executed,
             avgPrice: $avg,
-            fees: $this->fees($symbol, $response['fills'] ?? [], $avg, $executed),
+            fees: $fees,
+            feeAsset: $feeAsset,
             filledAt: $executed > 0 && isset($response['transactTime']) ? Carbon::createFromTimestampMs($response['transactTime']) : ($executed > 0 ? now() : null),
             rejectReason: $status === OrderStatus::Rejected ? 'Recusada pela Binance.' : null,
         );
@@ -341,24 +344,29 @@ class BinanceBroker implements Broker
      * Commissions in the quote asset count as is, in the base asset at the fill
      * price and in another asset (such as BNB) at its USDT price. A fill whose
      * commission cannot be priced, or an executed order with no fills at all,
-     * is charged the configured rate: never zero.
+     * is charged the configured rate: never zero. A commission in BNB that
+     * cannot be priced gets the rate with the BNB discount.
+     * Also returns the asset that paid the commission (null without fills).
      *
      * @param  list<array<string, mixed>>  $fills
+     * @return array{0: float, 1: ?string}
      */
-    private function fees(string $symbol, array $fills, ?float $avg, float $executed): float
+    private function fees(string $symbol, array $fills, ?float $avg, float $executed): array
     {
         $rate = (float) config('trading.costs.crypto.fee_rate');
 
         if ($fills === []) {
-            return round($executed * ($avg ?? 0) * $rate, 8);
+            return [round($executed * ($avg ?? 0) * $rate, 8), null];
         }
 
         $total = 0.0;
+        $paid = [];
 
         foreach ($fills as $fill) {
             $asset = (string) $fill['commissionAsset'];
             $commission = (float) $fill['commission'];
             $price = (float) $fill['price'];
+            $paid[$asset] = ($paid[$asset] ?? 0) + 1;
 
             if (str_starts_with($symbol, $asset)) {
                 $total += $commission * ($avg ?? $price);
@@ -366,18 +374,28 @@ class BinanceBroker implements Broker
                 $total += $commission;
             } else {
                 $usdt = $commission > 0 ? $this->usdtPrice($asset) : 0.0;
-                $total += $usdt === null ? (float) $fill['qty'] * $price * $rate : $commission * $usdt;
+                $fallback = $asset === 'BNB' ? $rate * (1 - (float) config('trading.costs.crypto.bnb_discount')) : $rate;
+                $total += $usdt === null ? (float) $fill['qty'] * $price * $fallback : $commission * $usdt;
             }
         }
 
-        return round($total, 8);
+        arsort($paid);
+
+        return [round($total, 8), (string) array_key_first($paid)];
     }
 
     /**
      * Last USDT price of a coin, from the public endpoint; null when unknown.
+     * Kept for a minute: every fill of every order paid in BNB asks for it.
      */
     private function usdtPrice(string $asset): ?float
     {
+        $cached = Cache::get('binance:usdt-price:'.$asset);
+
+        if (is_float($cached)) {
+            return $cached;
+        }
+
         try {
             $price = Http::baseUrl(config('trading.binance.base_url'))->timeout(10)
                 ->get('/api/v3/ticker/price', ['symbol' => $asset.'USDT'])->throw()->json('price');
@@ -385,7 +403,13 @@ class BinanceBroker implements Broker
             return null;
         }
 
-        return is_numeric($price) && (float) $price > 0 ? (float) $price : null;
+        if (! is_numeric($price) || (float) $price <= 0) {
+            return null;
+        }
+
+        Cache::put('binance:usdt-price:'.$asset, (float) $price, now()->addMinute());
+
+        return (float) $price;
     }
 
     /**

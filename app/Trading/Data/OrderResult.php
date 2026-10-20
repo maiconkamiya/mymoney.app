@@ -15,6 +15,8 @@ final readonly class OrderResult
         public float $fees = 0,
         public ?CarbonInterface $filledAt = null,
         public ?string $rejectReason = null,
+        // Moeda em que a corretora cobrou a taxa (USDT, a moeda comprada ou BNB com o desconto).
+        public ?string $feeAsset = null,
     ) {}
 
     public static function rejected(string $reason): self

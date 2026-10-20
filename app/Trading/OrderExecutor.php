@@ -481,6 +481,7 @@ class OrderExecutor
                 'status' => $result->status,
                 'price' => $result->avgPrice ?? $fresh->price,
                 'fees' => $result->fees,
+                'fee_asset' => $result->feeAsset,
                 'reject_reason' => $result->rejectReason,
                 'filled_at' => $result->filledAt,
             ]);
@@ -632,6 +633,7 @@ class OrderExecutor
                 'status' => $result->status,
                 'price' => $result->avgPrice ?? $order->price,
                 'fees' => $result->fees,
+                'fee_asset' => $result->feeAsset,
                 'reject_reason' => $result->rejectReason,
                 'filled_at' => $result->filledAt,
             ]);
