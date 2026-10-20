@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $reason
  * @property float $fees
  * @property string|null $reject_reason
+ * @property string|null $oco_group the OCO both legs (target and stop) belong to
  * @property CarbonImmutable|null $filled_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
@@ -38,7 +39,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Position|null $position
  * @property-read Collection<int, Fill> $fills
  */
-#[Fillable(['portfolio_id', 'signal_id', 'asset_id', 'position_id', 'broker', 'external_id', 'side', 'type', 'qty', 'price', 'stop_price', 'status', 'reason', 'fees', 'reject_reason', 'filled_at'])]
+#[Fillable(['portfolio_id', 'signal_id', 'asset_id', 'position_id', 'broker', 'external_id', 'side', 'type', 'qty', 'price', 'stop_price', 'status', 'reason', 'fees', 'reject_reason', 'filled_at', 'oco_group'])]
 class Order extends Model
 {
     /**
@@ -86,5 +87,14 @@ class Order extends Model
     public function fills(): HasMany
     {
         return $this->hasMany(Fill::class);
+    }
+
+    /**
+     * The stop leg of an OCO: a sale that waits for the price to fall to its
+     * stop and then rests at its limit (`price`) a little below it.
+     */
+    public function isOcoStop(): bool
+    {
+        return $this->oco_group !== null && $this->stop_price !== null && $this->side === OrderSide::Sell;
     }
 }

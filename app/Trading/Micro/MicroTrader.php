@@ -35,7 +35,9 @@ use Illuminate\Support\Facades\Cache;
  *
  * Right after the buy a limit sell rests at the target on the exchange; the
  * regular exits job books its fill, and the stop or the time limit cancel it
- * before selling at market. Every order goes through the executor, so the
+ * before selling at market. With "Stop na corretora" the exit is an OCO: the
+ * stop rests at the exchange too, and the app sells at market only when the
+ * price falls past the stop leg's limit. Every order goes through the executor, so the
  * risk guard, the live caps and "Parar tudo" apply as for any other order.
  */
 class MicroTrader
@@ -478,7 +480,7 @@ class MicroTrader
             $cycle = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->first();
             $price = $this->plannedSellPrice($portfolio, $position, $gross);
 
-            $sell = $this->executor->placeRestingSell($position, $price, 'target', self::ACTOR);
+            $sell = $this->placeExit($portfolio, $position, $cycle, $price);
 
             if (! is_string($sell) && $sell->status !== OrderStatus::Rejected) {
                 Cache::forget($this->sellFailureKey($position));
@@ -1166,7 +1168,7 @@ class MicroTrader
 
         // The sale at the target is registered at once and rests until it executes.
         // Without it the cycle keeps the old exit: the target checked every minute.
-        $sell = $this->executor->placeRestingSell($position->refresh(), $target, 'target', self::ACTOR);
+        $sell = $this->placeExit($portfolio, $position->refresh(), $cycle, $target);
 
         if (is_string($sell) || $sell->status === OrderStatus::Rejected) {
             AuditLog::record(self::ACTOR, 'micro.target_order_failed', $cycle, ['portfolio_id' => $portfolio->id, 'reason' => is_string($sell) ? $sell : $sell->reject_reason]);
@@ -1182,6 +1184,31 @@ class MicroTrader
         }
 
         return true;
+    }
+
+    /**
+     * Register the cycle's exit at the exchange. With "Stop na corretora" it
+     * is an OCO (the target and the stop together); when the OCO does not fit
+     * the pair or the exchange refuses it, the exit falls back to the limit
+     * sale at the target with the stop watched by the app, and the log says why.
+     *
+     * @return Order|string the sale at the target, or why it did not go out
+     */
+    private function placeExit(Portfolio $portfolio, Position $position, ?MicroCycle $cycle, float $target): Order|string
+    {
+        if ($cycle !== null && $portfolio->micro_exchange_stop) {
+            $oco = $this->executor->placeRestingOco($position, $target, (float) ($position->stop_price ?? $cycle->stop_price), self::ACTOR);
+
+            if (is_array($oco)) {
+                AuditLog::record(self::ACTOR, 'micro.oco_placed', $cycle, ['portfolio_id' => $portfolio->id, 'target_order_id' => $oco['target']->id, 'stop_order_id' => $oco['stop']->id, 'group' => $oco['target']->oco_group, 'target' => $oco['target']->price, 'stop' => $oco['stop']->stop_price, 'stop_limit' => $oco['stop']->price, 'qty' => $oco['target']->qty]);
+
+                return $oco['target'];
+            }
+
+            AuditLog::record(self::ACTOR, 'micro.oco_failed', $cycle, ['portfolio_id' => $portfolio->id, 'reason' => $oco]);
+        }
+
+        return $this->executor->placeRestingSell($position, $target, 'target', self::ACTOR);
     }
 
     /**

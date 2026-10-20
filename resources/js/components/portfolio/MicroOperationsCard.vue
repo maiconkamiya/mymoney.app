@@ -527,6 +527,33 @@ const dayTime = (iso: string) =>
                 <InputError :message="errors.micro_limit_seconds" />
             </div>
 
+            <div class="grid gap-2 @sm:col-span-2">
+                <input type="hidden" name="micro_exchange_stop" value="0" />
+                <label class="flex items-center gap-2 text-sm">
+                    <input
+                        type="checkbox"
+                        name="micro_exchange_stop"
+                        value="1"
+                        :checked="micro.exchange_stop"
+                        data-test="micro-exchange-stop"
+                    />
+                    Stop na corretora
+                </label>
+                <p class="text-xs text-muted-foreground">
+                    <template v-if="micro.exchange_stop">
+                        Ligado: depois da compra, alvo e stop vão juntos para a
+                        corretora numa ordem OCO; executado um, o outro é
+                        cancelado. O app só vende a mercado se o preço cair
+                        abaixo do limite do stop.
+                    </template>
+                    <template v-else>
+                        Desligado: a venda no alvo fica na corretora e o app
+                        vende a mercado quando o preço cruza o stop.
+                    </template>
+                </p>
+                <InputError :message="errors.micro_exchange_stop" />
+            </div>
+
             <div
                 class="flex flex-wrap items-center gap-4 @sm:col-span-2 @3xl:col-span-5"
             >
@@ -935,6 +962,14 @@ const dayTime = (iso: string) =>
                             <template v-else-if="cycle.resting_sell_price">
                                 venda registrada a
                                 {{ cycle.resting_sell_price }}
+                                <span
+                                    v-if="cycle.resting_stop"
+                                    class="text-muted-foreground"
+                                    data-test="micro-cycle-oco"
+                                >
+                                    · stop na corretora a
+                                    {{ cycle.resting_stop.stop }}
+                                </span>
                             </template>
                             <template v-else-if="cycle.sell_failure">
                                 <span class="text-down"

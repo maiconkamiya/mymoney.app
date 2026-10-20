@@ -321,6 +321,8 @@ export type MicroCycleRow = {
     /** De onde veio o preço de saída: venda do app, venda feita na Binance fora do app ou última cotação (estimado). */
     exit_source: 'venda' | 'binance' | 'cotacao' | null;
     resting_sell_price: number | null;
+    /** Perna de stop da OCO na corretora: disparo e limite da venda. */
+    resting_stop: { stop: number; limit: number } | null;
     sell_failure: string | null;
     /** Ciclo preso: a venda vale menos que o mínimo da Binance desde essa hora. */
     stuck_since: string | null;
@@ -359,6 +361,8 @@ export type MicroOverview = {
     rules: MicroRuleOption[];
     entry_mode: 'limit' | 'market';
     limit_seconds: number;
+    /** "Stop na corretora": alvo e stop numa OCO na Binance. */
+    exchange_stop: boolean;
     limit_seconds_range: [number, number];
     order_value: number;
     net_margin_pct: number;

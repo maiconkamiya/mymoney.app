@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.96] - 2026-10-20
+
+### Adicionado
+
+- **Stop na corretora nas micro operações.** O card de micro operações ganhou a opção "Stop na corretora", desligada por padrão. Ligada, logo depois da compra o alvo e o stop vão juntos para a Binance numa ordem OCO: quando um dos dois executa, a Binance cancela o outro. O stop sai na própria corretora no momento em que o preço chega nele, sem esperar o app ver o preço e mandar uma venda a mercado, o que reduz a perda a mais nos stops. A venda do stop fica limitada um pouco abaixo dele (0,3%); se o preço despencar além desse limite, o app cancela a OCO e vende a mercado como antes. O tempo limite e o "Liquidar agora" também cancelam as duas pernas antes de vender. Se a Binance recusar a OCO, o ciclo volta ao jeito antigo (venda no alvo na corretora e stop pelo app) e o motivo fica no registro. A lista de ciclos mostra "stop na corretora" com o preço quando o ciclo está assim. Vale também na carteira simulada, com o mesmo comportamento.
+
 ## [0.3.95] - 2026-10-20
 
 ### Corrigido
