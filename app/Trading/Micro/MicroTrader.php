@@ -8,6 +8,7 @@ use App\Enums\OrderType;
 use App\MarketData\BinanceSymbols;
 use App\Models\Asset;
 use App\Models\AuditLog;
+use App\Models\Candle;
 use App\Models\MicroCycle;
 use App\Models\Order;
 use App\Models\Portfolio;
@@ -238,7 +239,7 @@ class MicroTrader
      */
     public function settle(Portfolio $portfolio): void
     {
-        $cycles = $portfolio->microCycles()->where('status', 'open')->with('position')->get();
+        $cycles = $portfolio->microCycles()->where('status', 'open')->with(['position', 'asset'])->get();
 
         foreach ($cycles as $cycle) {
             $position = $cycle->position;
@@ -259,14 +260,24 @@ class MicroTrader
             $sell = (clone $sales)->where('position_id', $cycle->position_id)->first()
                 ?? $sales->whereNull('position_id')->first();
 
-            // Closed with no sale in the app (the coins left the account): no exit price nor result to invent.
-            $exitPrice = $sell?->price;
-            $fees = $cycle->fees + ($sell->fees ?? 0);
+            if ($sell !== null) {
+                $exitPrice = $sell->price;
+                $fees = $cycle->fees + $sell->fees;
+                $source = 'venda';
+            } else {
+                // Closed with no sale in the app (the coins left the account, #208): the price of a sale made
+                // on Binance itself, or else the last price when the account sync saw the coins gone. The
+                // result is an estimate, never a silent zero; the sale fee is the usual rate.
+                [$exitPrice, $source] = $this->outsideExit($portfolio, $cycle, $position);
+                $fees = $cycle->fees + ($exitPrice === null ? 0.0 : $cycle->qty * $exitPrice * (float) config('trading.costs.crypto.fee_rate'));
+            }
+
             $net = $exitPrice === null ? null : $cycle->qty * ($exitPrice - $cycle->entry_price) - $fees;
 
             $cycle->update([
                 'status' => 'closed',
                 'exit_price' => $exitPrice,
+                'exit_source' => $exitPrice === null ? null : $source,
                 'fees' => $fees,
                 'net_pnl' => $net,
                 'exit_reason' => $position->exit_reason ?? 'sold',
@@ -276,9 +287,50 @@ class MicroTrader
             AuditLog::record(self::ACTOR, 'micro.closed', $cycle, [
                 'portfolio_id' => $portfolio->id,
                 'exit_reason' => $cycle->exit_reason,
+                'exit_source' => $cycle->exit_source,
                 'net_pnl' => $net === null ? null : round($net, 8),
             ]);
         }
+    }
+
+    /**
+     * Exit price of a cycle whose coins left the account with no sale in the app:
+     * a filled sale of the pair made on Binance outside the app since the cycle
+     * opened (read by the account sync), or else the last 1 minute close up to
+     * the moment the position closed.
+     *
+     * @return array{0: float|null, 1: string|null} the price and where it came from ("binance" or "cotacao")
+     */
+    private function outsideExit(Portfolio $portfolio, MicroCycle $cycle, Position $position): array
+    {
+        $symbol = $cycle->asset->symbol;
+        $closedAt = $position->closed_at ?? now();
+
+        $sale = collect($portfolio->sync_report['orders'] ?? [])
+            ->filter(fn (array $row) => ($row['symbol'] ?? null) === $symbol
+                && ($row['side'] ?? null) === 'sell'
+                && in_array($row['status'] ?? null, ['filled', 'partially_filled'], true)
+                && ! ($row['from_app'] ?? false)
+                && ($row['avg_price'] ?? null) !== null
+                && isset($row['time'])
+                && Carbon::parse($row['time'])->betweenIncluded($cycle->opened_at, $closedAt))
+            ->sortByDesc('time')
+            ->first();
+
+        if ($sale !== null) {
+            return [(float) $sale['avg_price'], 'binance'];
+        }
+
+        $close = Candle::query()
+            ->where('asset_id', $cycle->asset_id)
+            ->where('timeframe', '1m')
+            ->where('open_at', '<=', $closedAt)
+            ->latest('open_at')
+            ->value('close');
+
+        $price = $close !== null ? (float) $close : $this->prices->quote($cycle->asset)?->price;
+
+        return $price === null ? [null, null] : [$price, 'cotacao'];
     }
 
     /**

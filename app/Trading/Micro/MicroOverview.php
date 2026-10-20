@@ -52,6 +52,9 @@ class MicroOverview
         $roundTrip = $this->costs->roundTripPct();
         $openCycles = $portfolio->microCycles()->whereIn('status', ['open', 'pending'])->count();
         $canTrade = $portfolio->micro_enabled && $this->trader->state($portfolio)['code'] === 'active';
+        $liquidation = $this->liquidation($portfolio);
+        // Posições que agora valem menos que o mínimo de venda da Binance.
+        $stuck = collect($liquidation)->filter(fn (array $row) => $row['below_minimum'] !== null)->pluck('asset_id')->all();
 
         return [
             'margin_warning' => $evaluation['ready']->isNotEmpty() && $gross > $maxMove
@@ -119,7 +122,7 @@ class MicroOverview
                     ->count(),
             ],
             'skipped' => $evaluation['skipped'],
-            'liquidation' => $this->liquidation($portfolio),
+            'liquidation' => $liquidation,
             // Taxa da venda a mercado, para a confirmação do "Liquidar agora" estimar o resultado.
             'sell_fee_rate' => (float) config('trading.costs.crypto.fee_rate'),
             'liquidation_blocked' => $portfolio->isLive() && ! $portfolio->autoExecutesLive()
@@ -152,6 +155,11 @@ class MicroOverview
                     ? $this->executor->restingSells($cycle->position)->first()?->price
                     : null,
                 'sell_failure' => $cycle->status === 'open' && $cycle->position !== null ? $this->trader->sellFailure($cycle->position)['reason'] ?? null : null,
+                // Ciclo preso: a venda vale menos que o mínimo da Binance desde essa hora (#208).
+                'stuck_since' => $cycle->status === 'open' && $cycle->position !== null && in_array($cycle->asset_id, $stuck, true)
+                    ? ($this->executor->stuckSince($cycle->position) ?? now())->toIso8601String()
+                    : null,
+                'exit_source' => $cycle->exit_source,
                 'fees' => round($cycle->fees, 6),
                 'net_pnl' => $cycle->net_pnl === null ? null : round($cycle->net_pnl, 6),
                 'exit_reason' => $cycle->exit_reason,
