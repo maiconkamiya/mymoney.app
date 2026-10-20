@@ -20,6 +20,7 @@ use App\Trading\Live\LiveAlerts;
 use App\Trading\Live\LiveTradingException;
 use App\Trading\Live\UnknownSales;
 use App\Trading\Risk\RiskGuard;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -200,20 +201,25 @@ class OrderExecutor
 
     /**
      * The exits job retries every minute; log the same block once an hour, not once a minute.
+     * A position under the pair's minimum stays stuck until the price comes back, whatever
+     * exit tries it (stop, time limit): that block is logged once for the position (#208).
      *
      * @param  array<string, string>  $payload  with a `code`, the same reason and code count as the same block
      */
     private function logCloseBlocked(Position $position, string $actor, array $payload): void
     {
-        $same = fn (array $logged): bool => isset($payload['code'])
-            ? ($logged['reason'] ?? null) === $payload['reason'] && ($logged['code'] ?? null) === $payload['code']
-            : $logged === $payload;
+        $code = $payload['code'] ?? null;
+        $same = fn (array $logged): bool => match (true) {
+            $code === 'below_minimum' => ($logged['code'] ?? null) === $code,
+            $code !== null => ($logged['reason'] ?? null) === $payload['reason'] && ($logged['code'] ?? null) === $code,
+            default => $logged === $payload,
+        };
 
         $repeated = AuditLog::query()
             ->where('action', 'position.close_blocked')
             ->where('subject_type', $position->getMorphClass())
             ->where('subject_id', $position->getKey())
-            ->where('created_at', '>=', now()->subHour())
+            ->when($code !== 'below_minimum', fn ($query) => $query->where('created_at', '>=', now()->subHour()))
             ->get()
             ->contains(fn (AuditLog $log) => is_array($log->payload) && $same($log->payload));
 
@@ -573,6 +579,21 @@ class OrderExecutor
         return $qty * $price < $minimum
             ? sprintf('A venda de %s %s a %s vale %.2f USDT, abaixo do mínimo de %.2f USDT do par: a corretora não aceita.', $qty, $asset->symbol, $price, $qty * $price, $minimum)
             : null;
+    }
+
+    /**
+     * When the exit of the position was first refused for being under the pair's minimum.
+     */
+    public function stuckSince(Position $position): ?CarbonInterface
+    {
+        return AuditLog::query()
+            ->where('action', 'position.close_blocked')
+            ->where('subject_type', $position->getMorphClass())
+            ->where('subject_id', $position->getKey())
+            ->oldest('id')
+            ->get()
+            ->first(fn (AuditLog $log) => ($log->payload['code'] ?? null) === 'below_minimum')
+            ?->created_at;
     }
 
     /**

@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float $target_price
  * @property float $stop_price
  * @property float|null $exit_price
+ * @property string|null $exit_source "venda" (the app's sale), "binance" (a sale made outside the app) or "cotacao" (estimated from the last price)
  * @property float $fees
  * @property float|null $net_pnl
  * @property float $gross_margin_pct
@@ -39,7 +40,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Position|null $position
  * @property-read Order|null $buyOrder
  */
-#[Fillable(['portfolio_id', 'asset_id', 'position_id', 'status', 'qty', 'entry_price', 'target_price', 'stop_price', 'exit_price', 'fees', 'net_pnl', 'gross_margin_pct', 'rule', 'max_hold_minutes', 'exit_reason', 'analysis', 'suggested_price', 'buy_order_id', 'expires_at', 'opened_at', 'closed_at'])]
+#[Fillable(['portfolio_id', 'asset_id', 'position_id', 'status', 'qty', 'entry_price', 'target_price', 'stop_price', 'exit_price', 'exit_source', 'fees', 'net_pnl', 'gross_margin_pct', 'rule', 'max_hold_minutes', 'exit_reason', 'analysis', 'suggested_price', 'buy_order_id', 'expires_at', 'opened_at', 'closed_at'])]
 class MicroCycle extends Model
 {
     /**

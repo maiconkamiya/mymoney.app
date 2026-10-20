@@ -535,6 +535,55 @@ class MicroOperationsTest extends TestCase
         $this->assertEqualsWithDelta($own->price, $second->exit_price, 1e-8);
     }
 
+    public function test_a_cycle_whose_coins_left_the_account_books_the_last_price_as_an_estimated_exit()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+        $cycle = MicroCycle::sole();
+
+        // The coins left the account with no sale in the app, 15% under the entry (the QKC of #208).
+        $this->advanceTo($cycle->entry_price * 0.85);
+        $cycle->position->update(['closed_at' => now(), 'exit_reason' => 'conta']);
+        app(MicroTrader::class)->settle($portfolio);
+
+        $cycle->refresh();
+        $this->assertSame('closed', $cycle->status);
+        $this->assertSame('cotacao', $cycle->exit_source);
+        $this->assertEqualsWithDelta($cycle->entry_price * 0.85, $cycle->exit_price, 1e-6);
+        $buyFee = Order::where('side', OrderSide::Buy)->sole()->fees;
+        $saleFee = $cycle->qty * $cycle->exit_price * 0.001;
+        $this->assertEqualsWithDelta($buyFee + $saleFee, $cycle->fees, 1e-8);
+        $this->assertEqualsWithDelta($cycle->qty * ($cycle->exit_price - $cycle->entry_price) - $buyFee - $saleFee, $cycle->net_pnl, 1e-8);
+        $this->assertLessThan(-2.9, $cycle->net_pnl);
+        $this->assertEqualsWithDelta($cycle->net_pnl, app(MicroTrader::class)->pnlToday($portfolio), 1e-8);
+        $this->assertSame('cotacao', collect(app(MicroOverview::class)->for($portfolio)['cycles'])->firstWhere('id', $cycle->id)['exit_source']);
+    }
+
+    public function test_a_cycle_sold_on_binance_outside_the_app_books_that_sale()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro();
+        app(MicroTrader::class)->run($portfolio);
+        $cycle = MicroCycle::sole();
+
+        // The owner sold it on Binance; the account sync read that order and closed the position.
+        $portfolio->update(['sync_report' => ['orders' => [
+            ['id' => 'DOGEUSDT:9', 'symbol' => 'DOGEUSDT', 'side' => 'sell', 'type' => 'market', 'status' => 'filled', 'price' => null, 'avg_price' => 97.5, 'qty' => $cycle->qty, 'executed_qty' => $cycle->qty, 'value' => 97.5 * $cycle->qty, 'time' => now()->toIso8601String(), 'app_order_id' => null, 'from_app' => false],
+            // Another pair and an older sale do not count.
+            ['id' => 'BTCUSDT:3', 'symbol' => 'BTCUSDT', 'side' => 'sell', 'type' => 'market', 'status' => 'filled', 'price' => null, 'avg_price' => 50000, 'qty' => 1, 'executed_qty' => 1, 'value' => 50000, 'time' => now()->toIso8601String(), 'app_order_id' => null, 'from_app' => false],
+            ['id' => 'DOGEUSDT:1', 'symbol' => 'DOGEUSDT', 'side' => 'sell', 'type' => 'market', 'status' => 'filled', 'price' => null, 'avg_price' => 120, 'qty' => 1, 'executed_qty' => 1, 'value' => 120, 'time' => now()->subDay()->toIso8601String(), 'app_order_id' => null, 'from_app' => false],
+        ]]]);
+        $cycle->position->update(['closed_at' => now(), 'exit_reason' => 'conta']);
+        app(MicroTrader::class)->settle($portfolio->fresh());
+
+        $cycle->refresh();
+        $this->assertSame('binance', $cycle->exit_source);
+        $this->assertEqualsWithDelta(97.5, $cycle->exit_price, 1e-8);
+        $this->assertNotNull($cycle->net_pnl);
+        $this->assertSame('binance', AuditLog::where('action', 'micro.closed')->sole()->payload['exit_source']);
+    }
+
     /**
      * A real portfolio with micro operations on, and a fake Binance whose
      * resting sell answers `$sellState` when queried.
@@ -1029,7 +1078,7 @@ class MicroOperationsTest extends TestCase
         $this->assertSame(38.0, $decision->order->qty);
     }
 
-    public function test_a_cycle_whose_coins_left_the_account_closes_without_a_made_up_result()
+    public function test_a_cycle_whose_coins_left_the_account_with_no_price_at_all_closes_without_a_made_up_result()
     {
         $this->candles($this->asset);
         $portfolio = $this->micro();
@@ -1037,6 +1086,8 @@ class MicroOperationsTest extends TestCase
         $cycle = MicroCycle::sole();
         Order::where('side', OrderSide::Sell)->update(['status' => OrderStatus::Cancelled]);
         $cycle->position->update(['closed_at' => now(), 'exit_reason' => 'conta']);
+        // No sale on Binance and no price of the pair: nothing to estimate the exit from.
+        Candle::query()->delete();
 
         app(MicroTrader::class)->settle($portfolio);
 
@@ -1044,6 +1095,7 @@ class MicroOperationsTest extends TestCase
         $this->assertSame('closed', $cycle->status);
         $this->assertSame('conta', $cycle->exit_reason);
         $this->assertNull($cycle->exit_price);
+        $this->assertNull($cycle->exit_source);
         $this->assertNull($cycle->net_pnl);
     }
 
@@ -1358,7 +1410,7 @@ class MicroOperationsTest extends TestCase
         $this->assertStringContainsString('aporte não cobre o stop', Artisan::output());
     }
 
-    public function test_a_position_stuck_under_the_minimum_is_flagged_and_logged_once_an_hour_and_other_users_get_403()
+    public function test_a_position_stuck_under_the_minimum_is_flagged_and_logged_once_and_other_users_get_403()
     {
         $this->candles($this->asset);
         $portfolio = $this->liveFiveUsdt(1.0);
@@ -1377,8 +1429,19 @@ class MicroOperationsTest extends TestCase
         // The limit sale at the target is not cancelled: it is the way out.
         $this->assertSame(OrderStatus::Pending, Order::where('type', OrderType::Limit)->sole()->status);
 
-        $row = collect(app(MicroOverview::class)->for($portfolio)['liquidation'])->firstWhere('symbol', 'DOGEUSDT');
+        // Hours later, through the stop and the time limit, it is still the one log (QKC logged 47 times in 40 h, #208).
+        $since = AuditLog::where('action', 'position.close_blocked')->sole()->created_at;
+        $this->travel(3)->hours();
+        $this->advanceTo($cycle->entry_price * 0.963);
+        app(PositionExits::class)->checkStopsAndTargets();
+        app(MicroTrader::class)->run($portfolio);
+        $this->assertSame(1, AuditLog::where('action', 'position.close_blocked')->count());
+        $this->assertSame(0, Order::where('side', OrderSide::Sell)->where('type', OrderType::Market)->count());
+
+        $overview = app(MicroOverview::class)->for($portfolio);
+        $row = collect($overview['liquidation'])->firstWhere('symbol', 'DOGEUSDT');
         $this->assertStringContainsString('Abaixo do mínimo da Binance', (string) $row['below_minimum']);
+        $this->assertSame($since->toIso8601String(), collect($overview['cycles'])->firstWhere('id', $cycle->id)['stuck_since']);
 
         $this->actingAs(User::factory()->create())->get(route('portfolios.show', $portfolio))->assertForbidden();
         $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))->assertInertia(fn (Assert $page) => $page

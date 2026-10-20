@@ -318,8 +318,12 @@ export type MicroCycleRow = {
     target_price: number;
     stop_price: number;
     exit_price: number | null;
+    /** De onde veio o preço de saída: venda do app, venda feita na Binance fora do app ou última cotação (estimado). */
+    exit_source: 'venda' | 'binance' | 'cotacao' | null;
     resting_sell_price: number | null;
     sell_failure: string | null;
+    /** Ciclo preso: a venda vale menos que o mínimo da Binance desde essa hora. */
+    stuck_since: string | null;
     fees: number;
     net_pnl: number | null;
     exit_reason: string | null;
