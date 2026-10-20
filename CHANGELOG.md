@@ -4,6 +4,13 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.95] - 2026-10-20
+
+### Corrigido
+
+- **Ciclo de micro que sai da conta sem venda pelo app agora mostra o resultado.** Quando a moeda some do saldo da Binance sem uma venda feita pelo app (por exemplo, vendida ou convertida direto na Binance), o ciclo deixava o preço de saída vazio e o resultado aparecia como zero. Agora ele usa o preço da venda feita na Binance, quando ela aparece na sincronização, ou a última cotação do par, com o aviso "estimado pela cotação" no histórico. O ciclo de QKC da carteira real que ficou preso de 18 a 20/10 passa a mostrar a perda, que antes aparecia como zero.
+- **Ciclo preso abaixo do mínimo de venda fica visível no histórico.** Quando a venda vale menos que o mínimo de 5 USDT da Binance, o ciclo aberto mostra "preso abaixo do mínimo de venda desde" com dia e hora, e o registro de auditoria guarda o bloqueio uma vez só, em vez de um por hora.
+
 ## [0.3.94] - 2026-10-19
 
 ### Adicionado

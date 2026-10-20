@@ -206,6 +206,13 @@ const time = (iso: string, seconds = false) =>
         minute: '2-digit',
         ...(seconds ? { second: '2-digit' } : {}),
     });
+const dayTime = (iso: string) =>
+    new Date(iso).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 </script>
 
 <template>
@@ -892,10 +899,38 @@ const time = (iso: string, seconds = false) =>
                             <template v-else-if="cycle.exit_price">
                                 {{ cycle.exit_price }} ·
                                 {{ time(cycle.closed_at!) }}
+                                <span
+                                    v-if="
+                                        cycle.exit_source === 'cotacao' ||
+                                        cycle.exit_source === 'binance'
+                                    "
+                                    class="block text-xs text-muted-foreground"
+                                    :data-test="`micro-cycle-${cycle.id}-exit-source`"
+                                >
+                                    {{
+                                        cycle.exit_source === 'cotacao'
+                                            ? 'estimado pela cotação: a moeda saiu da conta sem venda no app'
+                                            : 'vendido na Binance fora do app'
+                                    }}
+                                </span>
                             </template>
                             <template v-else-if="cycle.status === 'closed'">
                                 sem venda no app ·
                                 {{ time(cycle.closed_at!) }}
+                            </template>
+                            <template v-else-if="cycle.stuck_since">
+                                <span
+                                    class="text-down"
+                                    :data-test="`micro-cycle-${cycle.id}-stuck`"
+                                    >preso abaixo do mínimo de venda desde
+                                    {{ dayTime(cycle.stuck_since) }}</span
+                                >
+                                <span
+                                    class="block text-xs text-muted-foreground"
+                                    >o app não consegue vender; sai pelo alvo ou
+                                    pela conversão de saldo pequeno na
+                                    Binance</span
+                                >
                             </template>
                             <template v-else-if="cycle.resting_sell_price">
                                 venda registrada a
