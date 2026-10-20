@@ -41,6 +41,8 @@ class PortfolioCharts
             ->where('type', OrderType::Limit)
             ->where('status', OrderStatus::Pending)
             ->whereNotNull('price')
+            // The target, not the stop leg of an OCO.
+            ->whereNull('stop_price')
             ->latest('id')
             ->get()
             ->unique('asset_id')

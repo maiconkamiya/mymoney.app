@@ -43,6 +43,8 @@ class LiveLimits
             // A limit cancelled after executing in part (micro buy at the end of its validity) spent money too.
             ->where(fn ($query) => $query->whereIn('status', [OrderStatus::Pending, OrderStatus::Filled, OrderStatus::PartiallyFilled])
                 ->orWhere(fn ($cancelled) => $cancelled->where('status', OrderStatus::Cancelled)->whereNotNull('filled_at')))
+            // The stop leg of a resting OCO sells the same coins as its target leg: counted once.
+            ->whereNot(fn ($query) => $query->where('status', OrderStatus::Pending)->whereNotNull('oco_group')->whereNotNull('stop_price'))
             ->where('created_at', '>=', now()->startOfDay())
             ->selectRaw('COALESCE(SUM(qty * COALESCE(price, 0)), 0) as spent')
             ->value('spent');

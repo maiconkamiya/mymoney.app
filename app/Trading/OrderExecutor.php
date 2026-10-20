@@ -12,7 +12,9 @@ use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Models\Signal;
+use App\Trading\Contracts\PlacesOco;
 use App\Trading\Contracts\PriceFeed;
+use App\Trading\Data\OcoResult;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
 use App\Trading\Live\BinanceAccountSync;
@@ -266,6 +268,117 @@ class OrderExecutor
     }
 
     /**
+     * Leave a sell OCO of the whole position at the exchange (micro operations
+     * with "Stop na corretora"): a limit at the target and a stop-limit that
+     * triggers at `$stop` and rests a little below it, so the exchange sells
+     * at the stop with no wait for the app. Both legs pass the risk guard as
+     * one sale and are booked as two resting orders of the same group.
+     *
+     * @return array{target: Order, stop: Order}|string the two legs, or why the OCO did not go out
+     */
+    public function placeRestingOco(Position $position, float $target, float $stop, string $actor): array|string
+    {
+        $portfolio = $position->portfolio;
+        $asset = $position->asset;
+        $broker = $this->brokers->for($portfolio);
+
+        if (! $broker instanceof PlacesOco) {
+            return 'A corretora da carteira não aceita ordem OCO.';
+        }
+
+        $tick = (float) $asset->tick_size;
+        $round = fn (float $price, callable $how): float => $tick > 0 ? round($how(round($price / $tick, 8)) * $tick, 8) : $price;
+        $upper = $round($target, 'ceil');
+        $trigger = $round($stop, 'round');
+        // Under the trigger by the configured gap: the sale still executes when the price falls fast.
+        $limit = $round($trigger * (1 - (float) config('trading.micro.oco.limit_gap_pct') / 100), 'floor');
+        $qty = $this->sellableQty($position);
+
+        if ($qty <= 0 || $limit <= 0) {
+            return 'Quantidade vendável zerada pelo passo do par.';
+        }
+
+        // Each leg is an order of its own at the exchange: the stop's, at its limit, must reach the minimum too.
+        $minimum = $portfolio->isLive() ? (float) $asset->min_notional : 0.0;
+
+        if ($qty * $limit < $minimum) {
+            return sprintf('A perna de stop da OCO (%s a %s) vale %.2f USDT, abaixo do mínimo de %.2f USDT do par.', $qty, $limit, $qty * $limit, $minimum);
+        }
+
+        $stamp = now()->format('dHis');
+        $sale = new OrderRequest(asset: $asset, side: OrderSide::Sell, qty: $qty, type: OrderType::Limit, limitPrice: $upper, clientId: 'position-'.$position->id.'-oco-t-'.$stamp, positionId: $position->id);
+
+        if ($portfolio->isLive()) {
+            $portfolio->refresh();
+        }
+
+        $decision = $this->risk->check($portfolio, $sale, true);
+
+        if (! $decision->allowed) {
+            AuditLog::record($actor, 'order.blocked', null, ['reasons' => $decision->reasons]);
+
+            return 'Guarda de risco: '.$decision->summary();
+        }
+
+        $sale = $decision->order;
+        $stopSale = new OrderRequest(asset: $asset, side: OrderSide::Sell, qty: $sale->qty, type: OrderType::Limit, limitPrice: $limit, stopPrice: $trigger, clientId: 'position-'.$position->id.'-oco-s-'.$stamp, positionId: $position->id);
+
+        $legs = [];
+
+        foreach (['target' => $sale, 'stop' => $stopSale] as $reason => $request) {
+            $legs[$reason] = Order::create([
+                'portfolio_id' => $portfolio->id,
+                'asset_id' => $asset->id,
+                'position_id' => $position->id,
+                'broker' => $portfolio->broker,
+                'side' => OrderSide::Sell,
+                'type' => OrderType::Limit,
+                'qty' => $request->qty,
+                'price' => $request->limitPrice,
+                'stop_price' => $request->stopPrice,
+                'status' => OrderStatus::Pending,
+                'reason' => $reason,
+            ]);
+        }
+
+        try {
+            $result = $broker->placeOco($sale, $stopSale, 'position-'.$position->id.'-oco-'.$stamp);
+        } catch (LiveTradingException $e) {
+            $result = OcoResult::rejected($e->getMessage());
+        }
+
+        $accepted = $result->accepted() && $result->target->status !== OrderStatus::Rejected && $result->stop->status !== OrderStatus::Rejected;
+
+        foreach (['target' => $result->target, 'stop' => $result->stop] as $reason => $leg) {
+            $legs[$reason]->update([
+                'external_id' => $leg->externalId,
+                'oco_group' => $result->group,
+                'status' => $accepted ? OrderStatus::Pending : OrderStatus::Rejected,
+                'reject_reason' => $accepted ? null : ($leg->rejectReason ?? $result->target->rejectReason ?? 'Recusada pela corretora.'),
+            ]);
+            AuditLog::record($actor, 'order.'.$legs[$reason]->status->value, $legs[$reason], ['decision' => $decision->reasons, 'reason' => $reason, 'oco' => $result->group]);
+        }
+
+        if (! $accepted) {
+            return 'corretora recusou a OCO: '.($result->target->rejectReason ?? $result->stop->rejectReason ?? 'sem motivo informado');
+        }
+
+        if ($portfolio->isLive()) {
+            $this->alerts->order($legs['target']);
+        }
+
+        return $legs;
+    }
+
+    /**
+     * The stop leg of the position's OCO still resting at the exchange, or null.
+     */
+    public function restingOcoStop(Position $position): ?Order
+    {
+        return $this->restingSells($position)->first(fn (Order $order) => $order->isOcoStop());
+    }
+
+    /**
      * Limit sells of the position still resting at the broker (and older ones
      * that never recorded their position).
      *
@@ -448,7 +561,15 @@ class OrderExecutor
         $quote = $this->prices->quote($order->asset);
         $limit = (float) $order->price;
 
-        if ($quote === null || ($order->side === OrderSide::Buy ? $quote->price > $limit : $quote->price < $limit)) {
+        // The stop leg of an OCO triggers at its stop and sells at the price of then, never under its limit:
+        // a price that fell past the limit leaves it resting, as on the exchange, and the app's stop sells at market.
+        if ($order->isOcoStop()) {
+            if ($quote === null || $quote->price > (float) $order->stop_price || $quote->price < $limit) {
+                return null;
+            }
+
+            $limit = $quote->price;
+        } elseif ($quote === null || ($order->side === OrderSide::Buy ? $quote->price > $limit : $quote->price < $limit)) {
             return null;
         }
 
@@ -504,6 +625,12 @@ class OrderExecutor
 
             $request = new OrderRequest(asset: $order->asset, side: $order->side, qty: $result->filledQty, type: OrderType::Limit, limitPrice: $order->price, stopPrice: $order->stop_price);
             $this->book($portfolio, $request, $result, null, $order->reason, $fresh->position_id);
+
+            // One leg of a simulated OCO executed: the other goes, as the exchange expires it on a real one.
+            if ($fresh->oco_group !== null && ! $portfolio->isLive()) {
+                Order::query()->where('oco_group', $fresh->oco_group)->whereKeyNot($fresh->id)->where('status', OrderStatus::Pending)
+                    ->update(['status' => OrderStatus::Cancelled]);
+            }
 
             return true;
         });
@@ -568,7 +695,8 @@ class OrderExecutor
         }
 
         if ($qty === null) {
-            $resting = (float) $this->restingSells($position)->sum('qty');
+            // The two legs of an OCO sell the same coins: they count once.
+            $resting = (float) $this->restingSells($position)->reject(fn (Order $order) => $order->isOcoStop())->sum('qty');
             $qty = $resting > 0 ? min($position->qty, $resting) : $position->qty;
         }
 

@@ -180,7 +180,11 @@ class PositionExits
         }
 
         if ($position->stop_price !== null && $quote->price <= $position->stop_price) {
-            return 'stop';
+            $ocoStop = $this->executor->restingOcoStop($position);
+
+            // The stop rests at the exchange ("Stop na corretora"): it sells there. The app sells at market
+            // only when the price fell past the leg's limit, where that order would not execute.
+            return $ocoStop !== null && $quote->price >= (float) $ocoStop->price ? null : 'stop';
         }
 
         // With a limit sell resting at the target, the exchange sells there; no market order on top.

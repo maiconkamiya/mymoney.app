@@ -10,6 +10,7 @@ use App\Enums\OrderType;
 use App\Models\Asset;
 use App\Models\MicroBacktest;
 use App\Models\MicroCycle;
+use App\Models\Order;
 use App\Models\Portfolio;
 use App\Models\Position;
 use App\Trading\OrderExecutor;
@@ -78,6 +79,7 @@ class MicroOverview
             ], MicroRule::cases()),
             'entry_mode' => $portfolio->micro_entry_mode === 'market' ? 'market' : 'limit',
             'limit_seconds' => $portfolio->micro_limit_seconds,
+            'exchange_stop' => $portfolio->micro_exchange_stop,
             'limit_seconds_range' => [(int) config('trading.micro.limit.min_seconds'), (int) config('trading.micro.limit.max_seconds')],
             'order_value' => $portfolio->micro_order_value,
             'net_margin_pct' => $portfolio->micro_net_margin_pct,
@@ -152,7 +154,11 @@ class MicroOverview
                 'stop_price' => $cycle->stop_price,
                 'exit_price' => $cycle->exit_price,
                 'resting_sell_price' => $cycle->status === 'open' && $cycle->position !== null
-                    ? $this->executor->restingSells($cycle->position)->first()?->price
+                    ? $this->executor->restingSells($cycle->position)->first(fn (Order $order) => ! $order->isOcoStop())?->price
+                    : null,
+                // "Stop na corretora": o stop que está na Binance (disparo) e o limite da venda depois do disparo.
+                'resting_stop' => $cycle->status === 'open' && $cycle->position !== null
+                    ? (fn (?Order $leg) => $leg === null ? null : ['stop' => $leg->stop_price, 'limit' => $leg->price])($this->executor->restingOcoStop($cycle->position))
                     : null,
                 'sell_failure' => $cycle->status === 'open' && $cycle->position !== null ? $this->trader->sellFailure($cycle->position)['reason'] ?? null : null,
                 // Ciclo preso: a venda vale menos que o mínimo da Binance desde essa hora (#208).
@@ -182,7 +188,7 @@ class MicroOverview
         foreach ($portfolio->openPositions()->with('asset')->orderBy('id')->get() as $position) {
             $row = $this->trader->liquidation($portfolio, $position);
             $marked = in_array($position->asset_id, $markedIds, true);
-            $resting = $this->executor->restingSells($position)->first()?->price;
+            $resting = $this->executor->restingSells($position)->first(fn (Order $order) => ! $order->isOcoStop())?->price;
             $target = $resting !== null ? (float) $resting : ($marked ? $row['sell_from'] : $this->trader->plannedSellPrice($portfolio, $position));
             $rows[$position->asset_id] = [
                 'asset_id' => $position->asset_id,

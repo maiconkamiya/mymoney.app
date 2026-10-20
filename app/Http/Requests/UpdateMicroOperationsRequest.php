@@ -42,6 +42,8 @@ class UpdateMicroOperationsRequest extends FormRequest
             'micro_wallet_pct' => ['nullable', 'integer', 'min:1', 'max:100'],
             'micro_entry_mode' => ['sometimes', Rule::in(['limit', 'market'])],
             'micro_limit_seconds' => ['sometimes', 'integer', 'min:'.(int) config('trading.micro.limit.min_seconds'), 'max:'.(int) config('trading.micro.limit.max_seconds')],
+            // "Stop na corretora": alvo e stop numa OCO na Binance.
+            'micro_exchange_stop' => ['sometimes', 'boolean'],
             'micro_net_margin_pct' => ['required', 'numeric', 'min:0.05', 'max:5'],
             'micro_daily_target_pct' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
             // Limite da guarda de risco nesta carteira; vazio segue o perfil de risco.
