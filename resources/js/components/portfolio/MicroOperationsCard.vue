@@ -278,6 +278,19 @@ const dayTime = (iso: string) =>
         </div>
 
         <p
+            v-if="micro.bnb_fees"
+            class="rounded-lg border p-3 text-sm"
+            :class="
+                ['ativo', 'desconhecido'].includes(micro.bnb_fees.state)
+                    ? 'text-muted-foreground'
+                    : 'border-destructive/40 bg-destructive/10'
+            "
+            data-test="micro-bnb-fees"
+        >
+            {{ micro.bnb_fees.message }}
+        </p>
+
+        <p
             v-if="micro.margin_warning"
             class="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm"
             data-test="micro-margin-warning"

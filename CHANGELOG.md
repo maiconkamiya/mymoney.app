@@ -4,6 +4,16 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.97] - 2026-10-20
+
+### Adicionado
+
+- **Taxa paga em BNB na carteira real.** Com "Usar BNB para pagar taxas" ligado na Binance, a taxa cai de 0,1% para 0,075% por lado. O app já convertia a taxa em BNB para USDT; agora cada ordem guarda em que moeda a taxa foi paga e o card de micro operações da carteira real diz se o desconto está valendo, quanto BNB há no Spot e quantos ciclos ele ainda paga. O card avisa quando o BNB está acabando, quando não há BNB, quando o desconto está desligado e quando a última ordem já pagou a taxa na moeda negociada (a Binance faz isso sem avisar quando o BNB não cobre a taxa). Ligar o desconto e manter BNB na conta continua sendo feito na Binance.
+
+### Corrigido
+
+- **Taxa em BNB sem cotação.** Quando a cotação do BNB não chegava, a ordem era registrada com a taxa cheia de 0,1%; agora usa a taxa com o desconto do BNB.
+
 ## [0.3.96] - 2026-10-20
 
 ### Adicionado

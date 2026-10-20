@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property OrderStatus $status
  * @property string|null $reason
  * @property float $fees
+ * @property string|null $fee_asset
  * @property string|null $reject_reason
  * @property string|null $oco_group the OCO both legs (target and stop) belong to
  * @property CarbonImmutable|null $filled_at
@@ -39,7 +40,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Position|null $position
  * @property-read Collection<int, Fill> $fills
  */
-#[Fillable(['portfolio_id', 'signal_id', 'asset_id', 'position_id', 'broker', 'external_id', 'side', 'type', 'qty', 'price', 'stop_price', 'status', 'reason', 'fees', 'reject_reason', 'filled_at', 'oco_group'])]
+#[Fillable(['portfolio_id', 'signal_id', 'asset_id', 'position_id', 'broker', 'external_id', 'side', 'type', 'qty', 'price', 'stop_price', 'status', 'reason', 'fees', 'fee_asset', 'reject_reason', 'filled_at', 'oco_group'])]
 class Order extends Model
 {
     /**

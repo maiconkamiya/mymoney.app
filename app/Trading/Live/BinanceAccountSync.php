@@ -152,9 +152,16 @@ class BinanceAccountSync
             $wallets = null;
         }
 
+        // Optional too: whether Binance takes the fees in BNB with the discount.
+        try {
+            $bnbDiscount = $this->reader->bnbDiscount($client);
+        } catch (Throwable) {
+            $bnbDiscount = null;
+        }
+
         [$orders, $orderErrors] = $this->recentOrders($client, $portfolio, array_values(array_map(fn (array $row) => $row[0]->symbol, $held)));
 
-        DB::transaction(function () use ($portfolio, $cash, $held, $holdings, $orders, $orderErrors, $wallets) {
+        DB::transaction(function () use ($portfolio, $cash, $held, $holdings, $orders, $orderErrors, $wallets, $bnbDiscount) {
             // The scheduled sync and the "Sincronizar" button can run together: one at a time per portfolio.
             Portfolio::query()->whereKey($portfolio->id)->lockForUpdate()->first();
 
@@ -190,7 +197,7 @@ class BinanceAccountSync
                 'exit_reason' => 'conta',
             ]));
 
-            $portfolio->update(['cash' => $cash, 'synced_at' => now(), 'sync_report' => ['holdings' => $holdings, 'orders' => $orders, 'order_errors' => $orderErrors, 'wallets' => $wallets]]);
+            $portfolio->update(['cash' => $cash, 'synced_at' => now(), 'sync_report' => ['holdings' => $holdings, 'orders' => $orders, 'order_errors' => $orderErrors, 'wallets' => $wallets, 'bnb_discount' => $bnbDiscount]]);
         });
 
         if ($portfolio->initial_cash <= 0) {

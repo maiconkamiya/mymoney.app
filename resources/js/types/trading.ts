@@ -355,6 +355,17 @@ export type MicroRuleOption = {
     backtest: MicroBacktestSummary | null;
 };
 
+export type MicroBnbFees = {
+    state: 'ativo' | 'acabando' | 'sem_bnb' | 'desligado' | 'desconhecido';
+    enabled: boolean | null;
+    bnb_qty: number;
+    bnb_value: number;
+    cycles: number | null;
+    last_fee_asset: string | null;
+    last_fee_at: string | null;
+    message: string;
+};
+
 export type MicroOverview = {
     enabled: boolean;
     rule: MicroRuleOption['value'];
@@ -368,6 +379,7 @@ export type MicroOverview = {
     net_margin_pct: number;
     gross_margin_pct: number;
     round_trip_cost_pct: number;
+    bnb_fees: MicroBnbFees | null;
     min_order_value: number;
     daily_target_pct: number | null;
     daily_target_value: number | null;

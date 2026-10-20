@@ -52,6 +52,20 @@ class BinanceAccountReader
     }
 
     /**
+     * Whether the account pays its spot fees in BNB with the discount (the
+     * "Usar BNB para pagar taxas" switch on Binance). The account answers the
+     * same for every pair; null when it does not say.
+     */
+    public function bnbDiscount(BinanceClient $client, string $symbol = 'BTCUSDT'): ?bool
+    {
+        $discount = $client->signed('GET', '/api/v3/account/commission', ['symbol' => $symbol])['discount'] ?? null;
+
+        return is_array($discount) && isset($discount['enabledForAccount']) && ($discount['discountAsset'] ?? 'BNB') === 'BNB'
+            ? (bool) $discount['enabledForAccount']
+            : null;
+    }
+
+    /**
      * The last `$limit` orders of one pair, newest first, in any state.
      *
      * @return list<array<string, mixed>>
