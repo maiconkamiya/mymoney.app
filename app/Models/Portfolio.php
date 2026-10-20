@@ -53,6 +53,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property list<int>|null $micro_liquidate_asset_ids
  * @property string $micro_entry_mode "limit" (compra limitada no preço sugerido) or "market"
  * @property int $micro_limit_seconds how long the limit buy waits before it is cancelled
+ * @property bool $micro_exchange_stop "Stop na corretora": the cycle exits by an OCO at the exchange (target + stop)
  * @property bool $explorer_auto_swarm
  * @property bool $explorer_follow
  * @property int $explorer_follow_size
@@ -70,7 +71,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  * @property-read Collection<int, MicroCycle> $microCycles
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target_pct', 'daily_loss_pct', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'micro_entry_mode', 'micro_limit_seconds', 'explorer_auto_swarm', 'explorer_follow', 'explorer_follow_size', 'explorer_follow_min_hours'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target_pct', 'daily_loss_pct', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'micro_entry_mode', 'micro_limit_seconds', 'micro_exchange_stop', 'explorer_auto_swarm', 'explorer_follow', 'explorer_follow_size', 'explorer_follow_min_hours'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -85,6 +86,7 @@ class Portfolio extends Model
         'micro_rule' => 'scalp',
         'micro_entry_mode' => 'limit',
         'micro_limit_seconds' => 60,
+        'micro_exchange_stop' => false,
     ];
 
     /**
@@ -116,6 +118,7 @@ class Portfolio extends Model
             'daily_loss_pct' => 'float',
             'micro_liquidate_asset_ids' => 'array',
             'micro_limit_seconds' => 'integer',
+            'micro_exchange_stop' => 'boolean',
             'explorer_auto_swarm' => 'boolean',
             'explorer_follow' => 'boolean',
             'explorer_follow_size' => 'integer',

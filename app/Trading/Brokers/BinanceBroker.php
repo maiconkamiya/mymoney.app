@@ -9,6 +9,8 @@ use App\Enums\OrderType;
 use App\Models\BrokerCredential;
 use App\Models\Portfolio;
 use App\Trading\Contracts\Broker;
+use App\Trading\Contracts\PlacesOco;
+use App\Trading\Data\OcoResult;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
 use App\Trading\Live\BinanceAccountReader;
@@ -28,7 +30,7 @@ use Throwable;
  * External ids are stored as "SYMBOL:orderId" because Binance needs both to
  * query or cancel an order.
  */
-class BinanceBroker implements Broker
+class BinanceBroker implements Broker, PlacesOco
 {
     public function __construct(
         private readonly Portfolio $portfolio,
@@ -84,6 +86,120 @@ class BinanceBroker implements Broker
         }
 
         return $this->toResult($symbol, $response);
+    }
+
+    /**
+     * Sends a sell OCO (POST /api/v3/orderList/oco): the upper leg a
+     * LIMIT_MAKER at the target, the lower a STOP_LOSS_LIMIT that triggers at
+     * the stop and rests at its limit a little below. An answer lost after the
+     * request left is looked up by the list's client id before sending again;
+     * still unknown, the portfolio stops as for any order of unknown fate.
+     */
+    public function placeOco(OrderRequest $target, OrderRequest $stop, string $clientId): OcoResult
+    {
+        $client = $this->client();
+        $symbol = $target->asset->symbol;
+
+        $params = [
+            'symbol' => $symbol,
+            'side' => 'SELL',
+            'quantity' => $this->decimal($target->qty),
+            'listClientOrderId' => $clientId,
+            'aboveType' => 'LIMIT_MAKER',
+            'abovePrice' => $this->decimal((float) $target->limitPrice),
+            'aboveClientOrderId' => (string) $target->clientId,
+            'belowType' => 'STOP_LOSS_LIMIT',
+            'belowStopPrice' => $this->decimal((float) $stop->stopPrice),
+            'belowPrice' => $this->decimal((float) $stop->limitPrice),
+            'belowTimeInForce' => 'GTC',
+            'belowClientOrderId' => (string) $stop->clientId,
+            'newOrderRespType' => 'FULL',
+        ];
+
+        try {
+            $response = $this->sendOco($client, $params);
+        } catch (LiveTradingException $e) {
+            if ($e->uncertain && ! $e->unsent) {
+                $this->portfolio->forceFill([
+                    'auto_execute' => false,
+                    'live_auto_confirmed_at' => null,
+                    'orders_blocked_at' => now(),
+                    'orders_blocked_reason' => 'Envio incerto à Binance: confira as ordens na corretora antes de liberar.',
+                ])->save();
+            }
+
+            return OcoResult::rejected($e->getMessage());
+        }
+
+        $legs = [];
+
+        foreach ($response['orderReports'] ?? [] as $report) {
+            if (is_array($report) && isset($report['clientOrderId'], $report['orderId'])) {
+                $legs[(string) $report['clientOrderId']] = $this->toResult($symbol, $report);
+            }
+        }
+
+        $upper = $legs[(string) $target->clientId] ?? null;
+        $lower = $legs[(string) $stop->clientId] ?? null;
+
+        if ($upper === null || $lower === null || ! isset($response['orderListId'])) {
+            return OcoResult::rejected('Resposta da Binance sem as duas pernas da OCO.');
+        }
+
+        return new OcoResult($upper, $lower, $symbol.':'.$response['orderListId']);
+    }
+
+    /**
+     * @param  array<string, scalar>  $params
+     * @return array<string, mixed>
+     */
+    private function sendOco(BinanceClient $client, array $params): array
+    {
+        try {
+            return $client->signed('POST', '/api/v3/orderList/oco', $params);
+        } catch (LiveTradingException $e) {
+            if (! $e->uncertain || $e->unsent) {
+                throw $e;
+            }
+        }
+
+        try {
+            $found = $this->lookupOco($client, $params);
+        } catch (LiveTradingException $lookup) {
+            throw $lookup->uncertain && ! $lookup->unsent ? $lookup : new LiveTradingException($lookup->getMessage(), 0, $lookup, $lookup->binanceCode, uncertain: true);
+        }
+
+        return $found ?? $client->signed('POST', '/api/v3/orderList/oco', $params);
+    }
+
+    /**
+     * The OCO the exchange holds under the list's client id, with the state of
+     * each leg as the order reports of a fresh answer; null when it never saw it.
+     *
+     * @param  array<string, scalar>  $params
+     * @return array<string, mixed>|null
+     */
+    private function lookupOco(BinanceClient $client, array $params): ?array
+    {
+        try {
+            $list = $client->signed('GET', '/api/v3/orderList', ['origClientOrderId' => $params['listClientOrderId']]);
+        } catch (LiveTradingException $e) {
+            if ($e->binanceCode === -2013 || $e->binanceCode === -2011) {
+                return null;
+            }
+
+            throw $e;
+        }
+
+        $reports = [];
+
+        foreach ($list['orders'] ?? [] as $leg) {
+            if (is_array($leg) && isset($leg['orderId'])) {
+                $reports[] = $client->signed('GET', '/api/v3/order', ['symbol' => $params['symbol'], 'orderId' => $leg['orderId']]);
+            }
+        }
+
+        return ['orderListId' => $list['orderListId'] ?? null, 'orderReports' => $reports];
     }
 
     /**
@@ -208,6 +324,13 @@ class BinanceBroker implements Broker
                 $client->signed('DELETE', '/api/v3/order', ['symbol' => $remote['symbol'], 'orderId' => $remote['orderId']]);
                 $cancelled[] = $externalId;
             } catch (LiveTradingException $e) {
+                // -2011: the other leg of an OCO just cancelled went with it.
+                if ($e->binanceCode === -2011) {
+                    $cancelled[] = $externalId;
+
+                    continue;
+                }
+
                 $failed[] = $externalId.': '.$e->getMessage();
             }
         }

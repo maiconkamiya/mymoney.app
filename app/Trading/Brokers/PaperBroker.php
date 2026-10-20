@@ -8,7 +8,9 @@ use App\Enums\OrderStatus;
 use App\Enums\OrderType;
 use App\Trading\B3\B3Rules;
 use App\Trading\Contracts\Broker;
+use App\Trading\Contracts\PlacesOco;
 use App\Trading\Contracts\PriceFeed;
+use App\Trading\Data\OcoResult;
 use App\Trading\Data\OrderRequest;
 use App\Trading\Data\OrderResult;
 use App\Trading\MarketHours;
@@ -18,7 +20,7 @@ use Illuminate\Support\Str;
  * Simulated execution: fills market orders at the last price moved against us
  * by the configured slippage, rounds to lot and tick size, and charges fees.
  */
-class PaperBroker implements Broker
+class PaperBroker implements Broker, PlacesOco
 {
     public function __construct(
         private readonly PriceFeed $prices,
@@ -78,6 +80,38 @@ class PaperBroker implements Broker
             avgPrice: $price,
             fees: round($fees, 8),
             filledAt: now(),
+        );
+    }
+
+    /**
+     * As Binance: both legs rest, refused when the price is already at the
+     * target (the limit maker would execute) or under the stop. The executor
+     * fills a leg once the quote reaches it and cancels the other.
+     */
+    public function placeOco(OrderRequest $target, OrderRequest $stop, string $clientId): OcoResult
+    {
+        if (! $this->hours->isOpen($target->asset->market)) {
+            return OcoResult::rejected('Mercado fechado.');
+        }
+
+        $quote = $this->prices->quote($target->asset);
+
+        if ($quote === null) {
+            return OcoResult::rejected('Sem cotação para '.$target->asset->symbol.'.');
+        }
+
+        if ($quote->price >= (float) $target->limitPrice || $quote->price <= (float) $stop->stopPrice) {
+            return OcoResult::rejected('Preço fora da faixa da OCO (o alvo precisa ficar acima e o stop abaixo do preço atual).');
+        }
+
+        if ($this->roundToLot($target->qty, (float) $target->asset->lot_size) <= 0) {
+            return OcoResult::rejected('Quantidade abaixo do lote mínimo.');
+        }
+
+        return new OcoResult(
+            new OrderResult(OrderStatus::Pending, externalId: 'paper-'.Str::ulid()),
+            new OrderResult(OrderStatus::Pending, externalId: 'paper-'.Str::ulid()),
+            'paper-oco-'.Str::ulid(),
         );
     }
 

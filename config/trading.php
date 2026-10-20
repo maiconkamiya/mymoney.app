@@ -224,6 +224,13 @@ return [
         'stop_slippage_pct' => (float) env('TRADING_MICRO_STOP_SLIPPAGE_PCT', 0.5),
         'max_candle_age_seconds' => 150,
 
+        // "Stop na corretora" (#210): a perna de stop da OCO dispara no stop e fica limitada `limit_gap_pct`
+        // abaixo dele, para executar numa queda rápida. Fica abaixo de `stop_slippage_pct`, que dimensiona a
+        // compra para a venda no stop ainda valer o mínimo do par.
+        'oco' => [
+            'limit_gap_pct' => (float) env('TRADING_MICRO_OCO_LIMIT_GAP_PCT', 0.3),
+        ],
+
         // Preço sugerido de compra (#187): `pullback_atr` vezes a faixa média por minuto abaixo do menor
         // entre o último fechamento e a cotação de agora, sem descer do suporte, no tick do par. A compra
         // limitada nesse preço espera de `min_seconds` a `max_seconds` (o dono escolhe no card).
