@@ -67,6 +67,11 @@ class RunMicroOperations extends Command
             $gross = $costs->grossMarginPct($portfolio->micro_net_margin_pct);
 
             $this->line("Carteira #{$portfolio->id} {$portfolio->name}: {$state['label']} ({$state['code']})");
+
+            if ($state['code'] === 'drawdown_limit') {
+                $drawdown = $trader->drawdown($portfolio);
+                $this->line(sprintf('  maior saldo %s, agora %s: volta a comprar acima de %s, com novo aporte (simulada) ou subindo a queda máxima do perfil "%s"', round($drawdown['peak'], 2), round($drawdown['equity'], 2), round($drawdown['release_equity'], 2), $portfolio->riskProfile->name));
+            }
             foreach ($portfolio->openPositions()->whereIn('asset_id', $portfolio->micro_liquidate_asset_ids ?? [])->with('asset')->get() as $position) {
                 $row = $trader->liquidation($portfolio, $position);
                 $this->line(sprintf('  %s  liquidar com lucro: custo %s, vende a partir de %s, preço agora %s', $position->asset->symbol, round($row['cost'], 8), round($row['sell_from'], 8), $row['price'] ?? 'sem cotação'));

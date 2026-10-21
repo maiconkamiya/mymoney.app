@@ -225,7 +225,36 @@ const dayTime = (iso: string) =>
             <Badge v-if="micro.enabled && micro.state.code === 'active'">
                 {{ micro.state.label }}
             </Badge>
+            <Badge
+                v-else-if="micro.state.code === 'drawdown_limit'"
+                variant="destructive"
+            >
+                {{ micro.state.label }}
+            </Badge>
             <Badge v-else variant="secondary">{{ micro.state.label }}</Badge>
+        </div>
+
+        <div
+            v-if="micro.enabled && micro.drawdown.blocked"
+            class="flex flex-col gap-1 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm"
+            data-test="micro-drawdown-block"
+        >
+            <p class="font-medium">
+                A guarda de risco não deixa comprar: o patrimônio caiu
+                {{ pct(micro.drawdown.pct) }}% desde o maior saldo, e o limite
+                do perfil "{{ micro.drawdown.profile }}" é
+                {{ pct(micro.drawdown.limit_pct) }}%.
+            </p>
+            <p class="text-muted-foreground tabular-nums">
+                Maior saldo {{ usdt(micro.drawdown.peak) }}, agora
+                {{ usdt(micro.drawdown.equity) }}. Volta a comprar quando o
+                patrimônio passar de {{ usdt(micro.drawdown.release_equity)
+                }}<template v-if="portfolio.mode === 'paper'"
+                    >, com um novo aporte na carteira</template
+                >
+                ou subindo a queda máxima do perfil de risco. As vendas
+                continuam normalmente.
+            </p>
         </div>
 
         <p class="text-sm text-muted-foreground">

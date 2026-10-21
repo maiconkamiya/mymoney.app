@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.98] - 2026-10-21
+
+### Corrigido
+
+- **Micro operações mostravam "Operando" com as compras barradas.** Quando o patrimônio cai mais que a queda máxima do perfil de risco desde o maior saldo (10% no perfil Padrão), a guarda de risco recusa toda compra, mas o card continuava dizendo "Operando" e nada ficava registrado. Agora o card mostra "Bloqueado pela queda de X% desde o maior saldo", com o maior saldo, o patrimônio de agora e o valor a partir do qual as compras voltam; na carteira simulada, um novo aporte também libera. O começo e o fim do bloqueio ficam no registro de auditoria, uma vez cada. A regra da guarda não mudou e as vendas seguem normalmente.
+
 ## [0.3.97] - 2026-10-20
 
 ### Adicionado
