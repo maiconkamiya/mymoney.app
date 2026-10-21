@@ -81,7 +81,10 @@ class MicroTrader
         $this->expire($portfolio);
         $this->registerSells($portfolio);
 
-        if ($this->state($portfolio)['code'] !== 'active') {
+        $state = $this->state($portfolio);
+        $this->recordDrawdownBlock($portfolio, $state);
+
+        if ($state['code'] !== 'active') {
             return 0;
         }
 
@@ -185,10 +188,89 @@ class MicroTrader
 
         // O mesmo limite da guarda de risco: com ele batido, nenhuma compra passaria.
         if ($this->risk->dailyLossReached($portfolio)) {
-            return ['code' => 'loss_limit', 'label' => sprintf('Perda máxima do dia atingida (%s%% do saldo)', rtrim(rtrim(number_format(100 * $this->risk->dailyLossLimit($portfolio), 2, ',', ''), '0'), ','))];
+            return ['code' => 'loss_limit', 'label' => sprintf('Perda máxima do dia atingida (%s%% do saldo)', self::pct($this->risk->dailyLossLimit($portfolio)))];
+        }
+
+        // A queda máxima desde o maior saldo, que a guarda confere logo depois da perda do dia (#216).
+        $drawdown = $this->drawdown($portfolio);
+
+        if ($drawdown['blocked']) {
+            return ['code' => 'drawdown_limit', 'label' => sprintf('Bloqueado pela queda de %s%% desde o maior saldo (limite %s%%)', self::pct($drawdown['drop']), self::pct($drawdown['limit']))];
         }
 
         return ['code' => 'active', 'label' => 'Operando'];
+    }
+
+    /**
+     * Queda do patrimônio desde o maior saldo, na mesma conta da guarda de risco (RiskGuard::check):
+     * com ela no limite do perfil, nenhuma compra passa. Libera quando o patrimônio passa de
+     * `release_equity` (ou, na simulada, com um novo aporte, que entra no saldo e no maior saldo).
+     *
+     * @return array{drop: float, limit: float, equity: float, peak: float, release_equity: float, blocked: bool}
+     */
+    public function drawdown(Portfolio $portfolio): array
+    {
+        $equity = $this->valuation->equity($portfolio);
+        $peak = $this->valuation->peakEquity($portfolio);
+        $drop = 1 - $equity / max($peak, 0.00000001);
+        $limit = (float) $portfolio->riskProfile->max_drawdown_pct;
+
+        return [
+            'drop' => $drop,
+            'limit' => $limit,
+            'equity' => $equity,
+            'peak' => $peak,
+            'release_equity' => $peak * (1 - $limit),
+            'blocked' => $drop >= $limit,
+        ];
+    }
+
+    /**
+     * Grava na auditoria quando a queda máxima começa a barrar as compras e quando deixa de barrar,
+     * uma vez por mudança: o motor roda a cada poucos segundos. O último estado fica no cache e,
+     * sem ele (cache limpo no deploy), vem do último registro.
+     *
+     * @param  array{code: string, label: string}  $state
+     */
+    private function recordDrawdownBlock(Portfolio $portfolio, array $state): void
+    {
+        // "Operando" já passou pela queda; outro motivo à frente dela pode escondê-la, então confere.
+        $drawdown = $state['code'] === 'active' ? null : $this->drawdown($portfolio);
+        $blocked = $drawdown !== null && $drawdown['blocked'];
+        $key = 'micro:drawdown_blocked:'.$portfolio->id;
+        $known = Cache::get($key);
+
+        if ($known === null) {
+            $known = AuditLog::query()
+                ->where('subject_type', $portfolio->getMorphClass())
+                ->where('subject_id', $portfolio->id)
+                ->whereIn('action', ['micro.drawdown_blocked', 'micro.drawdown_released'])
+                ->latest('id')
+                ->value('action') === 'micro.drawdown_blocked' ? 1 : 0;
+        }
+
+        if ((bool) $known !== $blocked) {
+            $drawdown ??= $this->drawdown($portfolio);
+
+            AuditLog::record(self::ACTOR, $blocked ? 'micro.drawdown_blocked' : 'micro.drawdown_released', $portfolio, [
+                'portfolio_id' => $portfolio->id,
+                'drop_pct' => round(100 * $drawdown['drop'], 2),
+                'limit_pct' => round(100 * $drawdown['limit'], 2),
+                'equity' => round($drawdown['equity'], 4),
+                'peak' => round($drawdown['peak'], 4),
+                'release_equity' => round($drawdown['release_equity'], 4),
+            ]);
+        }
+
+        Cache::put($key, $blocked ? 1 : 0, now()->addDay());
+    }
+
+    /**
+     * Fração em porcentagem para o texto do estado: 0.101 vira "10,1".
+     */
+    private static function pct(float $fraction): string
+    {
+        return rtrim(rtrim(number_format(100 * $fraction, 2, ',', ''), '0'), ',');
     }
 
     /**
