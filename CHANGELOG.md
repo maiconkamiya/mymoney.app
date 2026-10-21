@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.100] - 2026-10-21
+
+### Adicionado
+
+- **Regra de entrada "Atual (30 minutos)" nas micro operações.** É a regra atual lida em velas de 30 minutos em vez de velas de 1 minuto. As condições são as mesmas (média de 9 acima da de 21 com a de 21 subindo, preço perto do suporte ou num recuo de até uma faixa média acima da média de 9, alvo alcançável e espaço até a resistência), mas tudo passa a contar velas de 30 minutos: as médias de 9 e 21 velas, a faixa média das últimas 30 velas, o suporte das últimas 30 velas (15 horas) e a resistência das últimas 60 velas (30 horas). A leitura usa as últimas 60 horas de velas de 1 minuto e precisa de pelo menos 20 horas. O "alvo alcançável" compara o alvo com a faixa de uma vela de 30 minutos vezes a raiz do número de velas que cabem no tempo máximo do ciclo. A saída é a mesma da regra atual: alvo pela margem líquida, stop do mesmo tamanho e tempo máximo do ciclo de 60 minutos (ou o do card). O preço sugerido de compra e os "Pares em foco" continuam usando a faixa média de 1 minuto. A regra "Atual (1 minuto)" não mudou e nenhuma carteira trocou de regra: a escolha é no card. Na carteira real ela só pode ser escolhida depois de passar no backtest (`micro:backtest --rule=scalp_30m`).
+
 ## [0.3.99] - 2026-10-21
 
 ### Adicionado

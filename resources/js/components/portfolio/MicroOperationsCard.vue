@@ -477,6 +477,15 @@ const dayTime = (iso: string) =>
                         líquida acima.
                     </template>
                     <template
+                        v-else-if="chosenRuleOption.value === 'scalp_30m'"
+                    >
+                        A regra atual lida em velas de 30 minutos: médias,
+                        suporte e resistência contam velas de 30 minutos em vez
+                        de minutos. Alvo pela margem líquida acima e o mesmo
+                        tempo máximo do ciclo. Na carteira real só pode ser
+                        escolhida depois de passar no backtest.
+                    </template>
+                    <template
                         v-else-if="chosenRuleOption.value === 'scalp_uptrend'"
                     >
                         A regra atual, com alvo pela margem líquida acima, e só

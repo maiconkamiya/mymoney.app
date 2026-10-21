@@ -25,6 +25,20 @@ enum MicroRule: string
     /** The 24 h and 4 h rule plus two filters: RSI not overbought and the last minutes' volume above the average (#204). */
     case ScalpFiltered = 'scalp_filtered';
 
+    /** The 1-minute reading on 30-minute bars: same conditions and exits, windows counted in bars (#218). */
+    case Scalp30 = 'scalp_30m';
+
+    /**
+     * Minutes of each bar the rule's chart reading groups the 1-minute candles into.
+     */
+    public function timeframeMinutes(): int
+    {
+        return match ($this) {
+            self::Scalp30 => 30,
+            default => 1,
+        };
+    }
+
     /**
      * The time limit of a cycle opened by this rule, when the card leaves it empty.
      */
@@ -46,6 +60,7 @@ enum MicroRule: string
             self::Breakout => 'Rompimento confirmado',
             self::BreakoutPressure => 'Pressão antes do rompimento',
             self::ScalpFiltered => 'Atual + alta + RSI e volume',
+            self::Scalp30 => 'Atual (30 minutos)',
         };
     }
 }
