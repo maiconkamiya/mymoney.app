@@ -82,6 +82,10 @@ class MicroOverview
             'entry_mode' => $portfolio->micro_entry_mode === 'market' ? 'market' : 'limit',
             'limit_seconds' => $portfolio->micro_limit_seconds,
             'exchange_stop' => $portfolio->micro_exchange_stop,
+            'time_exit' => $portfolio->micro_time_exit,
+            'max_hold_minutes' => $portfolio->micro_max_hold_minutes,
+            'rule_hold_minutes' => $portfolio->micro_rule->holdMinutes(),
+            'hold_minutes_range' => [MicroCycle::MIN_HOLD_MINUTES, MicroCycle::MAX_HOLD_MINUTES],
             'limit_seconds_range' => [(int) config('trading.micro.limit.min_seconds'), (int) config('trading.micro.limit.max_seconds')],
             'order_value' => $portfolio->micro_order_value,
             'net_margin_pct' => $portfolio->micro_net_margin_pct,
@@ -239,10 +243,10 @@ class MicroOverview
     {
         $cycle = $portfolio->microCycles()->where('position_id', $position->id)->where('status', 'open')->first(['opened_at', 'max_hold_minutes']);
         if ($cycle === null) {
-            return (int) config('trading.micro.max_hold_minutes');
+            return $portfolio->micro_max_hold_minutes ?? (int) config('trading.micro.max_hold_minutes');
         }
 
-        return max(1, ($cycle->max_hold_minutes ?? (int) config('trading.micro.max_hold_minutes')) - (int) $cycle->opened_at->diffInMinutes(now()));
+        return max(1, $cycle->holdMinutes($portfolio) - (int) $cycle->opened_at->diffInMinutes(now()));
     }
 
     /**

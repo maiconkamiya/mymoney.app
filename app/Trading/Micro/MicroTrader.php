@@ -758,13 +758,18 @@ class MicroTrader
      */
     private function expire(Portfolio $portfolio): void
     {
-        // Each cycle keeps the time limit of the rule that opened it.
+        // The owner turned the time exit off: the cycle waits for the target or the stop.
+        if (! $portfolio->micro_time_exit) {
+            return;
+        }
+
+        // The time chosen on the card counts for every open cycle; empty, each keeps the limit of the rule that opened it.
         $cycles = $portfolio->microCycles()
             ->where('status', 'open')
-            ->where('opened_at', '<=', now()->subMinutes(min((int) config('trading.micro.max_hold_minutes'), (int) config('trading.micro.trend.max_hold_minutes'))))
+            ->where('opened_at', '<=', now()->subMinutes($portfolio->micro_max_hold_minutes ?? min((int) config('trading.micro.max_hold_minutes'), (int) config('trading.micro.trend.max_hold_minutes'), (int) config('trading.micro.breakout.max_hold_minutes'))))
             ->with('position.asset')
             ->get()
-            ->filter(fn (MicroCycle $cycle) => $cycle->opened_at->lte(now()->subMinutes($cycle->max_hold_minutes ?? (int) config('trading.micro.max_hold_minutes'))));
+            ->filter(fn (MicroCycle $cycle) => $cycle->opened_at->lte(now()->subMinutes($cycle->holdMinutes($portfolio))));
 
         foreach ($cycles as $cycle) {
             if ($cycle->position !== null && $cycle->position->closed_at === null) {
@@ -1072,7 +1077,7 @@ class MicroTrader
             'fees' => 0,
             'gross_margin_pct' => $exits['target_pct'],
             'rule' => $portfolio->micro_rule,
-            'max_hold_minutes' => $exits['max_hold_minutes'],
+            'max_hold_minutes' => $portfolio->micro_max_hold_minutes ?? $exits['max_hold_minutes'],
             'analysis' => $setup->toArray() + ['suggestion' => $suggestion],
             'suggested_price' => $suggestion['price'],
             'buy_order_id' => $outcome->id,

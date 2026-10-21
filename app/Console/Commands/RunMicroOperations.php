@@ -79,7 +79,7 @@ class RunMicroOperations extends Command
 
             $this->line("  regra {$portfolio->micro_rule->label()}, aporte {$portfolio->micro_order_value}, margem líquida {$portfolio->micro_net_margin_pct}%, alvo bruto {$gross}%, última execução: ".($trader->lastRun($portfolio) ?? 'nunca'));
             $this->line('  entrada: '.($portfolio->micro_entry_mode === 'market' ? 'a mercado' : "compra limitada no preço sugerido, válida por {$portfolio->micro_limit_seconds} s"));
-            $this->line('  saída: '.($portfolio->micro_exchange_stop ? 'alvo e stop numa OCO na corretora (stop na corretora)' : 'venda limitada no alvo; stop vendido a mercado pelo app'));
+            $this->line('  saída: '.($portfolio->micro_exchange_stop ? 'alvo e stop numa OCO na corretora (stop na corretora)' : 'venda limitada no alvo; stop vendido a mercado pelo app').($portfolio->micro_time_exit ? '; vende a mercado depois de '.($portfolio->micro_max_hold_minutes ?? $portfolio->micro_rule->holdMinutes()).' min'.($portfolio->micro_max_hold_minutes === null ? ' (tempo da regra)' : ' (tempo do card)') : '; sem venda por tempo (só alvo ou stop)'));
 
             foreach ($portfolio->microCycles()->where('status', 'pending')->with(['asset', 'buyOrder'])->get() as $cycle) {
                 $this->line(sprintf('  %s  compra limitada esperando: %s a %s, vale até %s', $cycle->asset->symbol, $cycle->qty, round((float) $cycle->buyOrder?->price, 8), $cycle->expires_at?->format('H:i:s') ?? '?'));

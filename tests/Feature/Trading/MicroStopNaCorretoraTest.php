@@ -202,6 +202,20 @@ class MicroStopNaCorretoraTest extends TestCase
         $this->assertSame('micro_time', MicroCycle::oldest('id')->first()->exit_reason);
     }
 
+    public function test_with_the_time_exit_off_the_oco_stays_at_the_exchange()
+    {
+        $portfolio = $this->micro(['micro_time_exit' => false]);
+        app(MicroTrader::class)->run($portfolio);
+        [$target, $stop] = $this->legs();
+        MicroCycle::query()->update(['opened_at' => now()->subHours(5)]);
+
+        app(MicroTrader::class)->run($portfolio);
+
+        $this->assertSame(OrderStatus::Pending, $target->fresh()->status);
+        $this->assertSame(OrderStatus::Pending, $stop->fresh()->status);
+        $this->assertSame('open', MicroCycle::oldest('id')->first()->status);
+    }
+
     public function test_with_the_option_off_the_cycle_keeps_the_limit_sale_and_the_app_stop()
     {
         $portfolio = $this->micro(['micro_exchange_stop' => false]);

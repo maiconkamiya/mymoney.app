@@ -34,6 +34,8 @@ class MicroOperationsController extends Controller
             'micro_entry_mode' => $data['micro_entry_mode'] ?? $portfolio->micro_entry_mode,
             'micro_limit_seconds' => $data['micro_limit_seconds'] ?? $portfolio->micro_limit_seconds,
             'micro_exchange_stop' => (bool) ($data['micro_exchange_stop'] ?? $portfolio->micro_exchange_stop),
+            'micro_time_exit' => (bool) ($data['micro_time_exit'] ?? $portfolio->micro_time_exit),
+            'micro_max_hold_minutes' => array_key_exists('micro_max_hold_minutes', $data) ? $data['micro_max_hold_minutes'] : $portfolio->micro_max_hold_minutes,
         ]);
 
         AuditLog::record('user:'.$request->user()->id, 'portfolio.micro_settings', $portfolio, [
@@ -43,7 +45,7 @@ class MicroOperationsController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => $portfolio->micro_enabled
             ? 'Micro operações ligadas: o agente opera nos pares mais voláteis dentro dos seus valores.'
-            : 'Micro operações salvas (desligadas). Ciclos abertos seguem até o alvo, o stop ou o tempo limite.']);
+            : 'Micro operações salvas (desligadas). '.($portfolio->micro_time_exit ? 'Ciclos abertos seguem até o alvo, o stop ou o tempo limite.' : 'Ciclos abertos seguem até o alvo ou o stop.')]);
 
         return back();
     }

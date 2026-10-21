@@ -374,6 +374,12 @@ export type MicroOverview = {
     limit_seconds: number;
     /** "Stop na corretora": alvo e stop numa OCO na Binance. */
     exchange_stop: boolean;
+    /** "Vender ao fim do tempo limite": desligada, o ciclo só sai pelo alvo ou stop. */
+    time_exit: boolean;
+    /** Tempo máximo do ciclo escolhido no card; null segue o da regra. */
+    max_hold_minutes: number | null;
+    rule_hold_minutes: number;
+    hold_minutes_range: [number, number];
     limit_seconds_range: [number, number];
     order_value: number;
     net_margin_pct: number;

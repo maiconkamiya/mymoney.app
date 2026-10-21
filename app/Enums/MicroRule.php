@@ -25,6 +25,18 @@ enum MicroRule: string
     /** The 24 h and 4 h rule plus two filters: RSI not overbought and the last minutes' volume above the average (#204). */
     case ScalpFiltered = 'scalp_filtered';
 
+    /**
+     * The time limit of a cycle opened by this rule, when the card leaves it empty.
+     */
+    public function holdMinutes(): int
+    {
+        return match ($this) {
+            self::TrendPullback => (int) config('trading.micro.trend.max_hold_minutes'),
+            self::Breakout, self::BreakoutPressure => (int) config('trading.micro.breakout.max_hold_minutes'),
+            default => (int) config('trading.micro.max_hold_minutes'),
+        };
+    }
+
     public function label(): string
     {
         return match ($this) {

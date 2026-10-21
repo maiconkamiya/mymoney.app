@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.99] - 2026-10-21
+
+### Adicionado
+
+- **Tempo máximo do ciclo e venda por tempo nas micro operações.** O card de micro operações ganhou dois campos. "Tempo máximo do ciclo (minutos)" troca o tempo limite da regra (60 minutos na regra atual) por outro, de 5 a 1440 minutos; vazio, segue o da regra. O tempo escolhido vale também para os ciclos já abertos. "Vender ao fim do tempo limite" vem ligado em todas as carteiras, como era até agora; desligado, o ciclo que não chegou no alvo nem no stop não é mais vendido a mercado por tempo e fica aberto até o alvo ou o stop. Com o stop na corretora ligado, a ordem OCO continua na Binance em vez de ser cancelada. "Liquidar agora", liquidar com lucro e o fim de negociação continuam vendendo. Vale na carteira simulada e na real, e "Clonar como simulada" copia as duas escolhas.
+
 ## [0.3.98] - 2026-10-21
 
 ### Corrigido
