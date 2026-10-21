@@ -168,6 +168,90 @@ class MicroOperationsTest extends TestCase
         $this->assertSame('micro_time', $cycle->exit_reason);
     }
 
+    public function test_with_the_time_exit_off_a_cycle_held_too_long_stays_open_until_the_target_or_the_stop()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_time_exit' => false]);
+        app(MicroTrader::class)->run($portfolio);
+        MicroCycle::query()->update(['opened_at' => now()->subHours(5)]);
+
+        app(MicroTrader::class)->run($portfolio);
+
+        $cycle = MicroCycle::oldest('id')->first();
+        $this->assertSame('open', $cycle->status);
+        $this->assertNull($cycle->position->fresh()->closed_at);
+        $this->assertSame(0, Order::where('side', OrderSide::Sell)->where('type', 'market')->count());
+
+        // The stop still sells.
+        $this->advanceTo(99.0);
+        app(PositionExits::class)->checkStopsAndTargets();
+        app(MicroTrader::class)->settle($portfolio);
+        $this->assertSame('stop', $cycle->fresh()->exit_reason);
+    }
+
+    public function test_the_time_chosen_on_the_card_replaces_the_rule_limit()
+    {
+        $this->candles($this->asset);
+        $portfolio = $this->micro(['micro_max_hold_minutes' => 180]);
+        app(MicroTrader::class)->run($portfolio);
+        $this->assertSame(180, MicroCycle::sole()->max_hold_minutes);
+
+        // Two hours: past the rule's 60 minutes, inside the card's 180.
+        MicroCycle::query()->update(['opened_at' => now()->subHours(2)]);
+        app(MicroTrader::class)->run($portfolio);
+        $this->assertSame('open', MicroCycle::oldest('id')->first()->status);
+
+        MicroCycle::query()->update(['opened_at' => now()->subHours(4)]);
+        app(MicroTrader::class)->run($portfolio);
+        $this->assertSame('micro_time', MicroCycle::oldest('id')->first()->exit_reason);
+    }
+
+    public function test_the_card_saves_the_time_limit_within_its_range()
+    {
+        $portfolio = $this->micro(['micro_enabled' => false]);
+        $form = ['micro_enabled' => '0', 'micro_order_value' => '20', 'micro_net_margin_pct' => '0.2'];
+
+        $this->actingAs($portfolio->user)->put(route('portfolios.micro', $portfolio), $form + ['micro_max_hold_minutes' => '2000'])
+            ->assertSessionHasErrors('micro_max_hold_minutes');
+        $this->actingAs($portfolio->user)->put(route('portfolios.micro', $portfolio), $form + ['micro_max_hold_minutes' => '120'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(120, $portfolio->fresh()->micro_max_hold_minutes);
+
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))
+            ->assertInertia(fn (Assert $page) => $page->where('micro.max_hold_minutes', 120)->where('micro.rule_hold_minutes', 60));
+
+        // Emptied, it goes back to the rule's time.
+        $this->actingAs($portfolio->user)->put(route('portfolios.micro', $portfolio), $form + ['micro_max_hold_minutes' => ''])
+            ->assertSessionHasNoErrors();
+        $this->assertNull($portfolio->fresh()->micro_max_hold_minutes);
+
+        $this->actingAs(User::factory()->create())->put(route('portfolios.micro', $portfolio), $form + ['micro_max_hold_minutes' => '300'])
+            ->assertForbidden();
+        $this->assertNull($portfolio->fresh()->micro_max_hold_minutes);
+    }
+
+    public function test_owner_turns_the_time_exit_off_and_other_users_get_403()
+    {
+        $portfolio = $this->micro(['micro_enabled' => false]);
+        $this->assertTrue($portfolio->micro_time_exit);
+
+        $this->actingAs(User::factory()->create())->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '0', 'micro_order_value' => '20', 'micro_net_margin_pct' => '0.2', 'micro_time_exit' => '0'])
+            ->assertForbidden();
+        $this->assertTrue($portfolio->fresh()->micro_time_exit);
+
+        $this->actingAs($portfolio->user)->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '0', 'micro_order_value' => '20', 'micro_net_margin_pct' => '0.2', 'micro_time_exit' => '0'])
+            ->assertSessionHasNoErrors();
+        $this->assertFalse($portfolio->fresh()->micro_time_exit);
+
+        $this->actingAs($portfolio->user)->get(route('portfolios.show', $portfolio))
+            ->assertInertia(fn (Assert $page) => $page->where('micro.time_exit', false));
+
+        // Saving without the field keeps the choice.
+        $this->actingAs($portfolio->user)->put(route('portfolios.micro', $portfolio), ['micro_enabled' => '0', 'micro_order_value' => '20', 'micro_net_margin_pct' => '0.2'])
+            ->assertSessionHasNoErrors();
+        $this->assertFalse($portfolio->fresh()->micro_time_exit);
+    }
+
     public function test_stops_for_the_day_after_the_target_or_the_loss_limit()
     {
         $this->candles($this->asset);

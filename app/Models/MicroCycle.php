@@ -43,6 +43,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['portfolio_id', 'asset_id', 'position_id', 'status', 'qty', 'entry_price', 'target_price', 'stop_price', 'exit_price', 'exit_source', 'fees', 'net_pnl', 'gross_margin_pct', 'rule', 'max_hold_minutes', 'exit_reason', 'analysis', 'suggested_price', 'buy_order_id', 'expires_at', 'opened_at', 'closed_at'])]
 class MicroCycle extends Model
 {
+    /** Range of the "Tempo máximo do ciclo" field on the card, in minutes. */
+    public const MIN_HOLD_MINUTES = 5;
+
+    public const MAX_HOLD_MINUTES = 1440;
+
     /**
      * Same default as the column, so a model created in memory already has its rule.
      *
@@ -98,5 +103,14 @@ class MicroCycle extends Model
     public function buyOrder(): BelongsTo
     {
         return $this->belongsTo(Order::class, 'buy_order_id');
+    }
+
+    /**
+     * Minutes the cycle may stay open: the time chosen on the portfolio's card,
+     * or the limit of the rule that opened it.
+     */
+    public function holdMinutes(Portfolio $portfolio): int
+    {
+        return $portfolio->micro_max_hold_minutes ?? $this->max_hold_minutes ?? (int) config('trading.micro.max_hold_minutes');
     }
 }

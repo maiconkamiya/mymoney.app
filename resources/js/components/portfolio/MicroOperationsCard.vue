@@ -232,9 +232,10 @@ const dayTime = (iso: string) =>
             Muitas compras e vendas pequenas nos pares mais voláteis, com lucro
             líquido pequeno por operação. Entra só com tendência de alta e preço
             perto do suporte, com espaço até a resistência; sai no alvo, no stop
-            ou ao fim do tempo limite. Não consulta modelo de IA: sem custo por
-            operação. A guarda de risco, os limites reais e o "Parar tudo" valem
-            sempre.
+            <template v-if="micro.time_exit">ou ao fim do tempo limite</template
+            ><template v-else>(venda por tempo desligada)</template>. Não
+            consulta modelo de IA: sem custo por operação. A guarda de risco, os
+            limites reais e o "Parar tudo" valem sempre.
         </p>
 
         <div class="grid grid-cols-2 gap-3 @xl:grid-cols-4">
@@ -565,6 +566,58 @@ const dayTime = (iso: string) =>
                     </template>
                 </p>
                 <InputError :message="errors.micro_exchange_stop" />
+            </div>
+
+            <div class="grid gap-2">
+                <Label for="micro_max_hold_minutes">
+                    Tempo máximo do ciclo (minutos)
+                </Label>
+                <Input
+                    id="micro_max_hold_minutes"
+                    name="micro_max_hold_minutes"
+                    type="number"
+                    step="1"
+                    :min="micro.hold_minutes_range[0]"
+                    :max="micro.hold_minutes_range[1]"
+                    :default-value="micro.max_hold_minutes ?? undefined"
+                    :placeholder="`${micro.rule_hold_minutes} (padrão da regra)`"
+                    data-test="micro-max-hold-minutes"
+                />
+                <p class="text-xs text-muted-foreground tabular-nums">
+                    De {{ micro.hold_minutes_range[0] }} a
+                    {{ micro.hold_minutes_range[1] }} min. Vazio segue a regra
+                    ({{ micro.rule_hold_minutes }} min). Vale também para os
+                    ciclos já abertos.
+                </p>
+                <InputError :message="errors.micro_max_hold_minutes" />
+            </div>
+
+            <div class="grid gap-2 @sm:col-span-2">
+                <input type="hidden" name="micro_time_exit" value="0" />
+                <label class="flex items-center gap-2 text-sm">
+                    <input
+                        type="checkbox"
+                        name="micro_time_exit"
+                        value="1"
+                        :checked="micro.time_exit"
+                        data-test="micro-time-exit"
+                    />
+                    Vender ao fim do tempo limite
+                </label>
+                <p class="text-xs text-muted-foreground">
+                    <template v-if="micro.time_exit">
+                        Ligado: o ciclo que não chegou no alvo nem no stop em
+                        {{ micro.max_hold_minutes ?? micro.rule_hold_minutes }}
+                        min é vendido a mercado (cancela a OCO, se o stop
+                        estiver na corretora).
+                    </template>
+                    <template v-else>
+                        Desligado: o ciclo fica aberto até o alvo ou o stop, sem
+                        prazo. "Liquidar agora", liquidar com lucro e o fim de
+                        negociação continuam vendendo.
+                    </template>
+                </p>
+                <InputError :message="errors.micro_time_exit" />
             </div>
 
             <div

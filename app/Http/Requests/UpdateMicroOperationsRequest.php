@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\Market;
 use App\Enums\MicroRule;
 use App\Models\MicroBacktest;
+use App\Models\MicroCycle;
 use App\Models\Portfolio;
 use App\Trading\Live\LiveLimits;
 use App\Trading\Micro\MicroTrader;
@@ -44,6 +45,10 @@ class UpdateMicroOperationsRequest extends FormRequest
             'micro_limit_seconds' => ['sometimes', 'integer', 'min:'.(int) config('trading.micro.limit.min_seconds'), 'max:'.(int) config('trading.micro.limit.max_seconds')],
             // "Stop na corretora": alvo e stop numa OCO na Binance.
             'micro_exchange_stop' => ['sometimes', 'boolean'],
+            // Desligada, o ciclo não vende ao fim do tempo limite: só alvo ou stop.
+            'micro_time_exit' => ['sometimes', 'boolean'],
+            // Tempo máximo do ciclo; vazio segue o da regra.
+            'micro_max_hold_minutes' => ['sometimes', 'nullable', 'integer', 'min:'.MicroCycle::MIN_HOLD_MINUTES, 'max:'.MicroCycle::MAX_HOLD_MINUTES],
             'micro_net_margin_pct' => ['required', 'numeric', 'min:0.05', 'max:5'],
             'micro_daily_target_pct' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
             // Limite da guarda de risco nesta carteira; vazio segue o perfil de risco.
