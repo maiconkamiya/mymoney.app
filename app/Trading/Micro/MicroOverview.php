@@ -109,6 +109,20 @@ class MicroOverview
                 'today_pct' => round(100 * $this->risk->dailyLoss($portfolio), 2),
             ],
             'state' => $this->trader->state($portfolio),
+            // Queda desde o maior saldo da guarda de risco: com ela no limite, o card diz o que libera.
+            'drawdown' => (function () use ($portfolio) {
+                $drawdown = $this->trader->drawdown($portfolio);
+
+                return [
+                    'blocked' => $drawdown['blocked'],
+                    'pct' => round(100 * $drawdown['drop'], 2),
+                    'limit_pct' => round(100 * $drawdown['limit'], 2),
+                    'equity' => round($drawdown['equity'], 2),
+                    'peak' => round($drawdown['peak'], 2),
+                    'release_equity' => round($drawdown['release_equity'], 2),
+                    'profile' => $portfolio->riskProfile->name,
+                ];
+            })(),
             'last_block' => $this->trader->lastBlock($portfolio),
             'last_run' => $lastRun,
             // O processo micro:watch (serviço mymoney-micro) passou há pouco; senão vale a rodada por minuto.

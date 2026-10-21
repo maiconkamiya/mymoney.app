@@ -406,6 +406,15 @@ export type MicroOverview = {
         today_pct: number;
     };
     state: { code: string; label: string };
+    drawdown: {
+        blocked: boolean;
+        pct: number;
+        limit_pct: number;
+        equity: number;
+        peak: number;
+        release_equity: number;
+        profile: string;
+    };
     last_block: string | null;
     last_run: string | null;
     realtime: boolean;
