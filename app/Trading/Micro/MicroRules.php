@@ -22,7 +22,7 @@ class MicroRules
     public function lookbackMinutes(MicroRule $rule): int
     {
         return match ($rule) {
-            MicroRule::Scalp => (int) config('trading.micro.lookback_minutes'),
+            MicroRule::Scalp, MicroRule::Scalp30 => (int) config('trading.micro.lookback_minutes') * $rule->timeframeMinutes(),
             MicroRule::TrendPullback => (int) config('trading.micro.trend.lookback_minutes'),
             // A few spare minutes so a missing candle does not leave the 24 h reference out of the window.
             MicroRule::ScalpUptrend, MicroRule::ScalpFiltered => max((int) config('trading.micro.uptrend.day_minutes'), (int) config('trading.micro.lookback_minutes')) + 5,
@@ -37,7 +37,7 @@ class MicroRules
     public function read(MicroRule $rule, array $candles, float $grossMarginPct, ?float $roundTripPct = null): ?MicroSetup
     {
         return match ($rule) {
-            MicroRule::Scalp => $this->scalp->read($candles, $grossMarginPct),
+            MicroRule::Scalp, MicroRule::Scalp30 => $this->scalp->read($candles, $grossMarginPct, $rule->timeframeMinutes()),
             MicroRule::TrendPullback => $this->trend->read($candles, $roundTripPct ?? $this->costs->roundTripPct()),
             MicroRule::ScalpUptrend => $this->scalpUptrend($candles, $grossMarginPct),
             MicroRule::ScalpFiltered => $this->scalpFiltered($candles, $grossMarginPct),
