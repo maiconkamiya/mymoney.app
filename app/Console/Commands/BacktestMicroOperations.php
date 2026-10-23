@@ -13,7 +13,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('micro:backtest
-    {--rule=all : scalp (regra atual), trend_pullback (tendência com recuo), scalp_uptrend (atual + alta em 24 h e 4 h), breakout (rompimento confirmado), breakout_pressure (pressão antes do rompimento), scalp_filtered (atual + alta + RSI e volume), scalp_30m (atual em velas de 30 minutos) ou all}
+    {--rule=all : scalp (regra atual), trend_pullback (tendência com recuo), scalp_uptrend (atual + alta em 24 h e 4 h), breakout (rompimento confirmado), breakout_pressure (pressão antes do rompimento), scalp_filtered (atual + alta + RSI e volume), scalp_30m (atual em velas de 30 minutos), scalp_week (atual + semana de 7 dias) ou all}
     {--symbols= : pares separados por vírgula (padrão: todos os de cripto ativos)}
     {--days=30 : dias de velas de 1 minuto até agora}
     {--net-margin=0.2 : margem líquida da regra atual, em %}
@@ -31,7 +31,7 @@ class BacktestMicroOperations extends Command
         $rules = $option === 'all' ? MicroRule::cases() : [is_string($option) ? MicroRule::tryFrom($option) : null];
 
         if (in_array(null, $rules, true)) {
-            $this->error('Regra desconhecida. Use scalp, trend_pullback, scalp_uptrend, breakout, breakout_pressure, scalp_filtered, scalp_30m ou all.');
+            $this->error('Regra desconhecida. Use scalp, trend_pullback, scalp_uptrend, breakout, breakout_pressure, scalp_filtered, scalp_30m, scalp_week ou all.');
 
             return self::INVALID;
         }

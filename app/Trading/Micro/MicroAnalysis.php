@@ -13,6 +13,9 @@ namespace App\Trading\Micro;
  * setup's `atrPct` stays the average 1-minute range, so the suggested buy price
  * and the pairs in focus read the same as in the 1-minute rule.
  *
+ * With the week's average 1-minute range (#220) the reach reads it in place of
+ * the range of the last bars.
+ *
  * Entry needs an uptrend, price near the support or pulled back to the fast
  * average, room below the resistance and a gross target the pair can plausibly
  * reach within the holding time.
@@ -21,8 +24,9 @@ class MicroAnalysis
 {
     /**
      * @param  list<array{high: float, low: float, close: float}>  $candles  oldest first
+     * @param  float|null  $weekRangePct  average 1-minute range of the week (#220): the reach reads it instead of the last bars
      */
-    public function read(array $candles, float $grossMarginPct, int $timeframe = 1): ?MicroSetup
+    public function read(array $candles, float $grossMarginPct, int $timeframe = 1, ?float $weekRangePct = null): ?MicroSetup
     {
         $atrWindow = (int) config('trading.micro.atr_window');
         $minuteCandles = $candles;
@@ -61,7 +65,8 @@ class MicroAnalysis
         $zone = $grossMarginPct * (float) config('trading.micro.support_zone');
 
         // Typical move in the holding time: average range of one bar times the square root of the bars in it.
-        $reach = $barAtrPct * sqrt($hold / $timeframe);
+        $reach = $weekRangePct !== null ? $weekRangePct * sqrt($hold) : $barAtrPct * sqrt($hold / $timeframe);
+        $reachSource = $weekRangePct !== null ? ' (pela faixa média de 1 minuto da semana)' : '';
         $reachable = $grossMarginPct <= $reach * (float) config('trading.micro.reach_factor');
 
         // A pullback inside the uptrend also qualifies: price back near the fast average, not stretched above it.
@@ -71,7 +76,7 @@ class MicroAnalysis
         $reasons = [];
         $uptrend || $reasons[] = "Sem tendência de alta (médias de 9 e 21 {$unit}).";
         $distance <= $zone || $pullback || $reasons[] = sprintf('Longe do suporte (%.2f%% acima; zona de %.2f%%) e esticado acima da média de 9 %s (%.2f%%).', $distance, $zone, $unit, $stretch);
-        $reachable || $reasons[] = sprintf('Alvo bruto de %.2f%% grande demais para este par: ele costuma andar cerca de %.2f%% em %d minutos.', $grossMarginPct, $reach, $hold);
+        $reachable || $reasons[] = sprintf('Alvo bruto de %.2f%% grande demais para este par: ele costuma andar cerca de %.2f%% em %d minutos%s.', $grossMarginPct, $reach, $hold, $reachSource);
         $room >= $grossMarginPct || $reasons[] = sprintf('Resistência perto (%.2f%% de espaço; alvo bruto de %.2f%%).', $room, $grossMarginPct);
 
         $entry = $reasons === [];
@@ -80,7 +85,7 @@ class MicroAnalysis
         $checks = [
             ['key' => 'trend', 'label' => 'Tendência de alta', 'ok' => $uptrend, 'detail' => $uptrend ? "Média de 9 {$unit} acima da de 21, e a de 21 subindo." : "Médias de 9 e 21 {$unit} sem alta."],
             ['key' => 'support', 'label' => $distance <= $zone || ! $pullback ? 'Perto do suporte' : 'Recuo na tendência', 'ok' => $distance <= $zone || $pullback, 'detail' => sprintf('%.2f%% acima do suporte (zona de %.2f%%); %.2f%% da média de 9 %s.', $distance, $zone, $stretch, $unit)],
-            ['key' => 'reach', 'label' => 'Alvo alcançável', 'ok' => $reachable, 'detail' => sprintf('Alvo bruto de %.2f%%; o par costuma andar %.2f%% em %d minutos.', $grossMarginPct, $reach, $hold)],
+            ['key' => 'reach', 'label' => 'Alvo alcançável', 'ok' => $reachable, 'detail' => sprintf('Alvo bruto de %.2f%%; o par costuma andar %.2f%% em %d minutos%s.', $grossMarginPct, $reach, $hold, $reachSource)],
             ['key' => 'room', 'label' => 'Espaço até a resistência', 'ok' => $room >= $grossMarginPct, 'detail' => sprintf('%.2f%% de espaço para um alvo bruto de %.2f%%.', $room, $grossMarginPct)],
         ];
 

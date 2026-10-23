@@ -16,7 +16,8 @@ use App\Enums\MicroRule;
  * worse case), the target from the next one. The target is a resting limit sell; the stop and the time
  * limit sell at market minus slippage. When the stop and the target fall in
  * the same candle, the stop counts (the worse case). One trade at a time per
- * pair, with the engine's pause after a stop.
+ * pair, with the engine's pause after a stop. The week of "Atual + semana"
+ * (#220) is the candles of the 7 days up to that minute, as the engine reads it.
  */
 class MicroBacktester
 {
@@ -62,6 +63,7 @@ class MicroBacktester
         $trades = [];
         $count = count($candles);
         $resumeAt = 0;
+        $weeks = $rule === MicroRule::ScalpWeek ? $this->weeks($candles) : null;
 
         for ($t = 0; $t < $count - 1; $t++) {
             if ($t < $resumeAt || ($random && mt_rand(1, 30) !== 1)) {
@@ -69,7 +71,7 @@ class MicroBacktester
             }
 
             $window = array_slice($candles, max(0, $t - $lookback + 1), min($lookback, $t + 1));
-            $setup = $this->rules->read($rule, $window, $gross, $roundTrip);
+            $setup = $this->rules->read($rule, $window, $gross, $roundTrip, $weeks === null ? null : $weeks($t));
 
             if ($setup === null || (! $random && ! $setup->entry)) {
                 continue;
@@ -143,6 +145,57 @@ class MicroBacktester
         }
 
         return $trades;
+    }
+
+    /**
+     * The week up to each candle, from running sums and a sliding maximum, so a
+     * month of minutes does not read 10 thousand candles each.
+     *
+     * @param  list<array{t: int, high: float, low: float, close: float}>  $candles
+     * @return \Closure(int): MicroWeek
+     */
+    private function weeks(array $candles): \Closure
+    {
+        $span = (int) config('trading.micro.week.minutes') * 60;
+        $count = [0];
+        $closes = [0.0];
+        $ranges = [0.0];
+        $left = [];
+        $high = [];
+        $deque = [];
+        $from = 0;
+
+        foreach ($candles as $i => $candle) {
+            $valid = $candle['close'] > 0;
+            $count[] = $count[$i] + (int) $valid;
+            $closes[] = $closes[$i] + ($valid ? $candle['close'] : 0.0);
+            $ranges[] = $ranges[$i] + ($valid ? ($candle['high'] - $candle['low']) / $candle['close'] * 100 : 0.0);
+
+            while ($candles[$from]['t'] <= $candle['t'] - $span) {
+                $from++;
+            }
+
+            while ($deque !== [] && $candles[end($deque)]['high'] <= $candle['high']) {
+                array_pop($deque);
+            }
+
+            $deque[] = $i;
+
+            while ($deque[0] < $from) {
+                array_shift($deque);
+            }
+
+            $left[] = $from;
+            $high[] = $candles[$deque[0]]['high'];
+        }
+
+        return function (int $t) use ($count, $closes, $ranges, $left, $high): MicroWeek {
+            $n = $count[$t + 1] - $count[$left[$t]];
+
+            return $n === 0
+                ? new MicroWeek(0, 0.0, 0.0, 0.0)
+                : new MicroWeek($n, ($closes[$t + 1] - $closes[$left[$t]]) / $n, $high[$t], ($ranges[$t + 1] - $ranges[$left[$t]]) / $n);
+        };
     }
 
     /**

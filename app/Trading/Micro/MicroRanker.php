@@ -8,10 +8,12 @@ use App\Models\Asset;
 use App\Models\Candle;
 use App\Models\Portfolio;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Orders the crypto assets the portfolio tracks by recent volatility (average 1-minute range) so
- * the trader looks first at the pairs that move the most, and reads each one.
+ * the trader looks first at the pairs that move the most, and reads each one. "Atual + semana"
+ * orders them by the week's average 1-minute range instead (#220).
  */
 class MicroRanker
 {
@@ -51,7 +53,7 @@ class MicroRanker
                 return ['asset' => $asset, 'setup' => $setup];
             })
             ->filter()
-            ->sortByDesc(fn (array $row) => $row['setup']->atrPct)
+            ->sortByDesc(fn (array $row) => $row['setup']->potentialPct())
             ->values();
 
         return ['ready' => $ready, 'skipped' => $skipped];
@@ -95,13 +97,48 @@ class MicroRanker
             $rows[] = ['high' => (float) $candle->high, 'low' => (float) $candle->low, 'close' => (float) $candle->close, 'volume' => (float) $candle->volume];
         }
 
-        return $this->rules->read($rule, $rows, $grossMarginPct) ?? match ($rule) {
+        $week = $rule === MicroRule::ScalpWeek ? $this->week($asset) : null;
+
+        return $this->rules->read($rule, $rows, $grossMarginPct, null, $week) ?? match ($rule) {
             MicroRule::Scalp => 'Poucos candles para ler o gráfico (precisa de 40 minutos).',
             MicroRule::TrendPullback => 'Poucos candles para ler o gráfico (a regra de tendência precisa de 22 horas de velas de 1 minuto).',
             MicroRule::ScalpUptrend, MicroRule::ScalpFiltered => 'Poucos candles para ler o gráfico (a alta em 24 h precisa de 24 horas de velas de 1 minuto).',
             MicroRule::Breakout, MicroRule::BreakoutPressure => 'Poucos candles para ler o gráfico (as regras de rompimento precisam de 2 h e meia de velas de 1 minuto).',
             MicroRule::Scalp30 => 'Poucos candles para ler o gráfico (a regra de 30 minutos precisa de 20 horas de velas de 1 minuto).',
+            MicroRule::ScalpWeek => sprintf('Poucos candles para ler o gráfico (a regra da semana precisa de %s velas de 1 minuto nos últimos 7 dias; este par tem %s).', number_format((int) config('trading.micro.week.min_candles'), 0, ',', '.'), number_format($week->candles ?? 0, 0, ',', '.')),
         };
+    }
+
+    /**
+     * The pair's week from one aggregate query instead of 10 thousand candles,
+     * kept for a short while: it barely moves from one reading to the next.
+     */
+    private function week(Asset $asset): MicroWeek
+    {
+        $minutes = (int) config('trading.micro.week.minutes');
+        $seconds = (int) config('trading.micro.week.cache_seconds');
+
+        /** @var array{candles: int, average_close: float, high: float, range_pct: float} $row */
+        $row = Cache::remember("micro:week:{$asset->id}", now()->addSeconds($seconds), function () use ($asset, $minutes) {
+            $row = Candle::query()
+                ->toBase()
+                ->where('asset_id', $asset->id)
+                ->where('timeframe', '1m')
+                ->where('open_at', '>=', now()->subMinutes($minutes))
+                ->where('open_at', '<=', now())
+                ->where('close', '>', 0)
+                ->selectRaw('count(*) as candles, avg(close) as average_close, max(high) as high, avg((high - low) / close * 100) as range_pct')
+                ->first();
+
+            return [
+                'candles' => (int) ($row->candles ?? 0),
+                'average_close' => (float) ($row->average_close ?? 0),
+                'high' => (float) ($row->high ?? 0),
+                'range_pct' => (float) ($row->range_pct ?? 0),
+            ];
+        });
+
+        return new MicroWeek($row['candles'], $row['average_close'], $row['high'], $row['range_pct']);
     }
 
     /**

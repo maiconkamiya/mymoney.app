@@ -272,6 +272,16 @@ return [
             'recent_minutes' => 240,
         ],
 
+        // Regra "Atual + semana (7 dias)" (#220): a leitura de 1 minuto da regra atual com o alcance do alvo
+        // pela faixa média de 1 minuto das últimas `minutes` velas, o preço acima da média dos fechamentos
+        // delas e a máxima delas pelo menos o alvo bruto acima. Precisa de `min_candles` velas na semana
+        // (os pares do explorador têm buracos). O motor guarda a semana de cada par por `cache_seconds`.
+        'week' => [
+            'minutes' => 10080,
+            'min_candles' => 7200,
+            'cache_seconds' => 60,
+        ],
+
         // Regra "Atual + alta + RSI e volume" (#204): a regra "Atual + alta em 24 h e 4 h" e, além dela,
         // o RSI de `rsi_period` velas de 1 min abaixo de `rsi_max` (não compra esticado) e o volume médio
         // das últimas `volume_recent_minutes` velas acima de `volume_ratio` vezes o das

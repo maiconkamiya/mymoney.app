@@ -351,7 +351,8 @@ export type MicroRuleOption = {
         | 'breakout'
         | 'breakout_pressure'
         | 'scalp_filtered'
-        | 'scalp_30m';
+        | 'scalp_30m'
+        | 'scalp_week';
     label: string;
     backtest: MicroBacktestSummary | null;
 };
