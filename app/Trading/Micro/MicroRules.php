@@ -22,7 +22,8 @@ class MicroRules
     public function lookbackMinutes(MicroRule $rule): int
     {
         return match ($rule) {
-            MicroRule::Scalp, MicroRule::Scalp30 => (int) config('trading.micro.lookback_minutes') * $rule->timeframeMinutes(),
+            // The week of "Atual + semana" comes apart (MicroWeek): the window is the current rule's.
+            MicroRule::Scalp, MicroRule::Scalp30, MicroRule::ScalpWeek => (int) config('trading.micro.lookback_minutes') * $rule->timeframeMinutes(),
             MicroRule::TrendPullback => (int) config('trading.micro.trend.lookback_minutes'),
             // A few spare minutes so a missing candle does not leave the 24 h reference out of the window.
             MicroRule::ScalpUptrend, MicroRule::ScalpFiltered => max((int) config('trading.micro.uptrend.day_minutes'), (int) config('trading.micro.lookback_minutes')) + 5,
@@ -33,11 +34,13 @@ class MicroRules
     /**
      * @param  list<array{high: float, low: float, close: float, volume?: float}>  $candles  oldest first
      * @param  float|null  $roundTripPct  cost of a buy plus a sell; null uses `trading.costs.crypto`
+     * @param  MicroWeek|null  $week  the pair's week for "Atual + semana"; null reads it from `$candles`
      */
-    public function read(MicroRule $rule, array $candles, float $grossMarginPct, ?float $roundTripPct = null): ?MicroSetup
+    public function read(MicroRule $rule, array $candles, float $grossMarginPct, ?float $roundTripPct = null, ?MicroWeek $week = null): ?MicroSetup
     {
         return match ($rule) {
             MicroRule::Scalp, MicroRule::Scalp30 => $this->scalp->read($candles, $grossMarginPct, $rule->timeframeMinutes()),
+            MicroRule::ScalpWeek => $this->scalpWeek($candles, $grossMarginPct, $week ?? MicroWeek::fromCandles($candles)),
             MicroRule::TrendPullback => $this->trend->read($candles, $roundTripPct ?? $this->costs->roundTripPct()),
             MicroRule::ScalpUptrend => $this->scalpUptrend($candles, $grossMarginPct),
             MicroRule::ScalpFiltered => $this->scalpFiltered($candles, $grossMarginPct),
@@ -58,6 +61,70 @@ class MicroRules
             'stop_pct' => $setup->stopPct ?? $grossMarginPct * (float) config('trading.micro.stop_ratio'),
             'max_hold_minutes' => $setup->maxHoldMinutes ?? (int) config('trading.micro.max_hold_minutes'),
         ];
+    }
+
+    /**
+     * The current rule on its own window with the reach of the week, plus two
+     * conditions of the week (#220): the price above the mean of its closes and
+     * its high at least the gross target above the price. Same exits as the
+     * current rule. The pairs in focus are ordered by the week's range.
+     *
+     * @param  list<array{high: float, low: float, close: float}>  $candles  oldest first
+     */
+    private function scalpWeek(array $candles, float $grossMarginPct, MicroWeek $week): ?MicroSetup
+    {
+        if ($week->candles < (int) config('trading.micro.week.min_candles')) {
+            return null;
+        }
+
+        $setup = $this->scalp->read(array_slice($candles, -(int) config('trading.micro.lookback_minutes')), $grossMarginPct, 1, $week->rangePct);
+
+        if ($setup === null) {
+            return null;
+        }
+
+        $price = $setup->price;
+        $above = ($price / $week->averageClose - 1) * 100;
+        $up = $above > 0;
+        $room = max(0.0, ($week->high - $price) / $price * 100);
+        $spacious = $room >= $grossMarginPct;
+
+        $checks = [...$setup->checks, [
+            'key' => 'week_trend',
+            'label' => 'Acima da média da semana',
+            'ok' => $up,
+            'detail' => sprintf('%+.2f%% contra a média dos fechamentos de 7 dias.', $above),
+        ], [
+            'key' => 'week_room',
+            'label' => 'Espaço até a máxima da semana',
+            'ok' => $spacious,
+            'detail' => sprintf('%.2f%% até a máxima de 7 dias para um alvo bruto de %.2f%%.', $room, $grossMarginPct),
+        ]];
+
+        $entry = $setup->entry && $up && $spacious;
+
+        if ($entry) {
+            $reasons = [...$setup->reasons, sprintf('%+.2f%% acima da média da semana e %.2f%% até a máxima dela.', $above, $room)];
+        } else {
+            $reasons = $setup->entry ? [] : $setup->reasons;
+            $up || $reasons[] = sprintf('Abaixo da média da semana (%+.2f%%).', $above);
+            $spacious || $reasons[] = sprintf('Máxima da semana perto (%.2f%% de espaço; alvo bruto de %.2f%%).', $room, $grossMarginPct);
+        }
+
+        return new MicroSetup(
+            price: $setup->price,
+            atrPct: $setup->atrPct,
+            uptrend: $setup->uptrend,
+            support: $setup->support,
+            resistance: $setup->resistance,
+            distanceToSupportPct: $setup->distanceToSupportPct,
+            roomToResistancePct: $setup->roomToResistancePct,
+            entry: $entry,
+            reachPct: $setup->reachPct,
+            reasons: $reasons,
+            checks: $checks,
+            weekRangePct: $week->rangePct,
+        );
     }
 
     /**

@@ -486,6 +486,16 @@ const dayTime = (iso: string) =>
                         escolhida depois de passar no backtest.
                     </template>
                     <template
+                        v-else-if="chosenRuleOption.value === 'scalp_week'"
+                    >
+                        A regra atual, com o alcance do alvo medido pela faixa
+                        média de 1 minuto dos últimos 7 dias, e só entra se o
+                        preço estiver acima da média da semana e a máxima da
+                        semana couber o alvo. Precisa de 5 dias de velas. Na
+                        carteira real só pode ser escolhida depois de passar no
+                        backtest.
+                    </template>
+                    <template
                         v-else-if="chosenRuleOption.value === 'scalp_uptrend'"
                     >
                         A regra atual, com alvo pela margem líquida acima, e só

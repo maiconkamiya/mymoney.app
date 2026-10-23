@@ -148,10 +148,11 @@ class MicroBacktestTest extends TestCase
             ->expectsOutputToContain('Pressão antes do rompimento')
             ->expectsOutputToContain('Atual + alta + RSI e volume')
             ->expectsOutputToContain('Atual (30 minutos)')
+            ->expectsOutputToContain('Atual + semana (7 dias)')
             ->expectsOutputToContain('NÃO PASSOU')
             ->assertSuccessful();
 
-        $this->assertSame(7, MicroBacktest::count());
+        $this->assertSame(8, MicroBacktest::count());
         $this->assertFalse(MicroBacktest::latestFor(MicroRule::TrendPullback)->passed);
         $this->assertSame(['DOGEUSDT'], MicroBacktest::latestFor(MicroRule::Scalp)->params['symbols']);
 

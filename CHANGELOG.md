@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.101] - 2026-10-23
+
+### Adicionado
+
+- **Regra de entrada "Atual + semana (7 dias)" nas micro operações.** É a regra atual com uma semana de histórico. A leitura de 1 minuto continua a mesma (tendência das médias de 9 e 21 minutos, perto do suporte ou num recuo, espaço até a resistência de 60 minutos), e a semana entra em três pontos. O "alvo alcançável" passa a usar a faixa média de 1 minuto dos últimos 7 dias, em vez da faixa das últimas 30 velas, vezes a raiz do tempo máximo do ciclo. Duas condições novas aparecem no card: "Acima da média da semana" (o preço acima da média dos fechamentos de 7 dias) e "Espaço até a máxima da semana" (a máxima de 7 dias pelo menos o alvo bruto acima do preço). Os "Pares em foco" dessa regra são os que mais se movem na semana, e não nas últimas 30 velas. A regra precisa de 5 dias de velas de 1 minuto nos últimos 7; com menos, o card diz quantas velas o par tem. A saída é a mesma da regra atual. A regra "Atual (1 minuto)" não mudou e nenhuma carteira trocou de regra: a escolha é no card. Na carteira real ela só pode ser escolhida depois de passar no backtest (`micro:backtest --rule=scalp_week`).
+
 ## [0.3.100] - 2026-10-21
 
 ### Adicionado

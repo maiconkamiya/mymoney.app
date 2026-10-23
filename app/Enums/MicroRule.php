@@ -28,6 +28,9 @@ enum MicroRule: string
     /** The 1-minute reading on 30-minute bars: same conditions and exits, windows counted in bars (#218). */
     case Scalp30 = 'scalp_30m';
 
+    /** The 1-minute reading with the reach of the week, plus the price above the week's mean and room below its high (#220). */
+    case ScalpWeek = 'scalp_week';
+
     /**
      * Minutes of each bar the rule's chart reading groups the 1-minute candles into.
      */
@@ -61,6 +64,7 @@ enum MicroRule: string
             self::BreakoutPressure => 'Pressão antes do rompimento',
             self::ScalpFiltered => 'Atual + alta + RSI e volume',
             self::Scalp30 => 'Atual (30 minutos)',
+            self::ScalpWeek => 'Atual + semana (7 dias)',
         };
     }
 }

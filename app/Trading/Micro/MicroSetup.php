@@ -13,6 +13,7 @@ final readonly class MicroSetup
      * @param  float|null  $targetPct  the rule's own target above the entry (null: the gross margin)
      * @param  float|null  $stopPct  the rule's own stop below the entry (null: the gross margin times the stop ratio)
      * @param  int|null  $maxHoldMinutes  the rule's own time limit (null: `trading.micro.max_hold_minutes`)
+     * @param  float|null  $weekRangePct  average 1-minute range of the week (#220): the pairs in focus are ordered by it instead of `atrPct`
      */
     public function __construct(
         public float $price,
@@ -29,7 +30,16 @@ final readonly class MicroSetup
         public ?float $targetPct = null,
         public ?float $stopPct = null,
         public ?int $maxHoldMinutes = null,
+        public ?float $weekRangePct = null,
     ) {}
+
+    /**
+     * How much the pair moves, to order the pairs in focus: the week's range when the rule reads it.
+     */
+    public function potentialPct(): float
+    {
+        return $this->weekRangePct ?? $this->atrPct;
+    }
 
     /**
      * @return array<string, mixed>
