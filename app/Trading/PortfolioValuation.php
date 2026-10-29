@@ -70,19 +70,30 @@ class PortfolioValuation
      * owner can edit it), so its peak comes from the snapshots alone, or from the equity seen now.
      * In a simulated portfolio each snapshot counts with the deposits made after it (the initial
      * cash already includes them).
+     *
+     * Once the owner resets the peak ("Zerar maior saldo", #222), the equity of that moment is the
+     * new starting point and only snapshots taken after it count.
      */
     public function peakEquity(Portfolio $portfolio): float
     {
-        $peak = $portfolio->snapshots()->max('equity');
+        $since = $portfolio->peak_reset_at;
+        $base = $since === null ? null : (float) $portfolio->peak_reset_equity;
+        $snapshots = fn () => $portfolio->snapshots()->when($since !== null, fn ($query) => $query->where('taken_at', '>=', $since));
+        $peak = $snapshots()->max('equity');
+        $peak = $base === null ? $peak : max((float) $peak, $base);
 
         if ($portfolio->isLive()) {
             return $peak !== null ? (float) $peak : $this->equity($portfolio);
         }
 
-        $deposits = $portfolio->deposits()->orderBy('deposited_at')->get(['amount', 'deposited_at']);
+        $deposits = $portfolio->deposits()
+            ->when($since !== null, fn ($query) => $query->where('deposited_at', '>', $since))
+            ->orderBy('deposited_at')->get(['amount', 'deposited_at']);
+        // The initial cash holds every deposit: after a reset it no longer floors the peak.
+        $floor = $since === null ? $portfolio->initial_cash : 0.0;
 
         if ($deposits->isEmpty()) {
-            return max((float) $peak, $portfolio->initial_cash);
+            return max((float) $peak, $floor);
         }
 
         $peak = 0.0;
@@ -91,10 +102,13 @@ class PortfolioValuation
 
         // Snapshots between two deposits share the same adjustment: the deposits still to come.
         foreach ([...$deposits->all(), null] as $deposit) {
-            $max = $portfolio->snapshots()
+            $max = $snapshots()
                 ->when($from !== null, fn ($query) => $query->where('taken_at', '>=', $from))
                 ->when($deposit !== null, fn ($query) => $query->where('taken_at', '<', $deposit->deposited_at))
                 ->max('equity');
+
+            // The reset point is the first equity of the first stretch.
+            $max = $from === null && $base !== null ? max((float) $max, $base) : $max;
 
             if ($max !== null) {
                 $peak = max($peak, (float) $max + $pending);
@@ -106,7 +120,7 @@ class PortfolioValuation
             }
         }
 
-        return max($peak, $portfolio->initial_cash);
+        return max($peak, $floor);
     }
 
     /**

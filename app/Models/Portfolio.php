@@ -50,6 +50,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $micro_wallet_pct
  * @property MicroRule $micro_rule
  * @property float|null $daily_loss_pct perda máxima do dia da guarda de risco nesta carteira, %; null segue o perfil
+ * @property float|null $max_drawdown_pct queda máxima desde o maior saldo da guarda de risco nesta carteira, %; null segue o perfil
+ * @property CarbonImmutable|null $peak_reset_at o dono zerou o maior saldo: a guarda só conta o maior saldo a partir daqui
+ * @property float|null $peak_reset_equity patrimônio no momento do reset, o novo ponto de partida do maior saldo
  * @property list<int>|null $micro_liquidate_asset_ids
  * @property string $micro_entry_mode "limit" (compra limitada no preço sugerido) or "market"
  * @property int $micro_limit_seconds how long the limit buy waits before it is cancelled
@@ -73,7 +76,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, PortfolioSnapshot> $snapshots
  * @property-read Collection<int, MicroCycle> $microCycles
  */
-#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target_pct', 'daily_loss_pct', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'micro_entry_mode', 'micro_limit_seconds', 'micro_exchange_stop', 'micro_time_exit', 'micro_max_hold_minutes', 'explorer_auto_swarm', 'explorer_follow', 'explorer_follow_size', 'explorer_follow_min_hours'])]
+#[Fillable(['user_id', 'risk_profile_id', 'broker_credential_id', 'name', 'market', 'mode', 'broker', 'status', 'initial_cash', 'cash', 'benchmark', 'starts_at', 'ends_at', 'auto_execute', 'live_auto_confirmed_at', 'orders_blocked_at', 'orders_blocked_reason', 'notify_live_email', 'synced_at', 'sync_report', 'micro_enabled', 'micro_order_value', 'micro_net_margin_pct', 'micro_daily_target_pct', 'daily_loss_pct', 'max_drawdown_pct', 'peak_reset_at', 'peak_reset_equity', 'micro_daily_operations', 'micro_wallet_pct', 'micro_rule', 'micro_liquidate_asset_ids', 'micro_entry_mode', 'micro_limit_seconds', 'micro_exchange_stop', 'micro_time_exit', 'micro_max_hold_minutes', 'explorer_auto_swarm', 'explorer_follow', 'explorer_follow_size', 'explorer_follow_min_hours'])]
 class Portfolio extends Model
 {
     /** @use HasFactory<PortfolioFactory> */
@@ -119,6 +122,9 @@ class Portfolio extends Model
             'micro_wallet_pct' => 'integer',
             'micro_rule' => MicroRule::class,
             'daily_loss_pct' => 'float',
+            'max_drawdown_pct' => 'float',
+            'peak_reset_at' => 'datetime',
+            'peak_reset_equity' => 'float',
             'micro_liquidate_asset_ids' => 'array',
             'micro_limit_seconds' => 'integer',
             'micro_exchange_stop' => 'boolean',

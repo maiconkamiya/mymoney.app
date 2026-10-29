@@ -23,6 +23,9 @@ class RiskGuard
     /** Teto, em %, da perda do dia que o dono pode escolher para uma carteira. */
     public const MAX_DAILY_LOSS_PCT = 20;
 
+    /** Teto, em %, da queda desde o maior saldo que o dono pode escolher para uma carteira. */
+    public const MAX_DRAWDOWN_PCT = 50;
+
     public function __construct(
         private readonly TradingHalt $halt,
         private readonly PriceFeed $prices,
@@ -112,7 +115,7 @@ class RiskGuard
             return RiskDecision::block('Perda máxima do dia atingida.');
         }
 
-        if ($drawdown >= $profile->max_drawdown_pct) {
+        if ($drawdown >= $this->drawdownLimit($portfolio)) {
             return RiskDecision::block('Drawdown máximo atingido.');
         }
 
@@ -157,6 +160,17 @@ class RiskGuard
         $pct = $portfolio->daily_loss_pct ?? 100 * $portfolio->riskProfile->max_daily_loss_pct;
 
         return min($pct, self::MAX_DAILY_LOSS_PCT) / 100;
+    }
+
+    /**
+     * Queda máxima desde o maior saldo desta carteira, em fração: a que o dono escolheu no card
+     * (até MAX_DRAWDOWN_PCT) ou, sem escolha, a do perfil de risco.
+     */
+    public function drawdownLimit(Portfolio $portfolio): float
+    {
+        $pct = $portfolio->max_drawdown_pct ?? 100 * $portfolio->riskProfile->max_drawdown_pct;
+
+        return min($pct, self::MAX_DRAWDOWN_PCT) / 100;
     }
 
     /**

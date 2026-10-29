@@ -53,6 +53,7 @@ class PortfolioCloneController extends Controller
                 'micro_net_margin_pct' => $portfolio->micro_net_margin_pct,
                 'micro_daily_target_pct' => $portfolio->micro_daily_target_pct,
                 'daily_loss_pct' => $portfolio->daily_loss_pct,
+                'max_drawdown_pct' => $portfolio->max_drawdown_pct,
                 'micro_daily_operations' => $portfolio->micro_daily_operations,
                 'micro_wallet_pct' => $portfolio->micro_wallet_pct,
                 'micro_rule' => $portfolio->micro_rule,

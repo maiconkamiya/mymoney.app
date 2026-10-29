@@ -416,6 +416,10 @@ export type MicroOverview = {
         peak: number;
         release_equity: number;
         profile: string;
+        max_drawdown_pct: number | null;
+        default_pct: number;
+        max_pct: number;
+        reset_at: string | null;
     };
     last_block: string | null;
     last_run: string | null;

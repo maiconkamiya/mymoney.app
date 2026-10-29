@@ -4,6 +4,12 @@ Todas as mudanças do MyMoney.App que quem usa o sistema percebe ficam neste arq
 
 A fonte da versão é o campo `version` do `package.json`. A página "Novidades" do sistema mostra as últimas versões deste arquivo. A regra de subida e a checagem estão no `CLAUDE.md`, seção "Versão e release".
 
+## [0.3.102] - 2026-10-29
+
+### Adicionado
+
+- **Queda máxima e "Zerar maior saldo" no card de micro operações.** A guarda de risco para as compras quando o patrimônio cai mais que a queda máxima desde o maior saldo (10% no perfil Padrão), e até agora esse limite não tinha tela: a carteira ficava presa até o patrimônio voltar a subir. O card ganhou o campo "Queda máxima desde o maior saldo (%)", ao lado da perda do dia: vazio segue o perfil de risco, e o máximo é 50%. Ganhou também o botão "Zerar maior saldo", que pede confirmação e faz a queda passar a contar do patrimônio de agora; daí em diante um saldo novo mais alto volta a ser o maior saldo. O aviso de bloqueio mostra as duas saídas. A mudança do limite e cada reset ficam no registro de auditoria, com o maior saldo anterior. A perda do dia, os limites da carteira real e o "Parar tudo" não mudam, e "Clonar como simulada" copia a queda máxima escolhida.
+
 ## [0.3.101] - 2026-10-23
 
 ### Adicionado

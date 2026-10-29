@@ -121,6 +121,11 @@ class MicroOverview
                     'peak' => round($drawdown['peak'], 2),
                     'release_equity' => round($drawdown['release_equity'], 2),
                     'profile' => $portfolio->riskProfile->name,
+                    // Limite escolhido no card (null segue o perfil), o do perfil, o teto e o último reset.
+                    'max_drawdown_pct' => $portfolio->max_drawdown_pct,
+                    'default_pct' => round(100 * $portfolio->riskProfile->max_drawdown_pct, 4),
+                    'max_pct' => RiskGuard::MAX_DRAWDOWN_PCT,
+                    'reset_at' => $portfolio->peak_reset_at?->toIso8601String(),
                 ];
             })(),
             'last_block' => $this->trader->lastBlock($portfolio),

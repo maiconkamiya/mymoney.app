@@ -203,8 +203,8 @@ class MicroTrader
 
     /**
      * Queda do patrimônio desde o maior saldo, na mesma conta da guarda de risco (RiskGuard::check):
-     * com ela no limite do perfil, nenhuma compra passa. Libera quando o patrimônio passa de
-     * `release_equity` (ou, na simulada, com um novo aporte, que entra no saldo e no maior saldo).
+     * com ela no limite da carteira (ou do perfil), nenhuma compra passa. Libera quando o patrimônio passa de
+     * `release_equity`, subindo o limite, zerando o maior saldo (#222) ou, na simulada, com um novo aporte.
      *
      * @return array{drop: float, limit: float, equity: float, peak: float, release_equity: float, blocked: bool}
      */
@@ -213,7 +213,7 @@ class MicroTrader
         $equity = $this->valuation->equity($portfolio);
         $peak = $this->valuation->peakEquity($portfolio);
         $drop = 1 - $equity / max($peak, 0.00000001);
-        $limit = (float) $portfolio->riskProfile->max_drawdown_pct;
+        $limit = $this->risk->drawdownLimit($portfolio);
 
         return [
             'drop' => $drop,
