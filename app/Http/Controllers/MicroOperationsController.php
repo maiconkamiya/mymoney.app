@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Portfolio;
 use App\Trading\Micro\MicroTrader;
 use App\Trading\PortfolioLock;
+use App\Trading\PortfolioValuation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -28,6 +29,7 @@ class MicroOperationsController extends Controller
             'micro_net_margin_pct' => $data['micro_net_margin_pct'],
             'micro_daily_target_pct' => $data['micro_daily_target_pct'] ?? null,
             'daily_loss_pct' => $data['daily_loss_pct'] ?? null,
+            'max_drawdown_pct' => array_key_exists('max_drawdown_pct', $data) ? $data['max_drawdown_pct'] : $portfolio->max_drawdown_pct,
             'micro_daily_operations' => $data['micro_daily_operations'] ?? null,
             'micro_wallet_pct' => $data['micro_wallet_pct'] ?? 100,
             'micro_rule' => $data['micro_rule'] ?? $portfolio->micro_rule,
@@ -46,6 +48,36 @@ class MicroOperationsController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => $portfolio->micro_enabled
             ? 'Micro operações ligadas: o agente opera nos pares mais voláteis dentro dos seus valores.'
             : 'Micro operações salvas (desligadas). '.($portfolio->micro_time_exit ? 'Ciclos abertos seguem até o alvo, o stop ou o tempo limite.' : 'Ciclos abertos seguem até o alvo ou o stop.')]);
+
+        return back();
+    }
+
+    /**
+     * "Zerar maior saldo" (#222): a queda máxima da guarda de risco passa a contar do patrimônio de agora.
+     * The previous peak stays in the audit log.
+     */
+    public function resetPeak(Request $request, Portfolio $portfolio, MicroTrader $trader, PortfolioValuation $valuation): RedirectResponse
+    {
+        abort_unless($portfolio->user_id === $request->user()->id, 403);
+
+        $before = $trader->drawdown($portfolio);
+        $equity = $valuation->equity($portfolio);
+
+        $portfolio->update(['peak_reset_at' => now(), 'peak_reset_equity' => $equity]);
+
+        AuditLog::record('user:'.$request->user()->id, 'portfolio.peak_reset', $portfolio, [
+            'previous_peak' => round($before['peak'], 4),
+            'equity' => round($equity, 4),
+            'drop_pct' => round(100 * $before['drop'], 2),
+            'limit_pct' => round(100 * $before['limit'], 2),
+            'was_blocked' => $before['blocked'],
+            'live' => $portfolio->isLive(),
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => sprintf(
+            'Maior saldo zerado: a queda máxima passa a contar de %s USDT.',
+            number_format($equity, 2, ',', '.'),
+        )]);
 
         return back();
     }

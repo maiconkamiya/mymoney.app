@@ -35,6 +35,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('portfolios/{portfolio}/saldo-inicial', PortfolioInitialCashController::class)->name('portfolios.initial-cash');
     Route::post('portfolios/{portfolio}/aportes', [PortfolioDepositController::class, 'store'])->name('portfolios.deposits.store');
     Route::put('portfolios/{portfolio}/micro-operacoes', [MicroOperationsController::class, 'update'])->name('portfolios.micro');
+    Route::post('portfolios/{portfolio}/micro-operacoes/zerar-maior-saldo', [MicroOperationsController::class, 'resetPeak'])->name('portfolios.reset-peak');
     Route::put('portfolios/{portfolio}/micro-operacoes/liquidar', [MicroOperationsController::class, 'liquidate'])->name('portfolios.liquidate');
     Route::post('portfolios/{portfolio}/micro-operacoes/liquidar-agora', [MicroOperationsController::class, 'liquidateNow'])->name('portfolios.liquidate-now');
     Route::put('portfolios/{portfolio}/ativos', [PortfolioAssetsController::class, 'update'])->name('portfolios.assets.update');

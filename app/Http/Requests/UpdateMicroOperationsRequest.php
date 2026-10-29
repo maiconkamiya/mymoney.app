@@ -53,6 +53,8 @@ class UpdateMicroOperationsRequest extends FormRequest
             'micro_daily_target_pct' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
             // Limite da guarda de risco nesta carteira; vazio segue o perfil de risco.
             'daily_loss_pct' => ['nullable', 'numeric', 'min:0.1', 'max:'.RiskGuard::MAX_DAILY_LOSS_PCT],
+            // Queda máxima desde o maior saldo nesta carteira; vazio segue o perfil de risco.
+            'max_drawdown_pct' => ['sometimes', 'nullable', 'numeric', 'min:1', 'max:'.RiskGuard::MAX_DRAWDOWN_PCT],
         ];
     }
 

@@ -70,7 +70,7 @@ class RunMicroOperations extends Command
 
             if ($state['code'] === 'drawdown_limit') {
                 $drawdown = $trader->drawdown($portfolio);
-                $this->line(sprintf('  maior saldo %s, agora %s: volta a comprar acima de %s, com novo aporte (simulada) ou subindo a queda máxima do perfil "%s"', round($drawdown['peak'], 2), round($drawdown['equity'], 2), round($drawdown['release_equity'], 2), $portfolio->riskProfile->name));
+                $this->line(sprintf('  maior saldo %s, agora %s: volta a comprar acima de %s, com novo aporte (simulada), subindo a queda máxima (hoje %s%%) ou zerando o maior saldo no card', round($drawdown['peak'], 2), round($drawdown['equity'], 2), round($drawdown['release_equity'], 2), round(100 * $drawdown['limit'], 2)));
             }
             foreach ($portfolio->openPositions()->whereIn('asset_id', $portfolio->micro_liquidate_asset_ids ?? [])->with('asset')->get() as $position) {
                 $row = $trader->liquidation($portfolio, $position);

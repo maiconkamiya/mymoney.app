@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
     liquidate as liquidateAction,
     liquidateNow as liquidateNowAction,
+    resetPeak as resetPeakAction,
 } from '@/actions/App/Http/Controllers/MicroOperationsController';
 import InputError from '@/components/InputError.vue';
 import MicroFocusPairs from '@/components/portfolio/MicroFocusPairs.vue';
@@ -168,6 +169,37 @@ function liquidateNow() {
     );
 }
 
+// "Zerar maior saldo": a queda máxima passa a contar do patrimônio de agora, com confirmação.
+const confirmingReset = ref(false);
+const resetting = ref(false);
+
+// Patrimônio abaixo do qual as compras param de novo depois do reset, em centavos de USDT.
+const resetFloor = computed(
+    () =>
+        Math.round(
+            props.micro.drawdown.equity *
+                (1 - props.micro.drawdown.limit_pct / 100) *
+                100,
+        ) / 100,
+);
+
+function resetPeak() {
+    resetting.value = true;
+
+    router.post(
+        resetPeakAction.url(props.portfolio.id),
+        {},
+        {
+            preserveScroll: true,
+            only: ['portfolio', 'micro'],
+            onFinish: () => {
+                resetting.value = false;
+                confirmingReset.value = false;
+            },
+        },
+    );
+}
+
 const oddsTone = (pct: number | null) =>
     pct === null ? '' : pct >= 60 ? 'text-up' : pct < 30 ? 'text-down' : '';
 
@@ -242,7 +274,9 @@ const dayTime = (iso: string) =>
             <p class="font-medium">
                 A guarda de risco não deixa comprar: o patrimônio caiu
                 {{ pct(micro.drawdown.pct) }}% desde o maior saldo, e o limite
-                do perfil "{{ micro.drawdown.profile }}" é
+                <template v-if="micro.drawdown.max_drawdown_pct === null"
+                    >do perfil "{{ micro.drawdown.profile }}"</template
+                ><template v-else>desta carteira</template> é
                 {{ pct(micro.drawdown.limit_pct) }}%.
             </p>
             <p class="text-muted-foreground tabular-nums">
@@ -251,10 +285,20 @@ const dayTime = (iso: string) =>
                 patrimônio passar de {{ usdt(micro.drawdown.release_equity)
                 }}<template v-if="portfolio.mode === 'paper'"
                     >, com um novo aporte na carteira</template
-                >
-                ou subindo a queda máxima do perfil de risco. As vendas
-                continuam normalmente.
+                >, subindo a queda máxima abaixo ou zerando o maior saldo. As
+                vendas continuam normalmente.
             </p>
+            <div>
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    data-test="micro-reset-peak-banner"
+                    @click="confirmingReset = true"
+                >
+                    Zerar maior saldo
+                </Button>
+            </div>
         </div>
 
         <p class="text-sm text-muted-foreground">
@@ -446,6 +490,40 @@ const dayTime = (iso: string) =>
                     perda. Máximo {{ micro.daily_loss.max_pct }}%.
                 </p>
                 <InputError :message="errors.daily_loss_pct" />
+            </div>
+            <div class="grid gap-2" data-test="micro-max-drawdown">
+                <Label for="max_drawdown_pct"
+                    >Queda máxima desde o maior saldo (%)</Label
+                >
+                <Input
+                    id="max_drawdown_pct"
+                    name="max_drawdown_pct"
+                    type="number"
+                    step="0.5"
+                    min="1"
+                    :max="micro.drawdown.max_pct"
+                    :placeholder="`${pct(micro.drawdown.default_pct)} (padrão)`"
+                    :default-value="micro.drawdown.max_drawdown_pct ?? ''"
+                />
+                <p class="text-xs text-muted-foreground tabular-nums">
+                    Caindo {{ pct(micro.drawdown.limit_pct) }}% desde o maior
+                    saldo ({{ usdt(micro.drawdown.peak) }}), nenhuma compra sai.
+                    Hoje: {{ pct(Math.max(micro.drawdown.pct, 0)) }}% de queda.
+                    Vazio segue o perfil; máximo {{ micro.drawdown.max_pct }}%.
+                    <template v-if="micro.drawdown.reset_at"
+                        >Maior saldo zerado em
+                        {{ dayTime(micro.drawdown.reset_at) }}.</template
+                    >
+                </p>
+                <button
+                    type="button"
+                    class="w-fit text-xs font-medium underline underline-offset-4 hover:text-foreground"
+                    data-test="micro-reset-peak"
+                    @click="confirmingReset = true"
+                >
+                    Zerar maior saldo
+                </button>
+                <InputError :message="errors.max_drawdown_pct" />
             </div>
 
             <div
@@ -976,6 +1054,46 @@ const dayTime = (iso: string) =>
                         @click="liquidateNow"
                     >
                         Vender agora
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog
+            :open="confirmingReset"
+            @update:open="
+                (open) => !open && !resetting && (confirmingReset = false)
+            "
+        >
+            <DialogContent>
+                <DialogHeader class="space-y-3">
+                    <DialogTitle>Zerar o maior saldo?</DialogTitle>
+                    <DialogDescription>
+                        A queda máxima passa a contar do patrimônio de agora,
+                        {{ usdt(micro.drawdown.equity) }} USDT, e não mais do
+                        maior saldo de {{ usdt(micro.drawdown.peak) }} USDT. Com
+                        o limite de {{ pct(micro.drawdown.limit_pct) }}%, as
+                        compras param de novo abaixo de
+                        {{ usdt(resetFloor) }}
+                        USDT. A perda do dia, os limites reais e o "Parar tudo"
+                        continuam valendo, e o reset fica no registro de
+                        auditoria.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter class="gap-2">
+                    <DialogClose as-child>
+                        <Button variant="secondary" :disabled="resetting">
+                            Cancelar
+                        </Button>
+                    </DialogClose>
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        :disabled="resetting"
+                        data-test="micro-reset-peak-confirm"
+                        @click="resetPeak"
+                    >
+                        Zerar maior saldo
                     </Button>
                 </DialogFooter>
             </DialogContent>
